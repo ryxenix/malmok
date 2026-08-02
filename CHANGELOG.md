@@ -5,6 +5,28 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.4.2] - 2026-08-03
+
+### Added
+
+- `docs/30-maintenance.md` §2.5, separating the three certificate expiry
+  thresholds into named roles: ① apply gate (per bundle, drives `PF-904`),
+  ② alert firing (per certificate series, cluster-wide), ③ report grading (per
+  contract). It also records why collapsing them into one number breaks
+  something either way — a 45-day report threshold lets a quarterly report ship
+  past an expiry, and a 90-day alert fires daily for three months until nobody
+  reads it. Roles ② and ③ still have no `ClusterSpec` fields; §2.5 marks that
+  explicitly, and `maintenance.thresholds` in §4.3 remains documentation rather
+  than schema.
+- Cross-references to §2.5 from `docs/20-cert.md` (`PF-904`),
+  `api/v1alpha1/gateway.go`, `internal/codes/preflight.go` and the DMZ example.
+
+### Changed
+
+- `BYOMaterial.ExpiryWarningDays` default 30 → 45, matching the series A first
+  alert step in §2.4. The value had disagreed with both documents since v0.1.
+- §2.4 and §4.3 headings now name which role they define.
+
 ## [0.4.1] - 2026-08-03
 
 ### Fixed

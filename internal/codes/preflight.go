@@ -444,8 +444,12 @@ var preflightCodes = []Code{
 	},
 	{
 		ID: "PF-904", Family: FamilyPreflight, Category: catCertificate,
-		Summary:  "Certificate is not expired or expiring",
-		Message:  "Certificate has expired, or expires within expiryWarningDays",
+		Summary: "Certificate is not expired or expiring",
+		Message: "Certificate has expired, or expires within expiryWarningDays",
+		// Severity is the worst case. CERT_EXPIRED blocks; CERT_EXPIRING is a
+		// warn, and its window is the bundle's own expiryWarningDays (45 by
+		// default) -- not the report grading threshold, which is contract-level
+		// and wider. See docs/30-maintenance.md §2.5.
 		Severity: SeverityBlock,
 		Reasons:  []string{"CERT_EXPIRED", "CERT_EXPIRING"},
 	},

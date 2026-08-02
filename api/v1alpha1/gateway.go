@@ -198,9 +198,23 @@ type BYOMaterial struct {
 	// "works in the browser, fails in Java" report. Default: true.
 	AutoOrderChain *bool `yaml:"autoOrderChain,omitempty" json:"autoOrderChain,omitempty"`
 
-	// ExpiryWarningDays drives the alert rule the engine installs. BYO
-	// certificates cannot be auto-renewed, so an unmonitored one WILL take the
-	// service down at expiry. Default: 30.
+	// ExpiryWarningDays is roles (1) and (2) of docs/30-maintenance.md §2.5: the
+	// PF-904 warn window when the bundle is applied, and the first alert step
+	// for this bundle once it is running. One bundle needs one "start telling me
+	// this many days out" value; there is no reason for those two to fire on
+	// different dates.
+	//
+	// It is NOT the report grading threshold. That one is contract-level
+	// (maintenance.thresholds, §4.3) and deliberately wider, because a quarterly
+	// report has to flag an expiry that falls before the next issue.
+	//
+	// Per bundle because reissue lead time is a property of the customer's
+	// purchasing process rather than of the cluster: two weeks at one site, two
+	// months at another, and 45 days is already too late for the latter.
+	//
+	// BYO certificates cannot be auto-renewed, so an unmonitored one WILL take
+	// the service down at expiry. Default: 45, matching the series A first alert
+	// step in §2.4.
 	ExpiryWarningDays int `yaml:"expiryWarningDays,omitempty" json:"expiryWarningDays,omitempty"`
 }
 

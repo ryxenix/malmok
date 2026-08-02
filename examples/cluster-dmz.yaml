@@ -131,7 +131,10 @@ gateway:
               chain: file://./certs/acme-chain.crt
               passphrase: env://KEY_PASSPHRASE   # 키에 암호 걸린 경우만
               autoOrderChain: true
-              expiryWarningDays: 45              # 자동 갱신 불가 → 알림 필수
+              # 적용 게이트(PF-904) 겸 이 번들의 첫 경보 시점. 기본값과 같지만
+              # 명시해 둔다 — 자동 갱신이 없으므로 재발급 리드타임에 맞춰
+              # 조정할 값이다. 보고서 판정 임계와는 별개 (30-maintenance §2.5)
+              expiryWarningDays: 45
 
     # --- 내부: 관리/운영 도메인. 자체 CA 발급 ---
     - name: internal

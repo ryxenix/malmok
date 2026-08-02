@@ -110,10 +110,10 @@ const (
 // ProxySpec values are injected into FOUR distinct consumers. Missing any one of
 // them produces a failure that is extremely hard to attribute in the field:
 //
-//	1. rke2-server / rke2-agent systemd unit environment
-//	2. containerd (image pull)
-//	3. helm / platformctl's own egress
-//	4. in-cluster workloads that egress (ArgoCD, cert-manager ACME)
+//  1. rke2-server / rke2-agent systemd unit environment
+//  2. containerd (image pull)
+//  3. helm / platformctl's own egress
+//  4. in-cluster workloads that egress (ArgoCD, cert-manager ACME)
 type ProxySpec struct {
 	HTTP    string   `yaml:"http,omitempty"    json:"http,omitempty"`
 	HTTPS   string   `yaml:"https,omitempty"   json:"https,omitempty"`
@@ -237,7 +237,7 @@ type OSSpec struct {
 	// immediately, so PF-501/502 are hard blockers.
 	NTPServers []string `yaml:"ntpServers,omitempty" json:"ntpServers,omitempty"`
 
-	DisableSwap  *bool `yaml:"disableSwap,omitempty"  json:"disableSwap,omitempty"`  // default true
+	DisableSwap    *bool `yaml:"disableSwap,omitempty"  json:"disableSwap,omitempty"`      // default true
 	ManageFirewall *bool `yaml:"manageFirewall,omitempty" json:"manageFirewall,omitempty"` // default true
 }
 
@@ -321,12 +321,12 @@ const (
 )
 
 type EtcdSpec struct {
-	SnapshotSchedule  string    `yaml:"snapshotSchedule,omitempty"  json:"snapshotSchedule,omitempty"`
-	SnapshotRetention int       `yaml:"snapshotRetention,omitempty" json:"snapshotRetention,omitempty"`
+	SnapshotSchedule  string `yaml:"snapshotSchedule,omitempty"  json:"snapshotSchedule,omitempty"`
+	SnapshotRetention int    `yaml:"snapshotRetention,omitempty" json:"snapshotRetention,omitempty"`
 	// SnapshotTarget: local path, NFS mount, or S3-compatible endpoint.
 	// A backup that has never been restore-tested is not a backup; the engine
 	// exposes `platformctl restore --dry-run` to force the rehearsal.
-	SnapshotTarget string `yaml:"snapshotTarget,omitempty" json:"snapshotTarget,omitempty"`
+	SnapshotTarget string  `yaml:"snapshotTarget,omitempty" json:"snapshotTarget,omitempty"`
 	S3             *S3Spec `yaml:"s3,omitempty" json:"s3,omitempty"`
 }
 
@@ -346,10 +346,10 @@ type S3Spec struct {
 type PKIMode string
 
 const (
-	PKIACMEDNS01  PKIMode = "acme-dns01"  // real LE wildcard (homelab / company)
+	PKIACMEDNS01  PKIMode = "acme-dns01" // real LE wildcard (homelab / company)
 	PKIACMEHTTP01 PKIMode = "acme-http01"
-	PKIPrivateCA  PKIMode = "private-ca"  // airgap: offline root, intermediate imported
-	PKIBYOCert    PKIMode = "byo-cert"    // customer supplies a cert bundle
+	PKIPrivateCA  PKIMode = "private-ca" // airgap: offline root, intermediate imported
+	PKIBYOCert    PKIMode = "byo-cert"   // customer supplies a cert bundle
 )
 
 type PKISpec struct {
@@ -364,10 +364,10 @@ type PKISpec struct {
 }
 
 type ACMESpec struct {
-	Email      string    `yaml:"email"                json:"email"`
-	Server     string    `yaml:"server,omitempty"     json:"server,omitempty"`
-	DNSProvider string   `yaml:"dnsProvider,omitempty" json:"dnsProvider,omitempty"` // e.g. cloudflare
-	APIToken   SourceRef `yaml:"apiToken,omitempty"   json:"apiToken,omitempty"`
+	Email       string    `yaml:"email"                json:"email"`
+	Server      string    `yaml:"server,omitempty"     json:"server,omitempty"`
+	DNSProvider string    `yaml:"dnsProvider,omitempty" json:"dnsProvider,omitempty"` // e.g. cloudflare
+	APIToken    SourceRef `yaml:"apiToken,omitempty"   json:"apiToken,omitempty"`
 }
 
 type PrivateCASpec struct {
@@ -458,9 +458,9 @@ type StorageSpec struct {
 }
 
 type LonghornSpec struct {
-	DataPath      string `yaml:"dataPath,omitempty"      json:"dataPath,omitempty"`
-	ReplicaCount  int    `yaml:"replicaCount,omitempty"  json:"replicaCount,omitempty"`
-	BackupTarget  string `yaml:"backupTarget,omitempty"  json:"backupTarget,omitempty"`
+	DataPath     string `yaml:"dataPath,omitempty"      json:"dataPath,omitempty"`
+	ReplicaCount int    `yaml:"replicaCount,omitempty"  json:"replicaCount,omitempty"`
+	BackupTarget string `yaml:"backupTarget,omitempty"  json:"backupTarget,omitempty"`
 }
 
 type NFSSpec struct {
@@ -501,8 +501,8 @@ type GitOpsSpec struct {
 }
 
 type ObservabilitySpec struct {
-	Enabled *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
-	Stack   string `yaml:"stack,omitempty"   json:"stack,omitempty"` // vm-loki-tempo
+	Enabled   *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Stack     string `yaml:"stack,omitempty"   json:"stack,omitempty"` // vm-loki-tempo
 	Retention string `yaml:"retention,omitempty" json:"retention,omitempty"`
 }
 

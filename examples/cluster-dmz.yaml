@@ -1,0 +1,183 @@
+# 예시: 고객사 DMZ 구축
+#   - 외부 공개 도메인은 고객사가 공인 인증서(.pfx)를 제공
+#   - 내부 관리 도메인은 자체 CA로 발급
+#   - DNS는 고객사 인프라팀이 등록 (도구는 요구서만 산출)
+#
+# 주목할 지점: pki.mode는 클러스터 기본값일 뿐이고, listener마다 tls.source로
+# 오버라이드한다. 단일 pki.mode로는 이 구성을 표현할 수 없다.
+
+apiVersion: platform.ryxen.dev/v1alpha1
+kind: ClusterSpec
+
+metadata:
+  name: acme-dmz
+  profile: onprem-dmz
+  annotations:
+    site: "ACME 본사 IDC"
+    contract: "2026-A-014"
+
+network:
+  mode: proxy
+  proxy:
+    http: http://proxy.acme.local:3128
+    https: http://proxy.acme.local:3128
+    noProxy: ["10.0.0.0/8", ".acme.internal", "10.42.0.0/16", "10.43.0.0/16"]
+  encryptNodeTraffic: true      # 노드가 DMZ/내부망을 걸치므로 WireGuard
+  routing: overlay              # 망 걸침 구성에서 native routing 금지
+
+topology:
+  registrationAddress: k8s-api.acme.internal
+  vip:
+    provider: kube-vip
+    address: 10.10.0.100
+    interface: auto
+  servers:
+    - host: 10.10.0.11
+      nodeIP: 10.10.0.11        # 다중 NIC이므로 명시 (PF-609)
+  agents:
+    - host: 10.10.20.21
+      nodeIP: 10.10.20.21
+      labels: { zone: dmz }
+    - host: 10.10.0.22
+      nodeIP: 10.10.0.22
+      labels: { zone: internal }
+  tlsSAN:                       # 2차 HA 승격분 사전 등록
+    - k8s-api.acme.internal
+    - 10.10.0.100
+    - 10.10.0.11
+    - 10.10.0.12
+    - 10.10.0.13
+
+os:
+  family: auto
+  varLibRancherDevice: /dev/mapper/vg0-rancher
+  ntpServers: ["10.10.0.5"]
+  hardening:
+    prepareCISPrerequisites: true   # 사전조건만. 활성화는 day-2
+    cisProfile: false
+
+kubernetes:
+  version: v1.34.5+rke2r1
+  dataplane:
+    preset: cilium-gw
+    fallback: canal-traefik
+    downgradePolicy: confirm        # 폐쇄망/고객사는 자동 강등 금지
+    loadBalancerPool:
+      - 10.10.20.240/29             # DMZ 세그먼트
+      - 10.10.0.240/29              # 내부 세그먼트
+  etcd:
+    snapshotSchedule: "0 */6 * * *"
+    snapshotRetention: 20
+    snapshotTarget: /mnt/backup/etcd
+
+pki:
+  mode: private-ca                  # 클러스터 기본값 (내부 서비스용)
+  domain: acme.internal
+  privateCA:
+    rootCert: file://./pki/acme-root.crt
+    intermediateCert: file://./pki/acme-inter.crt
+    intermediateKey: sops://secrets.enc.yaml#pki.intermediateKey
+  trustDistribution:
+    clusterBundle: true
+    nodeTrustStore: true
+    containerdRegistries: true      # 누락 시 이미지 pull 전면 실패
+
+registry:
+  mode: external
+  systemDefaultRegistry: harbor.acme.internal
+  username: env://REGISTRY_USER
+  password: sops://secrets.enc.yaml#registry.password
+  caCert: file://./pki/acme-root.crt
+
+storage:
+  driver: longhorn
+  defaultClass: true
+  longhorn:
+    replicaCount: 2
+    backupTarget: nfs://10.10.0.30/longhorn-backup
+
+ingress:
+  gatewayClass: cilium
+  domainSuffix: acme.internal
+
+  gateways:
+    # --- DMZ: 외부 공개. 고객사 제공 공인 인증서 ---
+    - name: public
+      namespace: gateway-system
+      zone: dmz
+      address: 10.10.20.241        # DNS 요구서 산출을 위해 사전 고정
+      routeNamespaces: selector
+      namespaceSelector:
+        platform.ryxen.dev/exposure: public
+      listeners:
+        - name: http
+          protocol: HTTP
+          port: 80
+          redirectToHTTPS: true
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: "*.svc.acme.co.kr"
+          tls:
+            source: byo             # ← 클러스터 pki.mode 오버라이드
+            secretRef: public-wildcard-tls
+            minVersion: TLS1.2
+            byo:
+              # 고객사가 유료 인증서를 PEM으로 전달.
+              # cert가 leaf만인지 fullchain인지는 케이스마다 다르므로
+              # chain은 선택. PF-902가 체인 완결성을 판정한다.
+              cert:  file://./certs/acme-wildcard.crt
+              key:   file://./certs/acme-wildcard.key
+              chain: file://./certs/acme-chain.crt
+              passphrase: env://KEY_PASSPHRASE   # 키에 암호 걸린 경우만
+              autoOrderChain: true
+              expiryWarningDays: 45              # 자동 갱신 불가 → 알림 필수
+
+    # --- 내부: 관리/운영 도메인. 자체 CA 발급 ---
+    - name: internal
+      namespace: gateway-system
+      zone: internal
+      address: 10.10.0.241
+      routeNamespaces: all
+      listeners:
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: "*.acme.internal"
+          tls:
+            source: private-ca      # cert-manager가 내부 issuer로 발급
+            secretRef: internal-wildcard-tls
+            # 운영 콘솔에 mTLS 요구가 들어오면 여기에 clientAuth 추가
+
+  dns:
+    # 레코드 등록은 고객사 수동 작업. 도구는 목록 산출 + 해석 확인만 한다.
+    emitRecordSheet: true           # out/dns-records.md — 고객사 전달용
+    verifyResolution: true          # 미등록 시 warn (설치 실패 아님)
+    corefileRewrite: true           # 클러스터 내부 hairpin 회피
+    extraRecords:
+      - fqdn: k8s-api.acme.internal
+        type: A
+        value: 10.10.0.100
+        zone: internal
+
+platform:
+  gitops:
+    enabled: true
+    source: oci                     # 폐쇄망에 Git 서버 불필요
+    ociRepo: harbor.acme.internal/charts
+    bootstrapApps: ["platform-base", "citation-service"]
+  observability:
+    enabled: true
+    stack: vm-loki-tempo
+    retention: 30d
+  secrets:
+    provider: sops-age
+    ageKey: env://SOPS_AGE_KEY
+  upgradeController:
+    enabled: true
+    requirePreSeededImages: true
+
+output:
+  auditReport: true
+  bundlePath: ./out
+  eventLog: ./out/events.jsonl

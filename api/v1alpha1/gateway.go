@@ -1,4 +1,8 @@
-// Package v1alpha1 — ingress layer.
+// Package v1alpha1 — gateway layer (Gateway API).
+//
+// This file models the Gateway API, NOT the deprecated Kubernetes Ingress
+// resource. Ingress is out of scope entirely: rke2-ingress-nginx reached EOL in
+// March 2026 and the engine disables it unconditionally (ADR-005).
 //
 // SCOPE BOUNDARY
 //
@@ -16,10 +20,10 @@
 package v1alpha1
 
 // ---------------------------------------------------------------------------
-// Ingress root
+// Gateway root
 // ---------------------------------------------------------------------------
 
-type IngressSpec struct {
+type GatewaySpec struct {
 	// GatewayClass is derived from dataplane.preset unless overridden:
 	//   cilium-gw       -> "cilium"
 	//   *-traefik       -> "traefik"
@@ -29,13 +33,13 @@ type IngressSpec struct {
 	// Example: "acme.internal" => app hostnames become "<app>.acme.internal".
 	DomainSuffix string `yaml:"domainSuffix" json:"domainSuffix"`
 
-	Gateways []GatewaySpec `yaml:"gateways" json:"gateways"`
+	Gateways []Gateway `yaml:"gateways" json:"gateways"`
 
 	DNS DNSSpec `yaml:"dns,omitempty" json:"dns,omitempty"`
 
 	// ContractConfigMap: name of the ConfigMap the engine writes so that
 	// application charts can discover gateway name/namespace/domain without
-	// hardcoding them. Default: "platform-ingress-contract" in every namespace
+	// hardcoding them. Default: "platform-gateway-contract" in every namespace
 	// listed in RouteNamespaces.
 	ContractConfigMap string `yaml:"contractConfigMap,omitempty" json:"contractConfigMap,omitempty"`
 }
@@ -44,7 +48,10 @@ type IngressSpec struct {
 // Gateway
 // ---------------------------------------------------------------------------
 
-type GatewaySpec struct {
+// Gateway describes one Gateway API Gateway resource. Named without a `Spec`
+// suffix because it is a list element of GatewaySpec.Gateways, not the top-level
+// specification itself.
+type Gateway struct {
 	Name      string `yaml:"name"                json:"name"`
 	Namespace string `yaml:"namespace,omitempty" json:"namespace,omitempty"` // default gateway-system
 
@@ -61,7 +68,7 @@ type GatewaySpec struct {
 	//   "same"     -> gateway namespace only
 	//   "all"      -> any namespace (convenient, weak isolation)
 	//   "selector" -> label selector (recommended for multi-tenant sites)
-	RouteNamespaces  string            `yaml:"routeNamespaces,omitempty"  json:"routeNamespaces,omitempty"`
+	RouteNamespaces   string            `yaml:"routeNamespaces,omitempty"  json:"routeNamespaces,omitempty"`
 	NamespaceSelector map[string]string `yaml:"namespaceSelector,omitempty" json:"namespaceSelector,omitempty"`
 
 	// Zone tags a gateway for split-horizon deployments, e.g. one gateway on
@@ -79,7 +86,10 @@ type ListenerProtocol string
 const (
 	ListenerHTTP  ListenerProtocol = "HTTP"
 	ListenerHTTPS ListenerProtocol = "HTTPS"
-	ListenerTLS   ListenerProtocol = "TLS" // passthrough
+	// ListenerTLSPassthrough is spelled out rather than "ListenerTLS" because
+	// that identifier is taken by the ListenerTLS config struct below. The wire
+	// value stays "TLS", so cluster.yaml is unaffected.
+	ListenerTLSPassthrough ListenerProtocol = "TLS" // passthrough
 )
 
 type ListenerSpec struct {
@@ -163,7 +173,7 @@ type BYOMaterial struct {
 	//   (c) leaf only, chain never delivered at all
 	// The engine accepts Cert as either (a) or (b) and treats Chain as additive.
 	// Case (c) is caught by PF-902, not at runtime by a confused Java client.
-	Cert  SourceRef `yaml:"cert,omitempty"  json:"cert,omitempty"`  // leaf or fullchain
+	Cert  SourceRef `yaml:"cert,omitempty"  json:"cert,omitempty"` // leaf or fullchain
 	Key   SourceRef `yaml:"key,omitempty"   json:"key,omitempty"`
 	Chain SourceRef `yaml:"chain,omitempty" json:"chain,omitempty"` // intermediates, optional
 

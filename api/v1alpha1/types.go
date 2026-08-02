@@ -37,8 +37,12 @@ type ClusterSpec struct {
 	PKI        PKISpec        `yaml:"pki"        json:"pki"`
 	Registry   RegistrySpec   `yaml:"registry"   json:"registry"`
 	Storage    StorageSpec    `yaml:"storage"    json:"storage"`
-	Platform   PlatformSpec   `yaml:"platform"   json:"platform"`
-	Output     OutputSpec     `yaml:"output"     json:"output"`
+	// Gateway is the Gateway API layer (GatewayClass / Gateway / listener / TLS
+	// / DNS), defined in gateway.go. HTTPRoute is deliberately absent — routes
+	// are the application chart's responsibility (ADR-006).
+	Gateway  GatewaySpec  `yaml:"gateway"  json:"gateway"`
+	Platform PlatformSpec `yaml:"platform" json:"platform"`
+	Output   OutputSpec   `yaml:"output"   json:"output"`
 }
 
 type Metadata struct {

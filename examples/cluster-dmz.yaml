@@ -96,7 +96,7 @@ storage:
     replicaCount: 2
     backupTarget: nfs://10.10.0.30/longhorn-backup
 
-ingress:
+gateway:
   gatewayClass: cilium
   domainSuffix: acme.internal
 

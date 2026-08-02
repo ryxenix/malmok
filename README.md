@@ -18,7 +18,7 @@ docs/
 └── 30-maintenance.md        인증서 수명 관리, 정기 점검, 보고서
 api/v1alpha1/                스키마 = 단일 원천. 주석이 명세다
 ├── types.go                 ClusterSpec
-└── ingress.go               IngressSpec (gateway / listener / TLS / DNS)
+└── gateway.go               GatewaySpec (gateway / listener / TLS / DNS)
 examples/
 └── cluster-dmz.yaml         DMZ 고객사 예시 (혼합 TLS 소스)
 ```

@@ -52,6 +52,66 @@ func TestPreflightInventory(t *testing.T) {
 	assertSameSet(t, "PF", want, got)
 }
 
+// TestOtherInventories pins the remaining three families for the same reason
+// as TestPreflightInventory.
+func TestOtherInventories(t *testing.T) {
+	tests := []struct {
+		family Family
+		want   []string
+	}{
+		{
+			family: FamilyVerification,
+			want: []string{
+				"PV-001", "PV-002", "PV-003", "PV-004",
+				"PV-005", "PV-006", "PV-007", "PV-008",
+			},
+		},
+		{
+			family: FamilyMaintenance,
+			want: []string{
+				// certificates: series A, B, C, D
+				"MC-101", "MC-102", "MC-111", "MC-112", "MC-113", "MC-121", "MC-131",
+				// cluster state
+				"MC-201", "MC-202", "MC-203", "MC-204", "MC-205", "MC-206",
+				// etcd
+				"MC-301", "MC-302", "MC-303", "MC-304", "MC-305", "MC-306",
+				// resources / storage
+				"MC-401", "MC-402", "MC-403", "MC-404", "MC-405", "MC-406", "MC-407",
+				// network / access
+				"MC-501", "MC-502", "MC-503", "MC-504", "MC-505", "MC-506",
+				// workload / service
+				"MC-601", "MC-602", "MC-603", "MC-604", "MC-605",
+				// security / configuration
+				"MC-701", "MC-702", "MC-703", "MC-704", "MC-705",
+			},
+		},
+		{
+			family: FamilyDowngrade,
+			want:   []string{"DG-001", "DG-002", "DG-003", "DG-010", "DG-020"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(string(tc.family), func(t *testing.T) {
+			var got []string
+			for _, c := range ByFamily(tc.family) {
+				got = append(got, c.ID)
+			}
+			assertSameSet(t, string(tc.family), tc.want, got)
+		})
+	}
+}
+
+// TestTotalInventory pins the overall count against the collection pass over
+// the three design documents: 121 codes were defined there, PF-908 was
+// referenced without a definition and became PF-612, so the registry holds 122.
+func TestTotalInventory(t *testing.T) {
+	const want = 122
+	if got := len(All()); got != want {
+		t.Errorf("registry holds %d codes, want %d", got, want)
+	}
+}
+
 // TestNoDanglingReferences walks the repository and fails on any code cited in
 // Go source or example YAML that the registry does not define. This is what
 // surfaced PF-908, which the schema referenced for a while with no definition

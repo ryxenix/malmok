@@ -10,15 +10,24 @@ RKE2 기반 플랫폼 구축·운영 자동화 도구.
 
 ```
 CLAUDE.md                    세션 규약. 절대 금지 목록, 스택, 불변식, 문서 라우팅
+CHANGELOG.md
 docs/
 ├── 00-architecture.md       ADR 10건, 레이어 분해, Tier 제도, 로드맵
 ├── 10-preflight-plan.md     프로브 카탈로그, 강등 결정 트리
 ├── 11-execute.md            [미작성] phase / 멱등 / 재개 / 이벤트 스키마
 ├── 20-cert.md               인증서 라이프사이클 (조립·검증·갱신)
-└── 30-maintenance.md        인증서 수명 관리, 정기 점검, 보고서
+├── 30-maintenance.md        인증서 수명 관리, 정기 점검, 보고서
+└── 99-codes.md              [생성물] 진단 코드 레지스트리. 손으로 고치지 말 것
 api/v1alpha1/                스키마 = 단일 원천. 주석이 명세다
 ├── types.go                 ClusterSpec
 └── gateway.go               GatewaySpec (gateway / listener / TLS / DNS)
+internal/codes/              진단 코드 단일 원천. 122건
+├── codes.go                 타입 · 레지스트리 · 검증
+├── preflight.go             PF 67
+├── verify.go                PV 8
+├── maintenance.go           MC 42
+├── downgrade.go             DG 5
+└── gen/                     go generate → docs/99-codes.md
 examples/
 └── cluster-dmz.yaml         DMZ 고객사 예시 (혼합 TLS 소스)
 ```
@@ -37,14 +46,15 @@ examples/
 | 항목 | 내용 |
 |---|---|
 | `docs/11-execute.md` | phase 정의, 멱등성 계약, 재개 모델, JSONL 이벤트 스키마 |
-| `internal/codes/` | 흩어진 `PF-`/`PV-`/`MC-`/`DG-` 코드를 수집·정규화. **번호 충돌 확인 필요** |
 | WP 문서 §7 수용 기준 | 기존 문서를 테스트 가능한 형태로 보강 |
 | L0/L1 Ansible 롤 | |
 | CI 매트릭스 (T1 6종) | libvirt VM, airgap 은 default route 제거로 실제 격리 |
 
-`internal/codes/` 수집이 첫 작업으로 적합하다. 기존 3개 문서를 스캔해 코드를
-추출·정규화하는 작업이고, 이 과정에서 번호 충돌(특히 `PF-8xx` 와 `PF-9xx` 경계)이
-드러난다.
+`internal/codes/` 수집은 완료됐다 (v0.3.0 / v0.4.0). 같은 번호를 두 뜻으로 쓴
+중복은 없었고, 실제로 드러난 것은 `PF-8xx`↔`PF-9xx` 번호 충돌이 아니라 **블록
+귀속 문제**였다 — `docs/20-cert.md` 가 `PF-9xx` 를 인증서 자재 검증용으로 선언한
+상태에서 스키마가 정의 없는 `PF-908` 을 "게이트웨이 외부 IP 미고정" 뜻으로
+참조하고 있었다. `PF-612` 로 옮겼다. 자세한 내용은 CHANGELOG 참조.
 
 ## 미결 사항
 

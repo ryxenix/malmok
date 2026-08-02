@@ -17,6 +17,8 @@
 // written in Korean breaks grep and issue-tracker search.
 package codes
 
+//go:generate go run ./gen -out ../../docs/99-codes.md
+
 import (
 	"fmt"
 	"regexp"
@@ -162,6 +164,9 @@ var initErrs []error
 func init() {
 	sources = [][]Code{
 		preflightCodes,
+		verificationCodes,
+		maintenanceCodes,
+		downgradeCodes,
 	}
 	for _, group := range sources {
 		for _, c := range group {

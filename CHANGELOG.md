@@ -5,6 +5,24 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.4.0] - 2026-08-03
+
+### Added
+
+- `internal/codes` completed: 8 `PV` post-apply verification codes from
+  `docs/20-cert.md` §6.5, 42 `MC` maintenance checks from
+  `docs/30-maintenance.md` §3, and 5 `DG` downgrade reasons. 122 codes in total.
+- `internal/codes/gen` and `go generate ./internal/codes/`, rendering
+  `docs/99-codes.md`. The document is an artifact and carries a do-not-edit
+  banner; a test diffs it against the registry so it cannot rot unnoticed.
+- Inventory tests pinning every family's exact code set, plus determinism and
+  banner tests for the generator.
+
+### Changed
+
+- `CLAUDE.md` now names the generated registry path and states that retired
+  numbers are never reused.
+
 ## [0.3.0] - 2026-08-03
 
 ### Added

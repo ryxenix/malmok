@@ -58,7 +58,7 @@ type Gateway struct {
 	// Address pins the external IP. Leaving this empty lets LB-IPAM allocate
 	// from loadBalancerPool, which is fine in a homelab but unacceptable at a
 	// customer site: the DNS record must be requested BEFORE install, so the IP
-	// has to be decided up front. PF-908 warns when a customer-facing profile
+	// has to be decided up front. PF-612 warns when a customer-facing profile
 	// omits this.
 	Address string `yaml:"address,omitempty" json:"address,omitempty"`
 

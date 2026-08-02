@@ -450,8 +450,9 @@ type StorageSpec struct {
 	Driver       StorageDriver `yaml:"driver"                 json:"driver"`
 	DefaultClass *bool         `yaml:"defaultClass,omitempty" json:"defaultClass,omitempty"`
 
-	// Longhorn prerequisites are checked by PF-403/404. multipathd claiming
-	// Longhorn devices is a well-known and confusing failure mode.
+	// Longhorn prerequisites are checked by PF-404 (iscsid) and PF-405 (NFS
+	// client). PF-406 covers multipathd claiming Longhorn devices, a well-known
+	// and confusing failure mode.
 	Longhorn *LonghornSpec `yaml:"longhorn,omitempty" json:"longhorn,omitempty"`
 	NFS      *NFSSpec      `yaml:"nfs,omitempty"      json:"nfs,omitempty"`
 }

@@ -16,6 +16,10 @@ schema changes land in MINOR releases rather than MAJOR ones.
 - `ProfileCustom` sat inside the const block labelled "Tier-1 profiles" while
   being Tier-3 by its own definition. Moved out, so that "every constant in
   that block has a CI lane" — which the release gate depends on — is true.
+- `CLAUDE.md` pointed the JSONL event schema at `docs/90-events.md` while its
+  own routing table and the README pointed at `docs/11-execute.md`. Both
+  documents were unwritten, so the split was settled by decision:
+  `docs/11-execute.md` owns the event schema and `90-events.md` will not exist.
 
 ### Changed
 

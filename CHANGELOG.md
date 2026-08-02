@@ -5,6 +5,24 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.4.1] - 2026-08-03
+
+### Fixed
+
+- `docs/00-architecture.md` §1.1 and §1.2 named `preflight-probes.md`,
+  `cert-bundle.md` and `day2-maintenance.md`, which had been renamed to the
+  numbered scheme before v0.1 was packaged. §1.1 also gains `internal/codes`
+  and `99-codes.md`, the two sources of truth it was missing.
+- `ProfileCustom` sat inside the const block labelled "Tier-1 profiles" while
+  being Tier-3 by its own definition. Moved out, so that "every constant in
+  that block has a CI lane" — which the release gate depends on — is true.
+
+### Changed
+
+- `gofmt` applied to `api/v1alpha1/types.go`: whitespace only, seven
+  pre-existing misalignments. The repository is now `gofmt` clean, which
+  matters as of v0.3.0 when `go.mod` landed.
+
 ## [0.4.0] - 2026-08-03
 
 ### Added

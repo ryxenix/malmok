@@ -66,8 +66,13 @@ const (
 	ProfileAirgapUbuntu       ProfileName = "airgap-ubuntu"
 	ProfileAirgapRocky        ProfileName = "airgap-rocky"
 	ProfileAirgapConservative ProfileName = "airgap-conservative"
-	ProfileCustom             ProfileName = "custom"
 )
+
+// ProfileCustom is Tier-3: unvalidated, never exercised by CI, and accepted
+// only after an explicit acknowledgement during plan approval. It is kept out
+// of the block above so that "every constant here has a CI lane" stays true —
+// the release gate reads that list.
+const ProfileCustom ProfileName = "custom"
 
 // ---------------------------------------------------------------------------
 // Network

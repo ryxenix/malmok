@@ -16,6 +16,7 @@ import (
 type tuiFlags struct {
 	enabled bool
 	ascii   bool
+	mono    bool
 	lang    string
 }
 
@@ -24,9 +25,10 @@ func (f *tuiFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.enabled, "tui", false, "draw a full-screen view instead of streaming lines")
 	fl.BoolVar(&f.ascii, "ascii", false, "force the ASCII character set (default: auto-detect)")
 	fl.StringVar(&f.lang, "lang", "en", "screen language: en | ko")
+	fl.BoolVar(&f.mono, "mono", false, "drop colour (NO_COLOR is honoured too)")
 }
 
-func (f *tuiFlags) screen(ctx context.Context, runID string, mode tui.Mode) (*tui.Screen, error) {
+func (f *tuiFlags) screen(ctx context.Context, runID string, preflight, install tui.Work) (*tui.Screen, error) {
 	ascii := f.ascii
 	if !ascii {
 		ascii = tui.DetectASCII(os.Getenv)
@@ -36,7 +38,8 @@ func (f *tuiFlags) screen(ctx context.Context, runID string, mode tui.Mode) (*tu
 		return nil, fmt.Errorf("unknown --lang %q: want en or ko", f.lang)
 	}
 	return tui.NewScreen(ctx, tui.Options{
-		RunID: runID, Mode: mode, ASCII: ascii, Lang: lang,
+		RunID: runID, ASCII: ascii, Mono: f.mono || os.Getenv("NO_COLOR") != "",
+		Lang: lang, Preflight: preflight, Install: install,
 	})
 }
 
@@ -46,36 +49,19 @@ func (f *tuiFlags) screen(ctx context.Context, runID string, mode tui.Mode) (*tu
 // The screen is a consumer of the event file, exactly like `attach` from
 // another terminal. Nothing renders from engine state directly, which is what
 // keeps ADR-002 true in practice rather than only in the architecture test.
-func runWithScreen(
-	ctx context.Context,
-	screen *tui.Screen,
-	path, runID string,
-	work func(context.Context) error,
-) error {
+func runWithScreen(ctx context.Context, screen *tui.Screen, path, runID string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// The screen renders the event file, exactly as `attach` does from another
+	// terminal. Nothing is drawn from engine state directly, which is what
+	// keeps ADR-002 true in practice rather than only in the architecture test.
+	screen.Sink().SetWorkContext(ctx)
 
 	follower := &attach.Follower{Path: path, Run: runID, PollInterval: pollInterval}
 	go func() { _ = follower.Follow(ctx, screen.Sink()) }()
 
-	workErr := make(chan error, 1)
-	go func() {
-		err := work(ctx)
-		// Let the last events reach the screen before it closes; otherwise the
-		// final phase transition is drawn after the terminal is restored, which
-		// looks like the run ended one step early.
-		drain(ctx)
-		workErr <- err
-		screen.Quit()
-	}()
-
-	if err := screen.Run(); err != nil {
-		cancel()
-		return err
-	}
-	// The operator quit first: cancel the work and take whatever it reports.
-	cancel()
-	return <-workErr
+	return screen.Run()
 }
 
 // pollInterval is how often a follower looks for new events while a screen is

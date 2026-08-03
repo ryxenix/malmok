@@ -5,6 +5,36 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.13.0] - 2026-08-03
+
+### Changed
+
+- **BREAKING (screen)** `--tui` is now an interactive installer rather than a
+  progress display. Eight steps with a rail down the left, a wide content pane
+  and primary/secondary buttons bottom right — the layout of a graphical OS
+  installer, rendered in cells. Language, nodes, profile, options, checks,
+  summary, install, finished.
+- Checks and Install really run the engine, through one runner and one state
+  file, so resume treats the whole wizard as a single run. Node details entered
+  on screen reach the run; profile, dataplane and storage are recorded in the
+  summary and marked on screen as not yet consumed, because the cluster.yaml
+  loader and profile defaults do not exist yet.
+- `lipgloss/v2` and `huh/v2` replace the v1 packages, which pin an `x/cellbuf`
+  that does not compile against Bubble Tea v2's `x/ansi`.
+
+### Fixed
+
+- Continue on the Checks screen re-ran the checks instead of moving on, so the
+  wizard could never be finished. Continue and Retry are separate actions now.
+- Tab then Enter quit the installer: button focus started at index zero, which
+  is Quit on the first screen. Every step preselects its primary action, as a
+  graphical installer does.
+- Space did nothing. Bubble Tea v2 reports the key as `"space"`, not `" "`.
+- Help text overflowed the pane. It is prose in a catalogue, and a translator
+  cannot know the column count — Korean is about twice as wide per character —
+  so it is wrapped at render time by cell width.
+- The rail divider drew a horizontal rule; `Glyphs` had no vertical one.
+
 ## [0.12.0] - 2026-08-03
 
 ### Added

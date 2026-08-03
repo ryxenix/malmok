@@ -30,18 +30,19 @@ type Glyphs struct {
 
 	BarFull  string
 	BarEmpty string
-	Rule     string
+	Rule     string // horizontal
+	VRule    string // vertical, for the column between rail and content
 	Dot      string
 }
 
 var unicodeGlyphs = Glyphs{
 	OK: "✓", Running: "▸", Failed: "✗", Skipped: "–", Pending: " ", Warn: "!",
-	BarFull: "█", BarEmpty: "░", Rule: "─", Dot: "·",
+	BarFull: "█", BarEmpty: "░", Rule: "─", VRule: "│", Dot: "·",
 }
 
 var asciiGlyphs = Glyphs{
 	OK: "+", Running: ">", Failed: "x", Skipped: "-", Pending: " ", Warn: "!",
-	BarFull: "#", BarEmpty: ".", Rule: "-", Dot: "-",
+	BarFull: "#", BarEmpty: ".", Rule: "-", VRule: "|", Dot: "-",
 }
 
 // GlyphsFor picks a set. ascii forces the fallback.

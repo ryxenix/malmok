@@ -14,7 +14,6 @@ import (
 
 	"platform.ryxen.dev/platformctl/internal/attach"
 	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/tui"
 )
 
 func newAttachCmd() *cobra.Command {
@@ -63,21 +62,13 @@ docs/11-execute.md §1.2.`,
 			defer stop()
 
 			if screen.enabled {
-				// Observer mode: the engine is another process, so quitting
-				// leaves it running and `d` says so explicitly.
-				sc, err := screen.screen(ctx, run, tui.ModeObserver)
+				// Watching a run somebody else started: no work to drive, so
+				// the wizard opens straight on the progress screen.
+				sc, err := screen.screen(ctx, run, nil, nil)
 				if err != nil {
 					return err
 				}
-				f := &attach.Follower{Path: path, Run: run, PollInterval: pollInterval}
-				go func() { _ = f.Follow(ctx, sc.Sink()) }()
-				if err := sc.Run(); err != nil {
-					return err
-				}
-				if sc.Detached() {
-					fmt.Fprintln(cmd.ErrOrStderr(), "detached; the engine keeps running")
-				}
-				return nil
+				return runWithScreen(ctx, sc, path, run)
 			}
 
 			sink, finish, err := newSink(cmd.OutOrStdout(), output, verbose)

@@ -70,3 +70,50 @@ func spread(left, right string, n int) string {
 	}
 	return left + strings.Repeat(" ", gap) + right
 }
+
+// wrapCells breaks s into lines of at most n columns, on word boundaries.
+//
+// Help text is written as prose in the catalogue, and a translator has no way
+// to know how many columns a sentence will occupy — Korean is roughly twice as
+// wide per character as English, so any hand-wrapped catalogue would be wrong
+// in one language or the other.
+func wrapCells(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	var (
+		out  []string
+		line strings.Builder
+		w    int
+	)
+	flush := func() {
+		if line.Len() > 0 {
+			out = append(out, line.String())
+			line.Reset()
+			w = 0
+		}
+	}
+
+	for _, para := range strings.Split(s, "\n") {
+		for _, word := range strings.Fields(para) {
+			ww := cells(word)
+			switch {
+			case ww > n: // a single word longer than the line
+				flush()
+				out = append(out, truncCells(word, n))
+			case w == 0:
+				line.WriteString(word)
+				w = ww
+			case w+1+ww <= n:
+				line.WriteString(" " + word)
+				w += 1 + ww
+			default:
+				flush()
+				line.WriteString(word)
+				w = ww
+			}
+		}
+		flush()
+	}
+	return strings.Join(out, "\n")
+}

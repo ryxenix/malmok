@@ -1,13 +1,62 @@
 # TUI string catalogue. English is the default (ADR-009).
-# Codes such as PF-204 are identifiers, never translated, and never appear here.
-header:
-  running: installing
-  done: complete
-  failed: halted
-  cancelled: cancelled
-column:
-  phase: PHASE
-  status: STATUS
+# Diagnostic codes such as PF-204 are identifiers and never appear here.
+app:
+  title: platformctl installer
+step:
+  lang: Language
+  nodes: Nodes
+  profile: Profile
+  options: Options
+  preflight: Checks
+  summary: Summary
+  install: Install
+  done: Finished
+lang:
+  heading: Language
+  help: Choose the language for this installer. It does not change log output, which is always English.
+nodes:
+  heading: Node details
+  help: "Enter the nodes to install on. Separate agents with commas."
+  server: Server IP
+  agents: Agent IPs
+  user: SSH user
+  port: SSH port
+profile:
+  heading: Profile
+  help: Pick the environment. The profile decides the validated baseline; every other setting is an override.
+  homelab: single node, online, local-path
+  company: 1+2, online, longhorn
+  dmz: 1+2, proxy, private CA
+  airgap_ubuntu: 1+2, air-gapped, private CA
+  airgap_rocky: Rocky 9, air-gapped, private CA
+  airgap_cons: Rocky 9, air-gapped, canal fallback
+options:
+  heading: Platform options
+  help: The dataplane binds CNI, gateway and load balancer IP as one choice; they are not independent.
+  dataplane: Dataplane
+  storage: Storage
+dp:
+  cilium_gw: Cilium CNI and gateway, LB-IPAM
+  cilium_traefik: Cilium CNI, Traefik gateway
+  canal: Canal and Traefik, no eBPF required
+st:
+  local: single node only
+  longhorn: replicated, needs iscsid
+  nfs: external server
+preflight:
+  heading: Preflight checks
+summary:
+  heading: Summary
+  help: Review before anything is changed. Nothing has been written to a node yet.
+  warnings: findings from preflight
+install:
+  heading: Installing
+done:
+  heading: Finished
+  ok: Installation complete
+  failed: Installation stopped
+  artifacts: Run directory
+  resume: Fix the cause and resume with the same run id; completed steps are not repeated.
 status:
   pending: waiting
   running: running
@@ -15,18 +64,24 @@ status:
   skipped: skipped
   failed: failed
   blocked: blocked
-section:
-  log: LOG
-  failures: FAILURES
-  nothing: waiting for the first event
+btn:
+  next: Continue
+  back: Back
+  quit: Quit
+  abort: Abort
+  check: Retry checks
+  install: Install
+  logs: Logs
+  close: Close
 key:
-  detach: detach
-  quit_observer: quit (engine keeps running)
-  quit_owner: abort the run
-  logs: all logs
-  language: 한국어
-  ascii: ascii
   retry: retry
 hint:
-  narrow: terminal is narrower than 80 columns; some columns are truncated
-  detached: "detached. reattach with platformctl attach"
+  select: Up and down to move, Enter to choose, Tab for the buttons
+  edit: Enter to edit the field, Tab for the buttons
+  editing: Typing. Enter or Esc to finish
+  install: Continue writes to the nodes
+  working: Working
+  finished: Finished
+  close: Enter to close
+note:
+  unwired: Recorded in the summary; the engine does not consume it yet

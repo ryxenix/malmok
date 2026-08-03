@@ -93,15 +93,27 @@ starting over. See docs/11-execute.md.`,
 			phases := demo.Phases(opts)
 
 			if screen.enabled {
-				// Owner mode: the engine lives in this process, so quitting the
-				// screen aborts the run and the footer says so.
-				sc, err := screen.screen(ctx, st.Run, tui.ModeOwner)
+				// The wizard drives the work: preflight first so its findings
+				// can be reviewed, then the remaining phases. Both go through
+				// the same runner and state file, so resume treats them as one
+				// run.
+				preflight := func(c context.Context, _ tui.Config) error {
+					return runner.Run(c, phases[:1])
+				}
+				install := func(c context.Context, _ tui.Config) error {
+					return runner.Run(c, phases[1:])
+				}
+				sc, err := screen.screen(ctx, st.Run, preflight, install)
 				if err != nil {
 					return err
 				}
-				return runWithScreen(ctx, sc, eventPath, st.Run, func(c context.Context) error {
-					return runner.Run(c, phases)
-				})
+				if err := runWithScreen(ctx, sc, eventPath, st.Run); err != nil {
+					return err
+				}
+				if sc.Aborted() {
+					return errors.New("aborted")
+				}
+				return nil
 			}
 
 			// Render as we go. The renderer is a consumer of the stream, never a

@@ -14,6 +14,7 @@ import (
 
 	"platform.ryxen.dev/platformctl/internal/attach"
 	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/platformctl/internal/tui"
 )
 
 func newAttachCmd() *cobra.Command {
@@ -24,6 +25,7 @@ func newAttachCmd() *cobra.Command {
 		follow  bool
 		verbose bool
 		output  string
+		screen  tuiFlags
 	)
 
 	cmd := &cobra.Command{
@@ -57,13 +59,31 @@ docs/11-execute.md §1.2.`,
 				}
 			}
 
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			if screen.enabled {
+				// Observer mode: the engine is another process, so quitting
+				// leaves it running and `d` says so explicitly.
+				sc, err := screen.screen(ctx, run, tui.ModeObserver)
+				if err != nil {
+					return err
+				}
+				f := &attach.Follower{Path: path, Run: run, PollInterval: pollInterval}
+				go func() { _ = f.Follow(ctx, sc.Sink()) }()
+				if err := sc.Run(); err != nil {
+					return err
+				}
+				if sc.Detached() {
+					fmt.Fprintln(cmd.ErrOrStderr(), "detached; the engine keeps running")
+				}
+				return nil
+			}
+
 			sink, finish, err := newSink(cmd.OutOrStdout(), output, verbose)
 			if err != nil {
 				return err
 			}
-
-			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-			defer stop()
 
 			f := &attach.Follower{Path: path, Run: run, StopOnRunEnd: true}
 			if !follow {
@@ -92,6 +112,7 @@ docs/11-execute.md §1.2.`,
 	fl.BoolVar(&follow, "follow", true, "keep following after the current end of file")
 	fl.BoolVarP(&verbose, "verbose", "v", false, "include log lines")
 	fl.StringVarP(&output, "output", "o", "text", "output format: text | json")
+	screen.register(cmd)
 
 	return cmd
 }

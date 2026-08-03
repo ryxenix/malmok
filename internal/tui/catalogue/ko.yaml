@@ -1,0 +1,31 @@
+# TUI 문자열 카탈로그. 코드(PF-204 등)는 식별자라 번역 대상이 아니며 여기 없다.
+header:
+  running: 설치 중
+  done: 완료
+  failed: 중단됨
+  cancelled: 취소됨
+column:
+  phase: PHASE
+  status: 상태
+status:
+  pending: 대기
+  running: 진행중
+  ok: 완료
+  skipped: 건너뜀
+  failed: 실패
+  blocked: 차단
+section:
+  log: 로그
+  failures: 실패
+  nothing: 첫 이벤트 대기 중
+key:
+  detach: 분리
+  quit_observer: 종료(엔진은 계속)
+  quit_owner: 설치 중단
+  logs: 로그전체
+  language: English
+  ascii: ascii
+  retry: 재시도
+hint:
+  narrow: 터미널 폭이 80칸 미만입니다. 일부 열이 잘립니다
+  detached: "분리했습니다. 다시 붙으려면 platformctl attach"

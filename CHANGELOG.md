@@ -5,6 +5,37 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.12.0] - 2026-08-03
+
+### Added
+
+- `internal/tui` and `--tui` on both `apply` and `attach`: the full-screen
+  view, in the structured-plain idiom. Phase tree, live progress, retry
+  counter, log pane and failure list, all derived from the event stream. The
+  engine does not know it exists.
+- Two modes, because quitting is not the same question in both places.
+  `apply --tui` owns the engine, so `q` aborts the run and the footer says so;
+  `attach --tui` observes one elsewhere, so `d` detaches and the engine keeps
+  running.
+- Screen strings live in `internal/tui/catalogue/{en,ko}.yaml`, embedded in the
+  binary. English default with a `g` toggle (ADR-009). A test asserts both
+  catalogues define the same keys, so toggling cannot replace words with raw
+  key names, and that no entry embeds a diagnostic code.
+- ASCII fallback with auto-detection and `--ascii`. Serial consoles, IPMI
+  viewers and PuTTY with the wrong codepage are where somebody is sitting when
+  an install is going badly, and a status column of mojibake is worse than one
+  of plain ASCII. The layout is identical in both sets.
+
+### Changed
+
+- Layout measures terminal cells rather than runes. A Korean glyph is two
+  columns wide, so rune-based padding lays out correctly in English and wrecks
+  every column in Korean — which would have made the language toggle a promise
+  the layout could not keep. Tests assert no line exceeds the terminal width
+  and the status column aligns in both languages.
+- `lipgloss` was dropped for `x/ansi`, which Bubble Tea v2 already uses.
+  lipgloss v1 pins an `x/cellbuf` that does not compile against v2's `x/ansi`.
+
 ## [0.11.0] - 2026-08-03
 
 ### Added

@@ -18,6 +18,7 @@ import (
 	"platform.ryxen.dev/platformctl/internal/engine"
 	"platform.ryxen.dev/platformctl/internal/event"
 	"platform.ryxen.dev/platformctl/internal/state"
+	"platform.ryxen.dev/platformctl/internal/tui"
 )
 
 func newApplyCmd() *cobra.Command {
@@ -32,6 +33,7 @@ func newApplyCmd() *cobra.Command {
 		resume   string
 		quiet    bool
 		verbose  bool
+		screen   tuiFlags
 	)
 
 	cmd := &cobra.Command{
@@ -87,6 +89,21 @@ starting over. See docs/11-execute.md.`,
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
+			eventPath := filepath.Join(runDir, "events.jsonl")
+			phases := demo.Phases(opts)
+
+			if screen.enabled {
+				// Owner mode: the engine lives in this process, so quitting the
+				// screen aborts the run and the footer says so.
+				sc, err := screen.screen(ctx, st.Run, tui.ModeOwner)
+				if err != nil {
+					return err
+				}
+				return runWithScreen(ctx, sc, eventPath, st.Run, func(c context.Context) error {
+					return runner.Run(c, phases)
+				})
+			}
+
 			// Render as we go. The renderer is a consumer of the stream, never a
 			// participant: the same file drives `attach` from another terminal,
 			// and the run survives this process losing its terminal.
@@ -103,8 +120,8 @@ starting over. See docs/11-execute.md.`,
 
 			fmt.Fprintf(cmd.ErrOrStderr(), "run %s\n  %s\n\n", st.Run, runDir)
 
-			done := followRun(ctx, filepath.Join(runDir, "events.jsonl"), st.Run, sink)
-			runErr := runner.Run(ctx, demo.Phases(opts))
+			done := followRun(ctx, eventPath, st.Run, sink)
+			runErr := runner.Run(ctx, phases)
 			<-done
 
 			return runErr
@@ -122,6 +139,7 @@ starting over. See docs/11-execute.md.`,
 	fl.StringVar(&resume, "resume", "", "resume the run with this id")
 	fl.BoolVar(&quiet, "quiet", false, "emit events to the file only")
 	fl.BoolVarP(&verbose, "verbose", "v", false, "include log lines")
+	screen.register(cmd)
 
 	return cmd
 }

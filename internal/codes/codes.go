@@ -1,6 +1,6 @@
 // Package codes is the single source of truth for platformctl's diagnostic
-// codes: preflight probes (PF), post-apply verification (PV), maintenance
-// checks (MC) and downgrade reasons (DG).
+// codes: preflight probes (PF), post-apply verification (PV), execution
+// failures (EX), maintenance checks (MC) and downgrade reasons (DG).
 //
 // WHY THIS IS CODE AND NOT A MARKDOWN TABLE
 //
@@ -48,10 +48,13 @@ const (
 	// FamilyDowngrade covers reasons a requested configuration was replaced by
 	// a lesser one. See docs/10-preflight-plan.md.
 	FamilyDowngrade Family = "DG"
+	// FamilyExecution covers failures of the phase runner itself. See
+	// docs/11-execute.md §6 and internal/codes/execution.go.
+	FamilyExecution Family = "EX"
 )
 
 // Families lists every family in registry display order.
-var Families = []Family{FamilyPreflight, FamilyVerification, FamilyMaintenance, FamilyDowngrade}
+var Families = []Family{FamilyPreflight, FamilyVerification, FamilyExecution, FamilyMaintenance, FamilyDowngrade}
 
 func (f Family) String() string { return string(f) }
 
@@ -59,8 +62,8 @@ func (f Family) String() string { return string(f) }
 // Severity
 // ---------------------------------------------------------------------------
 
-// Severity drives what the plan generator does when a code fires. It applies to
-// PF and PV only.
+// Severity drives what the plan generator or the runner does when a code fires.
+// It applies to PF, PV and EX only.
 //
 // MC codes carry no severity: a maintenance check is graded at runtime against
 // thresholds agreed with the customer (docs/30-maintenance.md §4.3), so baking
@@ -122,7 +125,7 @@ type Code struct {
 	// more specific, but never with a translated string.
 	Message string
 
-	// Severity is set for PF and PV, empty for MC and DG. See Severity.
+	// Severity is set for PF, PV and EX; empty for MC and DG. See Severity.
 	Severity Severity
 
 	// Reasons are sub-codes that distinguish failure modes within one code,
@@ -134,7 +137,9 @@ type Code struct {
 
 // HasSeverity reports whether this code's family carries a severity.
 func (c Code) HasSeverity() bool {
-	return c.Family == FamilyPreflight || c.Family == FamilyVerification
+	return c.Family == FamilyPreflight ||
+		c.Family == FamilyVerification ||
+		c.Family == FamilyExecution
 }
 
 func (c Code) String() string {
@@ -165,6 +170,7 @@ func init() {
 	sources = [][]Code{
 		preflightCodes,
 		verificationCodes,
+		executionCodes,
 		maintenanceCodes,
 		downgradeCodes,
 	}
@@ -259,7 +265,7 @@ func sortCodes(cs []Code) {
 // Validation
 // ---------------------------------------------------------------------------
 
-var idPattern = regexp.MustCompile(`^(PF|PV|MC|DG)-[0-9]{3}$`)
+var idPattern = regexp.MustCompile(`^(PF|PV|EX|MC|DG)-[0-9]{3}$`)
 
 // Validate returns every structural problem in the registry. The test suite
 // fails on a non-empty result; nothing else calls it at runtime.

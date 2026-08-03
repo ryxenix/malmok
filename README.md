@@ -21,13 +21,20 @@ docs/
 api/v1alpha1/                스키마 = 단일 원천. 주석이 명세다
 ├── types.go                 ClusterSpec
 └── gateway.go               GatewaySpec (gateway / listener / TLS / DNS)
-internal/codes/              진단 코드 단일 원천. 122건
-├── codes.go                 타입 · 레지스트리 · 검증
-├── preflight.go             PF 67
-├── verify.go                PV 8
-├── maintenance.go           MC 42
-├── downgrade.go             DG 5
-└── gen/                     go generate → docs/99-codes.md
+cmd/platformctl/             CLI. 구현된 명령만 등록한다
+internal/
+├── codes/                   진단 코드 단일 원천. 131건
+│   ├── codes.go             타입 · 레지스트리 · 검증
+│   ├── preflight.go         PF 67
+│   ├── verify.go            PV 8
+│   ├── execution.go         EX 9
+│   ├── maintenance.go       MC 42
+│   ├── downgrade.go         DG 5
+│   └── gen/                 go generate → docs/99-codes.md
+├── event/                   JSONL 이벤트 스키마 · Writer · Scanner
+├── state/                   상태파일 · 재개 판정 · 원자적 저장
+├── engine/                  phase 러너. tui 를 import 하지 않는다 (테스트가 강제)
+└── attach/                  이벤트 재생 + tail · 텍스트 렌더러
 examples/
 └── cluster-dmz.yaml         DMZ 고객사 예시 (혼합 TLS 소스)
 ```

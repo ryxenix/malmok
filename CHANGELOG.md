@@ -5,6 +5,37 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.10.0] - 2026-08-03
+
+### Added
+
+- `internal/engine`, the phase runner: `Step`, `Phase`, `Runner`. It implements
+  the observe / apply / re-observe contract from `docs/11-execute.md` §3, resume
+  from §4, event emission from §5 and retry policy from §6, and it knows nothing
+  about what a step does — Ansible, Helm and kubectl all arrive as `Step`
+  implementations later.
+- `EX-xxx`, a fifth code family for execution failures. §6 requires a code on
+  every failure event, and the four existing families do not cover "the step ran
+  and did not take": PF measures before any change, PV verifies the wire
+  afterwards, MC is day-2 inspection, DG records a downgrade. Nine codes,
+  defined in `internal/codes/execution.go`.
+- `TestEngineDoesNotImportTUI` — acceptance criterion D3 and the enforcement
+  `CLAUDE.md` promises. A companion test also bars terminal libraries, since
+  rendering creeps back in one spinner at a time.
+- Every §7 group A and B criterion now runs against the real runner with fake
+  steps: second run skips everything, recheck re-observes without applying,
+  resume does not repeat completed work, a sequential traversal leaves the nodes
+  after a failure untouched, and a one-shot step left failed stops for
+  confirmation.
+
+### Changed
+
+- `docs/11-execute.md` §3.1: `Observe` returns an `Observation` carrying
+  `Satisfied` rather than a separate `Satisfied(State) bool`. Splitting them
+  needs a per-step state type, which makes a heterogeneous `[]Step` impossible
+  without `any`; the contract is identical either way. §6 gains the `EX` table.
+- `CLAUDE.md` naming rules list the `EX-` prefix.
+
 ## [0.9.0] - 2026-08-03
 
 ### Added

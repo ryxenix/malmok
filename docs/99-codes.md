@@ -16,10 +16,11 @@ outlive releases.
 |---|--:|--:|--:|--:|--:|
 | `PF` | 67 | 35 | 11 | 18 | 3 |
 | `PV` | 8 | 4 | — | 3 | 1 |
+| `EX` | 9 | 8 | — | 1 | — |
 | `MC` | 42 | — | — | — | — |
 | `DG` | 5 | — | — | — | — |
 
-Total: 122 codes.
+Total: 131 codes.
 
 ---
 
@@ -171,6 +172,31 @@ Source: docs/20-cert.md §6.5
 | ID | Reasons |
 |---|---|
 | `PV-002` | `CHAIN_NOT_SELF_SUFFICIENT` |
+
+---
+
+## EX · Execution failures
+
+Source: docs/11-execute.md §6
+
+### Step execution
+
+| ID | Severity | Check | Default message |
+|---|---|---|---|
+| `EX-001` | block | Step observation failed | Could not observe the step's current state; the target state is unknown |
+| `EX-002` | block | Step application failed | The step ran and returned an error |
+| `EX-003` | block | Target state not reached after applying | The step reported success but re-observation shows the target state was not reached |
+| `EX-004` | block | Retry budget exhausted | The step failed on every attempt allowed by its retry budget |
+| `EX-005` | block | One-shot step needs explicit confirmation | A one-shot step was left in a non-successful state; re-running it is not automatically safe |
+
+### Phase and run control
+
+| ID | Severity | Check | Default message |
+|---|---|---|---|
+| `EX-101` | block | Phase halted by a failed step | The phase stopped because one of its steps failed |
+| `EX-102` | block | Node traversal halted | A node failed, so the remaining nodes in this phase were not attempted |
+| `EX-103` | block | Run halted by a failed phase | The run stopped; later phases were not entered |
+| `EX-104` | warn | Run cancelled | The run was cancelled before completing |
 
 ---
 

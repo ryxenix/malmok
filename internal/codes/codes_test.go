@@ -89,6 +89,13 @@ func TestOtherInventories(t *testing.T) {
 			family: FamilyDowngrade,
 			want:   []string{"DG-001", "DG-002", "DG-003", "DG-010", "DG-020"},
 		},
+		{
+			family: FamilyExecution,
+			want: []string{
+				"EX-001", "EX-002", "EX-003", "EX-004", "EX-005",
+				"EX-101", "EX-102", "EX-103", "EX-104",
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -102,11 +109,11 @@ func TestOtherInventories(t *testing.T) {
 	}
 }
 
-// TestTotalInventory pins the overall count against the collection pass over
-// the three design documents: 121 codes were defined there, PF-908 was
-// referenced without a definition and became PF-612, so the registry holds 122.
+// TestTotalInventory pins the overall count. The collection pass over the three
+// design documents found 121 defined codes; PF-908 was referenced without a
+// definition and became PF-612, and the EX family added 9 for the phase runner.
 func TestTotalInventory(t *testing.T) {
-	const want = 122
+	const want = 131
 	if got := len(All()); got != want {
 		t.Errorf("registry holds %d codes, want %d", got, want)
 	}
@@ -121,7 +128,7 @@ func TestNoDanglingReferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	pattern := regexp.MustCompile(`\b(?:PF|PV|MC|DG)-[0-9]{3}\b`)
+	pattern := regexp.MustCompile(`\b(?:PF|PV|EX|MC|DG)-[0-9]{3}\b`)
 
 	// The codes package is skipped deliberately: it is the source of truth, and
 	// its comments legitimately discuss retired numbers such as PF-908.
@@ -174,6 +181,7 @@ func TestSeverityByFamily(t *testing.T) {
 	}{
 		{FamilyPreflight, true},
 		{FamilyVerification, true},
+		{FamilyExecution, true},
 		{FamilyMaintenance, false},
 		{FamilyDowngrade, false},
 	}

@@ -2,9 +2,17 @@
 //
 // ARCHITECTURAL CONTRACT
 //
-//	The engine MUST be able to execute using this document alone. The TUI is a
-//	*generator* of ClusterSpec, never a participant in execution. Any code path
-//	that requires a terminal to complete an install is a defect.
+//	The engine MUST be able to execute using this document alone.
+//
+//	The TUI does drive installs: it collects input, generates this document,
+//	calls the engine, and renders the engine's event stream — progress, logs,
+//	resume after a failure. What it must never do is OWN installation logic.
+//	The distinction is ownership, not who presses the button; an OS installer
+//	draws the screen while a lower layer does the partitioning.
+//
+//	So "requires a terminal" is the defect, not "runs from a terminal": every
+//	install must be reachable headless, through the same code path, from this
+//	document alone. That is what the CI matrix exercises.
 //
 //	internal/engine    -> MUST NOT import internal/tui  (enforced in CI)
 //	internal/tui       -> imports engine (one-way)

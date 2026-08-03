@@ -51,6 +51,24 @@ var dataplanes = []choice{
 	{"canal-traefik", "canal-traefik", "dp.canal"},
 }
 
+// Where images come from. Embedded first because it is the answer for most
+// builds: nothing to stand up, nothing to keep alive, no credentials.
+var registryModes = []choice{
+	{"embedded", "embedded", "regmode.embedded"},
+	{"upstream", "upstream", "regmode.upstream"},
+	{"external", "external", "regmode.external"},
+	{"internal", "internal", "regmode.internal"},
+}
+
+// Whether to issue certificates at all, and how. "none" first because at a
+// first build the domain is usually not decided yet.
+var pkiModes = []choice{
+	{"none", "none", "pkimode.none"},
+	{"acme-dns01", "acme-dns01", "pkimode.acme"},
+	{"private-ca", "private-ca", "pkimode.ca"},
+	{"byo-cert", "byo-cert", "pkimode.byo"},
+}
+
 var storages = []choice{
 	{"local-path", "local-path", "st.local"},
 	{"longhorn", "longhorn", "st.longhorn"},
@@ -81,7 +99,7 @@ func (w *Wizard) View() tea.View {
 	case StepNetwork:
 		f.Heading, f.Body, f.Status = w.formScreen(StepNetwork, "net.heading", "net.help", body)
 	case StepRegistry:
-		f.Heading, f.Body, f.Status = w.formScreen(StepRegistry, "reg.heading", "reg.help", body)
+		f.Heading, f.Body, f.Status = w.registryScreen(body)
 	case StepPKI:
 		f.Heading, f.Body, f.Status = w.pkiScreen(body)
 	case StepProfile:
@@ -450,17 +468,60 @@ func (w *Wizard) dim(text string, width int) string {
 	return strings.Join(out, "\n")
 }
 
-// pkiScreen adapts to the mode the profile chose. Asking for an offline CA's
-// intermediate key on a cluster that uses ACME would be asking for something
-// that does not exist.
+// pkiScreen asks whether to issue certificates before asking anything about
+// how. At a first build the answer is often "not yet": the service domain has
+// not been decided and DNS has not been delegated, and a placeholder there
+// becomes a certificate for a name nobody serves.
 func (w *Wizard) pkiScreen(width int) (string, string, string) {
-	help := "pki.help_ca"
-	if isACME(w.pkiMode()) {
-		help = "pki.help_acme"
+	cur := w.cursor[StepPKI]
+	var b strings.Builder
+
+	b.WriteString(w.dim(w.cat.T("pki.help_mode"), width) + "\n\n")
+	b.WriteString(w.theme.Radio(labelsOf(pkiModes), notesOf(w.cat, pkiModes),
+		indexOf(pkiModes, w.cfg.PKIMode), cur, width, w.glyphs))
+
+	if fs := w.fieldsFor(StepPKI); len(fs) > 0 {
+		b.WriteString("\n")
+		b.WriteString(w.theme.Fields(w.labels(StepPKI), w.maskedValues(StepPKI),
+			w.fieldIndex(), w.editing, width, w.glyphs))
+		if isCA(w.cfg.PKIMode) {
+			b.WriteString("\n" + w.dim(
+				w.glyphs.Warn+" "+w.cat.T("pki.note_rootkey")+" (PF-706)", width))
+		}
+	} else {
+		// Nothing is being issued, so there is no account and no CA to
+		// describe. Saying what happens instead beats an empty pane.
+		b.WriteString("\n" + w.dim(w.cat.T("pki.note_later"), width))
 	}
-	heading, body, status := w.formScreen(StepPKI, "pki.heading", help, width)
-	// The code is appended here rather than living in the catalogue: PF-706 is
-	// an identifier and is the same in every language.
-	body += "\n" + w.dim(w.glyphs.Warn+" "+w.cat.T("pki.note_rootkey")+" (PF-706)", width)
-	return heading, body, status
+
+	hint := w.cat.T("hint.select")
+	if w.editing {
+		hint = w.cat.T("hint.editing")
+	}
+	return w.cat.T("pki.heading"), b.String(), hint
+}
+
+// registryScreen offers the source before the details, since three of the four
+// need no details at all.
+func (w *Wizard) registryScreen(width int) (string, string, string) {
+	cur := w.cursor[StepRegistry]
+	var b strings.Builder
+
+	b.WriteString(w.dim(w.cat.T("reg.help"), width) + "\n\n")
+	b.WriteString(w.theme.Radio(labelsOf(registryModes), notesOf(w.cat, registryModes),
+		indexOf(registryModes, w.cfg.RegistryMode), cur, width, w.glyphs))
+
+	if fs := w.fieldsFor(StepRegistry); len(fs) > 0 {
+		b.WriteString("\n")
+		b.WriteString(w.theme.Fields(w.labels(StepRegistry), w.maskedValues(StepRegistry),
+			w.fieldIndex(), w.editing, width, w.glyphs))
+	} else {
+		b.WriteString("\n" + w.dim(w.cat.T("reg.note_none"), width))
+	}
+
+	hint := w.cat.T("hint.select")
+	if w.editing {
+		hint = w.cat.T("hint.editing")
+	}
+	return w.cat.T("reg.heading"), b.String(), hint
 }

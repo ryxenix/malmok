@@ -112,15 +112,16 @@ net:
   lbpool: LB 주소 풀
 reg:
   heading: 레지스트리
-  help: 이미지를 받아올 곳입니다. 자격증명은 값이 아니라 참조로 적습니다.
+  help: 이미지를 받아올 곳입니다.
+  note_none: 설정할 것이 없습니다. 따로 세우고 유지할 레지스트리 없이 이미지를 받습니다.
   host: 레지스트리 주소
   user: 사용자 참조
   pass: 비밀번호 참조
   ca: CA 인증서 참조
 pki:
   heading: 인증서
-  help_ca: 클러스터 내부 인증서를 발급할 사설 CA 입니다.
-  help_acme: 공인 인증서를 발급받을 ACME 계정입니다.
+  help_mode: 지금 인증서를 발급할지 정합니다. 초기 구축에서는 서비스 도메인이 아직 안 정해진 경우가 많습니다.
+  note_later: 아무것도 발급하지 않습니다. 게이트웨이는 HTTP 로 뜨고, 인증서는 나중에 갱신할 때와 같은 명령으로 추가합니다.
   note_rootkey: 오프라인 root 의 개인키는 묻지 않으며 입력란도 없습니다. 공개 root 만 참조합니다.
   root: root 인증서 참조
   inter: intermediate 참조
@@ -128,3 +129,13 @@ pki:
   email: 계정 이메일
   provider: DNS 공급자
   token: API 토큰 참조
+pkimode:
+  none: 나중에 결정 · 게이트웨이는 HTTP
+  acme: 공인 인증서 · DNS 제어 필요
+  ca: 사설 CA 가 클러스터 내부에서 발급
+  byo: 고객사가 인증서를 제공
+regmode:
+  embedded: RKE2 가 노드 간에 이미지를 공유
+  upstream: 인터넷에서 직접 받음
+  external: "기존 레지스트리 (예: Harbor)"
+  internal: 폐쇄망 번들에서 서빙

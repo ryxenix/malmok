@@ -70,6 +70,11 @@ type Config struct {
 	Dataplane string
 	Storage   string
 
+	// Chosen on their own screens rather than inherited silently: whether to
+	// issue certificates at all, and where images come from.
+	PKIMode      string
+	RegistryMode string
+
 	// Addressing the customer's network team has to agree to.
 	ProxyHTTP  string
 	ProxyHTTPS string
@@ -195,6 +200,9 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			ACMEToken:    "env://ACME_API_TOKEN",
 		},
 	}
+	// The default profile's baseline applies from the start, so a screen never
+	// shows a mode that the chosen profile would not use.
+	wz.applyProfileDefaults()
 	wz.enter()
 	return wz, nil
 }
@@ -371,8 +379,20 @@ func (w *Wizard) commitContent() (tea.Model, tea.Cmd) {
 		if cat, err := LoadCatalogue(lang); err == nil {
 			w.cat, w.cfg.Lang = cat, lang
 		}
-	case StepNodes, StepNetwork, StepRegistry, StepPKI:
+	case StepNodes, StepNetwork:
 		if len(w.fieldsFor(w.step)) > 0 {
+			w.editing = true
+		}
+	case StepRegistry:
+		if cur < len(registryModes) {
+			w.cfg.RegistryMode = registryModes[cur].id
+		} else if len(w.fieldsFor(StepRegistry)) > 0 {
+			w.editing = true
+		}
+	case StepPKI:
+		if cur < len(pkiModes) {
+			w.cfg.PKIMode = pkiModes[cur].id
+		} else if len(w.fieldsFor(StepPKI)) > 0 {
 			w.editing = true
 		}
 	case StepProfile:
@@ -575,8 +595,12 @@ func (w *Wizard) contentLen() int {
 	switch w.step {
 	case StepLang:
 		return 2
-	case StepNodes, StepNetwork, StepRegistry, StepPKI:
+	case StepNodes, StepNetwork:
 		return len(w.fieldsFor(w.step))
+	case StepRegistry:
+		return len(registryModes) + len(w.fieldsFor(StepRegistry))
+	case StepPKI:
+		return len(pkiModes) + len(w.fieldsFor(StepPKI))
 	case StepProfile:
 		return len(profileChoices())
 	case StepOptions:
@@ -602,8 +626,13 @@ func startStep(preflight, install Work) Step {
 // past them.
 func (w *Wizard) fieldIndex() int {
 	i := w.cursor[w.step]
-	if w.step == StepOptions {
+	switch w.step {
+	case StepOptions:
 		i -= len(dataplanes) + len(storages)
+	case StepRegistry:
+		i -= len(registryModes)
+	case StepPKI:
+		i -= len(pkiModes)
 	}
 	return i
 }

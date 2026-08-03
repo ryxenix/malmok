@@ -100,6 +100,12 @@ func (w *Wizard) fieldsFor(step Step) []field {
 		return nil
 
 	case StepRegistry:
+		// Only the modes that point somewhere need an address. The embedded
+		// mirror and a plain upstream pull have nothing to configure.
+		if w.cfg.RegistryMode != string(v1alpha1.RegistryExternal) &&
+			w.cfg.RegistryMode != string(v1alpha1.RegistryBYO) {
+			return nil
+		}
 		return []field{
 			{labelKey: "reg.host", hint: "hint.registry",
 				get: func(c *Config) string { return c.RegistryHost },
@@ -116,7 +122,11 @@ func (w *Wizard) fieldsFor(step Step) []field {
 		}
 
 	case StepPKI:
-		if isACME(w.pkiMode()) {
+		// Nothing is issued, so there is no account and no CA to describe.
+		if w.cfg.PKIMode == string(v1alpha1.PKINone) || w.cfg.PKIMode == "" {
+			return nil
+		}
+		if isACME(v1alpha1.PKIMode(w.cfg.PKIMode)) {
 			return []field{
 				{labelKey: "pki.email",
 					get: func(c *Config) string { return c.ACMEEmail },
@@ -163,6 +173,8 @@ func (w *Wizard) pkiMode() v1alpha1.PKIMode {
 func isACME(m v1alpha1.PKIMode) bool {
 	return m == v1alpha1.PKIACMEDNS01 || m == v1alpha1.PKIACMEHTTP01
 }
+
+func isCA(mode string) bool { return v1alpha1.PKIMode(mode) == v1alpha1.PKIPrivateCA }
 
 // values reads the current contents of a step's fields.
 func (w *Wizard) values(step Step) []string {

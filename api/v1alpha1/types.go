@@ -359,6 +359,17 @@ type S3Spec struct {
 type PKIMode string
 
 const (
+	// PKINone issues nothing at build time.
+	//
+	// This is the common case for a first build: the service domain has not
+	// been decided, DNS has not been delegated, and nobody has yet said whether
+	// the customer will supply certificates or wants them issued. Forcing a
+	// mode and a domain at that point configures the cluster around guesses,
+	// and a certificate for a name nobody uses still has to be renewed.
+	//
+	// Gateways come up on HTTP; certificates are added later with
+	// `platformctl cert apply`, the same command that renews them.
+	PKINone       PKIMode = "none"
 	PKIACMEDNS01  PKIMode = "acme-dns01" // real LE wildcard (homelab / company)
 	PKIACMEHTTP01 PKIMode = "acme-http01"
 	PKIPrivateCA  PKIMode = "private-ca" // airgap: offline root, intermediate imported
@@ -366,8 +377,11 @@ const (
 )
 
 type PKISpec struct {
-	Mode   PKIMode `yaml:"mode"   json:"mode"`
-	Domain string  `yaml:"domain" json:"domain"`
+	Mode PKIMode `yaml:"mode"   json:"mode"`
+	// Domain is the service domain certificates are issued for. Not required
+	// with mode none: at a first build it is frequently not yet decided, and a
+	// placeholder here becomes a certificate for a name nobody uses.
+	Domain string `yaml:"domain,omitempty" json:"domain,omitempty"`
 
 	ACME      *ACMESpec      `yaml:"acme,omitempty"      json:"acme,omitempty"`
 	PrivateCA *PrivateCASpec `yaml:"privateCA,omitempty" json:"privateCA,omitempty"`
@@ -422,6 +436,18 @@ type TrustSpec struct {
 type RegistryMode string
 
 const (
+	// RegistryEmbedded uses RKE2's own embedded registry mirror, which shares
+	// images peer-to-peer between nodes that already hold them.
+	//
+	// The right default for most builds: it needs no registry to be stood up,
+	// no credentials to be managed and no second thing to keep alive for the
+	// life of the cluster. What it is not is a registry you push to -- it
+	// mirrors what the nodes already have, so an air-gapped cluster still needs
+	// images seeded from a bundle first.
+	RegistryEmbedded RegistryMode = "embedded"
+	// RegistryUpstream pulls straight from the internet. Online builds with no
+	// registry of their own.
+	RegistryUpstream RegistryMode = "upstream"
 	RegistryExternal RegistryMode = "external" // existing Harbor
 	RegistryInternal RegistryMode = "internal" // Hauler-served, seeded from bundle
 	RegistryBYO      RegistryMode = "byo"

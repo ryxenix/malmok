@@ -41,7 +41,7 @@ func (c Config) ToSpec() v1alpha1.ClusterSpec {
 				Preset: v1alpha1.DataplanePreset(c.Dataplane),
 			},
 		},
-		PKI:     v1alpha1.PKISpec{Domain: c.Domain},
+		PKI:     v1alpha1.PKISpec{Mode: v1alpha1.PKIMode(c.PKIMode), Domain: c.Domain},
 		Storage: v1alpha1.StorageSpec{Driver: v1alpha1.StorageDriver(c.Storage)},
 		Gateway: v1alpha1.GatewaySpec{DomainSuffix: c.Domain},
 	}
@@ -58,11 +58,19 @@ func (c Config) ToSpec() v1alpha1.ClusterSpec {
 		}
 	}
 
+	s.Registry.Mode = v1alpha1.RegistryMode(c.RegistryMode)
 	if c.RegistryHost != "" {
 		s.Registry.SystemDefaultRegistry = c.RegistryHost
 		s.Registry.Username = v1alpha1.SourceRef(c.RegistryUser)
 		s.Registry.Password = v1alpha1.SourceRef(c.RegistryPass)
 		s.Registry.CACert = v1alpha1.SourceRef(c.RegistryCA)
+	}
+
+	if v1alpha1.PKIMode(c.PKIMode) == v1alpha1.PKINone {
+		// Nothing is issued, so nothing is carried. A domain left in the
+		// document here would be a name the cluster claims and never serves.
+		s.PKI.Domain = ""
+		return s
 	}
 
 	// The offline root's private key has no field here and never will: it must
@@ -140,6 +148,8 @@ func (w *Wizard) applyProfileDefaults() {
 	}
 	w.cfg.Dataplane = string(b.Dataplane)
 	w.cfg.Storage = string(b.Storage)
+	w.cfg.PKIMode = string(b.PKIMode)
+	w.cfg.RegistryMode = string(b.RegistryMode)
 }
 
 func atoiOr(s string, def int) int {

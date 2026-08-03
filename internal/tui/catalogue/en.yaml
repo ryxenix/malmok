@@ -113,15 +113,16 @@ net:
   lbpool: LB address pool
 reg:
   heading: Registry
-  help: Where images are pulled from. Credentials are references, not values.
+  help: Where images are pulled from.
+  note_none: Nothing to configure. Images come from here without a registry to stand up or keep alive.
   host: Registry host
   user: Username ref
   pass: Password ref
   ca: CA certificate ref
 pki:
   heading: Certificates
-  help_ca: The private CA that issues certificates inside the cluster.
-  help_acme: The ACME account that issues public certificates.
+  help_mode: Whether to issue certificates now. At a first build the service domain is often not decided yet.
+  note_later: Nothing is issued. Gateways come up on HTTP, and certificates are added later with the same command that renews them.
   note_rootkey: The offline root's private key is never asked for and has no field. Only the public root is referenced.
   root: Root cert ref
   inter: Intermediate ref
@@ -129,3 +130,13 @@ pki:
   email: Account email
   provider: DNS provider
   token: API token ref
+pkimode:
+  none: decide later, gateways on HTTP
+  acme: public certificates, needs DNS control
+  ca: private CA issues inside the cluster
+  byo: the customer supplies a bundle
+regmode:
+  embedded: RKE2 shares images between nodes
+  upstream: pull from the internet directly
+  external: "an existing registry, e.g. Harbor"
+  internal: served from an air-gap bundle

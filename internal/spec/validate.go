@@ -199,11 +199,17 @@ func validatePKI(s *v1alpha1.ClusterSpec) []error {
 	var errs []error
 	p := &s.PKI
 
-	if strings.TrimSpace(p.Domain) == "" {
-		errs = append(errs, errors.New("pki.domain is required"))
+	// Required only where something is being issued. At a first build the
+	// service domain is frequently not decided yet, and a placeholder here
+	// becomes a certificate for a name nobody uses.
+	if p.Mode != v1alpha1.PKINone && strings.TrimSpace(p.Domain) == "" {
+		errs = append(errs, fmt.Errorf("pki.domain is required with mode %s", p.Mode))
 	}
 
 	switch p.Mode {
+	case v1alpha1.PKINone:
+		// Nothing to check. Gateways come up on HTTP and certificates are added
+		// later with `platformctl cert apply`.
 	case v1alpha1.PKIACMEDNS01, v1alpha1.PKIACMEHTTP01:
 		if p.ACME == nil || p.ACME.Email == "" {
 			errs = append(errs, fmt.Errorf("pki.acme.email is required with mode %s", p.Mode))
@@ -258,7 +264,14 @@ func validateRegistry(s *v1alpha1.ClusterSpec) []error {
 		if r.SystemDefaultRegistry == "" {
 			errs = append(errs, fmt.Errorf("registry.systemDefaultRegistry is required with mode %s", r.Mode))
 		}
-	case v1alpha1.RegistryInternal:
+	case v1alpha1.RegistryEmbedded, v1alpha1.RegistryInternal:
+	case v1alpha1.RegistryUpstream:
+		// Pulling from the internet needs the internet.
+		if s.Network.Mode == v1alpha1.NetworkAirgap {
+			errs = append(errs, errors.New(
+				"registry.mode upstream cannot work in an air-gapped network; "+
+					"use embedded with a seeded bundle, or an internal registry"))
+		}
 	case "":
 		errs = append(errs, errors.New("registry.mode is required"))
 	default:
@@ -309,8 +322,12 @@ func validateGateway(s *v1alpha1.ClusterSpec) []error {
 	var errs []error
 	g := &s.Gateway
 
-	if strings.TrimSpace(g.DomainSuffix) == "" {
-		errs = append(errs, errors.New("gateway.domainSuffix is required; application charts read it from the contract ConfigMap"))
+	// Required once anything is served under a name. Deferring certificates
+	// defers the naming question with them: at a first build there is often no
+	// domain yet, and applications are reached by address until DNS exists.
+	if strings.TrimSpace(g.DomainSuffix) == "" && s.PKI.Mode != v1alpha1.PKINone {
+		errs = append(errs, errors.New(
+			"gateway.domainSuffix is required; application charts read it from the contract ConfigMap"))
 	}
 
 	seen := map[string]bool{}

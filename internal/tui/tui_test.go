@@ -564,15 +564,21 @@ func TestEveryProfileProducesAValidDocument(t *testing.T) {
 func TestScreensAdaptToTheProfile(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepPKI)
 
-	m.cfg.Profile = string(v1alpha1.ProfileHomelab) // acme-dns01, online
+	m.cfg.Profile = string(v1alpha1.ProfileHomelab) // pki none, online
+	m.applyProfileDefaults()
+	if got := m.labels(StepPKI); len(got) != 0 {
+		t.Errorf("a profile that issues nothing still asks about certificates: %v", got)
+	}
+	m.cfg.PKIMode = string(v1alpha1.PKIACMEDNS01)
 	if got := m.labels(StepPKI); !containsAny(got, "Account email") {
-		t.Errorf("an ACME profile is asked for CA material: %v", got)
+		t.Errorf("an ACME choice is not asked for an account: %v", got)
 	}
 	if got := m.labels(StepNetwork); containsAny(got, "HTTP proxy") {
 		t.Errorf("an online profile is asked about a proxy: %v", got)
 	}
 
 	m.cfg.Profile = string(v1alpha1.ProfileOnpremDMZ) // private-ca, proxy
+	m.applyProfileDefaults()
 	if got := m.labels(StepPKI); !containsAny(got, "Intermediate key ref") {
 		t.Errorf("a private-CA profile is not asked for CA material: %v", got)
 	}
@@ -585,6 +591,7 @@ func TestScreensAdaptToTheProfile(t *testing.T) {
 // read over somebody's shoulder.
 func TestSecretFieldsAreMaskedUntilEdited(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepRegistry)
+	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal) // the mode with credentials
 
 	secret := m.masked(StepRegistry)
 	idx := -1
@@ -704,5 +711,76 @@ func TestEveryValidationMessageHasAnOwningScreen(t *testing.T) {
 		if got := ownerOf(msg); got == StepSummary {
 			t.Errorf("no screen owns %q; the operator is told what is wrong and not where", msg)
 		}
+	}
+}
+
+// Issuing certificates is a choice, not an assumption. At a first build the
+// service domain is often not decided, and a placeholder becomes a certificate
+// for a name nobody serves.
+func TestCertificateIssuanceIsOptional(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepPKI)
+	m.cfg.PKIMode = string(v1alpha1.PKINone)
+	m.cfg.Domain = ""
+
+	if got := m.fieldsFor(StepPKI); len(got) != 0 {
+		t.Errorf("mode none still asks for certificate material: %d fields", len(got))
+	}
+	if problems := m.validateConfig(); len(problems) > 0 {
+		t.Errorf("issuing nothing should be a valid configuration:\n  %s",
+			strings.Join(problems, "\n  "))
+	}
+
+	// And the document says so, rather than carrying a domain nobody serves.
+	if got := m.cfg.ToSpec().PKI.Domain; got != "" {
+		t.Errorf("pki.domain = %q with mode none", got)
+	}
+}
+
+// Choosing to issue turns the account questions back on.
+func TestChoosingToIssueAsksForTheAccount(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepPKI)
+
+	for _, tc := range []struct{ mode, want string }{
+		{string(v1alpha1.PKIACMEDNS01), "Account email"},
+		{string(v1alpha1.PKIPrivateCA), "Intermediate key ref"},
+	} {
+		m.cfg.PKIMode = tc.mode
+		if got := m.labels(StepPKI); !containsAny(got, tc.want) {
+			t.Errorf("mode %s does not ask for %q: %v", tc.mode, tc.want, got)
+		}
+	}
+}
+
+// The embedded mirror is the default: nothing to stand up, nothing to keep
+// alive for the life of the cluster, no credentials to manage.
+func TestEmbeddedRegistryIsTheDefaultForOnlineProfiles(t *testing.T) {
+	for _, name := range []v1alpha1.ProfileName{
+		v1alpha1.ProfileHomelab, v1alpha1.ProfileCompanyProd,
+	} {
+		b, ok := spec.BaselineFor(name)
+		if !ok {
+			t.Fatalf("no baseline for %s", name)
+		}
+		if b.RegistryMode != v1alpha1.RegistryEmbedded {
+			t.Errorf("%s defaults to registry %s, want embedded", name, b.RegistryMode)
+		}
+	}
+}
+
+// A registry mode that points nowhere has nothing to ask about.
+func TestRegistryDetailsOnlyWhereThereIsARegistry(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepRegistry)
+
+	for _, mode := range []v1alpha1.RegistryMode{
+		v1alpha1.RegistryEmbedded, v1alpha1.RegistryUpstream, v1alpha1.RegistryInternal,
+	} {
+		m.cfg.RegistryMode = string(mode)
+		if got := m.fieldsFor(StepRegistry); len(got) != 0 {
+			t.Errorf("mode %s asks for %d details it cannot use", mode, len(got))
+		}
+	}
+	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
+	if got := m.fieldsFor(StepRegistry); len(got) == 0 {
+		t.Error("mode external does not ask where the registry is")
 	}
 }

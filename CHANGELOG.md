@@ -5,6 +5,34 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.18.0] - 2026-08-04
+
+### Added
+
+- **BREAKING (schema)** `pki.mode: none` — issue nothing at build time, and the
+  default for `homelab`. At a first build the service domain is usually not
+  decided, DNS is not delegated, and nobody has said whether the customer will
+  supply certificates. Forcing a mode and a domain there configures the cluster
+  around guesses, and a certificate for a name nobody serves still has to be
+  renewed. Gateways come up on HTTP; certificates are added later with
+  `platformctl cert apply`, the same command that renews them.
+- `registry.mode: embedded` — RKE2's own registry mirror, now the default for
+  the online profiles (ADR-011). A registry that is stood up has to be kept
+  alive for the life of the cluster, with credentials, certificates and
+  backups; the embedded mirror shares what the nodes already hold. It is not a
+  registry you push to, so an air-gapped cluster still needs images seeded from
+  a bundle, and the validator enforces that.
+- `registry.mode: upstream` — pull from the internet directly. Refused in an
+  air-gapped network.
+- The certificates and registry screens now ask *whether* before *how*. Account
+  details appear only after choosing to issue; registry details only for the
+  modes that point somewhere.
+
+### Changed
+
+- `pki.domain` and `gateway.domainSuffix` are required only when something is
+  being issued. Deferring certificates defers the naming question with them.
+
 ## [0.17.0] - 2026-08-04
 
 ### Fixed

@@ -47,8 +47,13 @@ var baselines = map[v1alpha1.ProfileName]Baseline{
 		Routing:   v1alpha1.RoutingOverlay,
 		Dataplane: v1alpha1.DataplaneCiliumGW, Fallback: v1alpha1.DataplaneCanalTraefik,
 		DowngradePolicy: v1alpha1.DowngradeAuto,
-		PKIMode:         v1alpha1.PKIACMEDNS01, Storage: v1alpha1.StorageLocalPath,
-		RegistryMode: v1alpha1.RegistryExternal, GitOpsSource: v1alpha1.GitOpsGit,
+		// Nothing is issued at build time. The service domain is usually not
+		// decided yet, and `platformctl cert apply` adds certificates later
+		// with the same command used for renewal.
+		PKIMode: v1alpha1.PKINone, Storage: v1alpha1.StorageLocalPath,
+		// No registry to stand up, no credentials to keep alive for the life of
+		// the cluster: RKE2 shares images between nodes that already hold them.
+		RegistryMode: v1alpha1.RegistryEmbedded, GitOpsSource: v1alpha1.GitOpsGit,
 	},
 	v1alpha1.ProfileCompanyProd: {
 		OSFamily: v1alpha1.OSUbuntu, NetworkMode: v1alpha1.NetworkOnline,
@@ -56,7 +61,7 @@ var baselines = map[v1alpha1.ProfileName]Baseline{
 		Dataplane: v1alpha1.DataplaneCiliumGW, Fallback: v1alpha1.DataplaneCanalTraefik,
 		DowngradePolicy: v1alpha1.DowngradeAuto,
 		PKIMode:         v1alpha1.PKIACMEDNS01, Storage: v1alpha1.StorageLonghorn,
-		RegistryMode: v1alpha1.RegistryExternal, GitOpsSource: v1alpha1.GitOpsGit,
+		RegistryMode: v1alpha1.RegistryEmbedded, GitOpsSource: v1alpha1.GitOpsGit,
 	},
 	v1alpha1.ProfileOnpremDMZ: {
 		OSFamily: v1alpha1.OSUbuntu, NetworkMode: v1alpha1.NetworkProxy,

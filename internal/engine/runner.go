@@ -250,24 +250,29 @@ func (r *Runner) runSteps(ctx context.Context, p Phase, node string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		progress := &event.Progress{Done: i, Total: len(steps)}
-		if err := r.runStep(ctx, p, node, s, progress); err != nil {
+		if err := r.runStep(ctx, p, node, s, i, len(steps)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, progress *event.Progress) error {
+func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, index, total int) error {
+	// A running step counts the ones already finished; a finished step counts
+	// itself. Without the distinction the last step of a phase reports n-1/n
+	// and the bar never fills.
 	base := event.Event{
-		Kind: event.KindStep, Phase: p.ID, Step: s.ID(), Node: node, Progress: progress,
+		Kind: event.KindStep, Phase: p.ID, Step: s.ID(), Node: node,
+		Progress: &event.Progress{Done: index, Total: total},
 	}
+	settled := base
+	settled.Progress = &event.Progress{Done: index + 1, Total: total}
 
 	switch action, reason := r.State.Decide(p.ID, s.ID(), node, r.Resume); action {
 	case state.ActionSkip:
 		r.State.SetStep(p.ID, s.ID(), node,
 			state.Step{Status: event.StatusSkipped, OneShot: isOneShot(s)}, r.Now())
-		ev := base
+		ev := settled
 		ev.Status, ev.Detail = event.StatusSkipped, reason
 		if _, err := r.emit(ev); err != nil {
 			return err
@@ -275,13 +280,17 @@ func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, prog
 		return r.save()
 
 	case state.ActionConfirm:
-		ev := base
+		ev := settled
 		ev.Status, ev.Code, ev.Detail = event.StatusBlocked, "EX-005", reason
 		if _, err := r.emit(ev); err != nil {
 			return err
 		}
 		return &ErrNeedsConfirmation{Phase: p.ID, Node: node, Step: s.ID(), Reason: reason}
 	}
+
+	// Bind phase, step and node to every line this step logs, so a step never
+	// has to repeat its own coordinates.
+	ctx = WithLogger(ctx, r.stepLogger(p.ID, s.ID(), node))
 
 	budget := maxAttempts(s, r.MaxAttempts)
 	var last error
@@ -307,7 +316,7 @@ func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, prog
 			return err
 		}
 
-		done, err := r.attempt(ctx, p, node, s, base, attempt, budget)
+		done, err := r.attempt(ctx, p, node, s, base, settled, attempt, budget)
 		if done {
 			return nil
 		}
@@ -327,7 +336,7 @@ func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, prog
 		return err
 	}
 
-	ev := base
+	ev := settled
 	ev.Status, ev.Code, ev.Attempt, ev.MaxAttempts = event.StatusFailed, code, budget, budget
 	ev.Detail = last.Error()
 	if _, err := r.emit(ev); err != nil {
@@ -343,7 +352,7 @@ func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, prog
 // script said it worked" incident starts by believing it.
 func (r *Runner) attempt(
 	ctx context.Context, p Phase, node string, s Step,
-	base event.Event, attempt, budget int,
+	base, settled event.Event, attempt, budget int,
 ) (done bool, err error) {
 	obs, err := s.Observe(ctx)
 	if err != nil {
@@ -352,7 +361,7 @@ func (r *Runner) attempt(
 	if obs.Satisfied {
 		r.State.SetStep(p.ID, s.ID(), node,
 			state.Step{Status: event.StatusSkipped, Attempt: attempt, OneShot: isOneShot(s)}, r.Now())
-		ev := base
+		ev := settled
 		ev.Status, ev.Detail, ev.Evidence = event.StatusSkipped, observedDetail(obs), obs.Evidence
 		if _, e := r.emit(ev); e != nil {
 			return false, e
@@ -377,7 +386,7 @@ func (r *Runner) attempt(
 
 	r.State.SetStep(p.ID, s.ID(), node,
 		state.Step{Status: event.StatusOK, Attempt: attempt, OneShot: isOneShot(s)}, r.Now())
-	ev := base
+	ev := settled
 	ev.Status, ev.Attempt, ev.MaxAttempts = event.StatusOK, attempt, budget
 	ev.Detail, ev.Evidence = after.Detail, after.Evidence
 	if _, e := r.emit(ev); e != nil {

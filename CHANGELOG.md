@@ -5,6 +5,34 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.11.0] - 2026-08-03
+
+### Added
+
+- `platformctl apply --demo`: a full simulated run through the phase
+  catalogue. No node is contacted and nothing is installed, but the runner,
+  the state file, the event stream and a renderer all run end to end. It is
+  what makes it possible to settle the TUI's layout before writing 67 probes
+  against it. `--fail-at` and `--flaky-at` reproduce a hard failure and a
+  retry on demand.
+- `internal/demo`, the simulated phase set. Scaffolding, marked as such, to be
+  deleted once real steps cover the same phases.
+- `engine.Log`, a per-step log sink carried in the context. A step needs to
+  stream output while it works: the mockup shows log lines under a running
+  step, and a three-hour role that says nothing is indistinguishable from one
+  that has hung. It travels in the context so a silent step implements
+  nothing and the runner can bind phase, step and node to every line.
+- `apply --resume <id>` continues an interrupted run, and `-f cluster.yaml`
+  reports exactly what is missing rather than appearing to work.
+
+### Changed
+
+- Step progress now counts a finished step as done. Previously the last step
+  of a phase reported n-1/n and the bar never filled.
+- The text renderer prints the retry counter only once it is actually a
+  retry. "retry 1/3" on every first attempt trains the operator to ignore the
+  field.
+
 ## [0.10.0] - 2026-08-03
 
 ### Added

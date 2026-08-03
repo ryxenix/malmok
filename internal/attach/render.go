@@ -129,7 +129,9 @@ func Line(e event.Event) string {
 		fmt.Fprintf(&b, "  %s %d/%d", Bar(e.Progress.Done, e.Progress.Total, 10),
 			e.Progress.Done, e.Progress.Total)
 	}
-	if e.MaxAttempts > 1 {
+	// Only once it is actually a retry. Printing "retry 1/3" on every first
+	// attempt trains the operator to ignore the field.
+	if e.Attempt > 1 {
 		fmt.Fprintf(&b, "  retry %d/%d", e.Attempt, e.MaxAttempts)
 	}
 	return strings.TrimRight(b.String(), " ")

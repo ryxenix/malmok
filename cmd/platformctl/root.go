@@ -22,6 +22,7 @@ ADR-002.`,
 		SilenceErrors: true,
 	}
 
+	root.AddCommand(newApplyCmd())
 	root.AddCommand(newAttachCmd())
 	return root
 }

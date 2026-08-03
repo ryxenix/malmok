@@ -5,6 +5,32 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.15.0] - 2026-08-04
+
+### Changed
+
+- The wizard's profile list now comes from `internal/spec` instead of a second
+  list inside the TUI. Two lists of the same six profiles disagree the first
+  time one is edited, and the one the engine reads has to win. Each profile's
+  summary line is derived from its baseline, so it cannot describe something
+  the engine would not do.
+- Choosing a profile moves its baseline into the collected values, so the
+  options screen shows what will actually be installed rather than whatever was
+  selected before.
+- The summary screen builds a real `ClusterSpec` and runs the real validator.
+  The vague "the engine does not consume this yet" note is gone; the screen now
+  names each missing field and says why it matters.
+- The nodes screen gained the join address, the RKE2 version and the domain.
+  Setting the join address to a node's own address is reported immediately with
+  its ADR-008 rationale.
+
+### Notes
+
+- Wiring the validator in exposed exactly which fields the wizard still does
+  not ask for: the proxy, the load balancer pool, the registry and the PKI
+  material. A test asserts the summary reports them by name, so the gap stays
+  visible instead of being found on a customer site.
+
 ## [0.14.0] - 2026-08-03
 
 ### Added

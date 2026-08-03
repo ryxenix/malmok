@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
 // One function per step, each returning the Frame the chrome draws. Keeping the
@@ -17,19 +18,30 @@ import (
 type choice struct {
 	id    string
 	label string
-	note  string // catalogue key
+	note  string // catalogue key, or literal text when derived from a baseline
 }
 
-// The Tier-1 profiles of docs/00-architecture.md ADR-003, in the order the
-// document lists them.
-var profiles = []choice{
-	{"homelab", "homelab", "profile.homelab"},
-	{"company-prod", "company-prod", "profile.company"},
-	{"onprem-dmz", "onprem-dmz", "profile.dmz"},
-	{"airgap-ubuntu", "airgap-ubuntu", "profile.airgap_ubuntu"},
-	{"airgap-rocky", "airgap-rocky", "profile.airgap_rocky"},
-	{"airgap-conservative", "airgap-conservative", "profile.airgap_cons"},
+// The Tier-1 profiles come from internal/spec rather than from a list here.
+// Two lists of the same six profiles would disagree the first time one is
+// edited, and the one the engine reads has to win.
+func profileChoices() []choice {
+	names := spec.Profiles()
+	out := make([]choice, 0, len(names))
+	for _, name := range names {
+		b, _ := spec.BaselineFor(name)
+		// Identifiers, not prose: os family, network mode, PKI and storage are
+		// the same words in every language.
+		out = append(out, choice{
+			id: string(name), label: string(name),
+			note: fmt.Sprintf("%s %s %s %s %s %s %s",
+				b.OSFamily, bullet, b.NetworkMode, bullet, b.PKIMode, bullet, b.Storage),
+		})
+	}
+	return out
 }
+
+// bullet is filled in per render so the ASCII fallback reaches these too.
+var bullet = "·"
 
 // The dataplane presets of ADR-004. CNI, Gateway and LB IP source are one
 // atomic choice, which is why they are presets rather than three questions.
@@ -162,6 +174,7 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 	labels := []string{
 		w.cat.T("nodes.server"), w.cat.T("nodes.agents"),
 		w.cat.T("nodes.user"), w.cat.T("nodes.port"),
+		w.cat.T("nodes.registration"), w.cat.T("nodes.version"), w.cat.T("nodes.domain"),
 	}
 	body := w.dim(w.cat.T("nodes.help"), width) + "\n\n" +
 		w.theme.Fields(labels, w.nodeValues(), w.cursor[StepNodes], w.editing, width, w.glyphs)
@@ -174,17 +187,19 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 }
 
 func (w *Wizard) profileScreen(width int) (string, string, string) {
+	bullet = w.glyphs.Dot
+	profiles := profileChoices()
 	labels, notes := make([]string, len(profiles)), make([]string, len(profiles))
 	chosen := 0
 	for i, p := range profiles {
-		labels[i], notes[i] = p.label, w.cat.T(p.note)
+		labels[i], notes[i] = p.label, p.note
 		if p.id == w.cfg.Profile {
 			chosen = i
 		}
 	}
 	body := w.dim(w.cat.T("profile.help"), width) + "\n\n" +
 		w.theme.Radio(labels, notes, chosen, w.cursor[StepProfile], width, w.glyphs) +
-		"\n" + w.dim(w.glyphs.Warn+" "+w.cat.T("note.unwired"), width)
+		"\n" + w.dim(w.cat.T("note.profile"), width)
 	return w.cat.T("profile.heading"), body, w.cat.T("hint.select")
 }
 
@@ -202,7 +217,7 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	b.WriteString(w.theme.Radio(labelsOf(storages), notesOf(w.cat, storages),
 		indexOf(storages, w.cfg.Storage), cur-len(dataplanes), width, w.glyphs))
 
-	b.WriteString("\n" + w.dim(w.glyphs.Warn+" "+w.cat.T("note.unwired"), width))
+	b.WriteString("\n" + w.dim(w.cat.T("note.options"), width))
 	return w.cat.T("options.heading"), b.String(), w.cat.T("hint.select")
 }
 
@@ -211,6 +226,9 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 		{w.cat.T("nodes.server"), w.cfg.Server},
 		{w.cat.T("nodes.agents"), strings.Join(w.cfg.Agents, ", ")},
 		{w.cat.T("nodes.user"), w.cfg.SSHUser + ":" + w.cfg.SSHPort},
+		{w.cat.T("nodes.registration"), w.cfg.Registration},
+		{w.cat.T("nodes.version"), w.cfg.Version},
+		{w.cat.T("nodes.domain"), w.cfg.Domain},
 		{w.cat.T("profile.heading"), w.cfg.Profile},
 		{w.cat.T("options.dataplane"), w.cfg.Dataplane},
 		{w.cat.T("options.storage"), w.cfg.Storage},
@@ -225,6 +243,19 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 	if n := len(w.failures); n > 0 {
 		b.WriteString("\n" + w.theme.Err.Render(
 			fmt.Sprintf("%s %s (%d)", w.glyphs.Failed, w.cat.T("summary.warnings"), n)))
+	}
+
+	// The document is built and validated here rather than at install time, so
+	// a malformed field is reported while the operator is still in front of the
+	// screen that produced it.
+	b.WriteString("\n")
+	if problems := w.validateConfig(); len(problems) > 0 {
+		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+w.cat.T("summary.invalid")) + "\n")
+		for _, line := range problems {
+			b.WriteString("  " + w.dim(line, width-2) + "\n")
+		}
+	} else {
+		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T("summary.valid")) + "\n")
 	}
 	return w.cat.T("summary.heading"), b.String(), w.cat.T("hint.install")
 }

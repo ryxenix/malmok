@@ -9,7 +9,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
 func ts(sec int) event.Timestamp {
@@ -283,9 +285,6 @@ func TestCatalogues(t *testing.T) {
 	} {
 		wanted = append(wanted, "status."+string(s))
 	}
-	for _, c := range profiles {
-		wanted = append(wanted, c.note)
-	}
 	for _, c := range append(append([]choice{}, dataplanes...), storages...) {
 		wanted = append(wanted, c.note)
 	}
@@ -459,5 +458,101 @@ func TestPrimaryActionIsPreselected(t *testing.T) {
 		if got == m.cat.T("btn.quit") || got == m.cat.T("btn.abort") {
 			t.Errorf("step %d preselects %q; Tab then Enter would end the run", s, got)
 		}
+	}
+}
+
+// Profile choices come from internal/spec, not from a second list here. Two
+// lists of the same six profiles would disagree the first time one is edited,
+// and the one the engine reads has to win.
+func TestProfileChoicesComeFromTheSpecPackage(t *testing.T) {
+	got := profileChoices()
+	if len(got) != len(spec.Profiles()) {
+		t.Fatalf("wizard offers %d profiles, spec defines %d", len(got), len(spec.Profiles()))
+	}
+	for _, c := range got {
+		if _, ok := spec.BaselineFor(v1alpha1.ProfileName(c.id)); !ok {
+			t.Errorf("wizard offers %q, which spec has no baseline for", c.id)
+		}
+		if c.note == "" {
+			t.Errorf("%s has no summary line", c.id)
+		}
+	}
+}
+
+// Choosing a profile has to move its baseline into the options, or the options
+// screen describes an installation that is not the one about to happen.
+func TestChoosingAProfileAppliesItsBaseline(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepProfile)
+
+	choices := profileChoices()
+	target := -1
+	for i, c := range choices {
+		if c.id == string(v1alpha1.ProfileAirgapConservative) {
+			target = i
+		}
+	}
+	if target < 0 {
+		t.Fatal("the conservative profile is missing")
+	}
+
+	m.cursor[StepProfile] = target
+	m.commitContent()
+
+	b, _ := spec.BaselineFor(v1alpha1.ProfileAirgapConservative)
+	if m.cfg.Dataplane != string(b.Dataplane) {
+		t.Errorf("dataplane = %s, want %s from the baseline", m.cfg.Dataplane, b.Dataplane)
+	}
+	if m.cfg.Storage != string(b.Storage) {
+		t.Errorf("storage = %s, want %s from the baseline", m.cfg.Storage, b.Storage)
+	}
+}
+
+// What the screens collect becomes a real document, checked by the real
+// validator. The wizard does not yet ask for everything a cluster needs -- the
+// proxy, the load balancer pool, the registry and the PKI material are still
+// missing -- and the point of building the document here is that the summary
+// screen says so by name instead of the operator finding out at install time.
+func TestSummaryNamesTheFieldsTheWizardDoesNotAskFor(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepSummary)
+	problems := m.validateConfig()
+
+	if len(problems) == 0 {
+		t.Fatal("the wizard now collects everything; fold these fields into the summary test")
+	}
+	// Each of these is a field a screen will have to grow. Listing them keeps
+	// the gap visible rather than letting it be discovered on a customer site.
+	for _, want := range []string{"loadBalancerPool", "privateCA", "systemDefaultRegistry"} {
+		var found bool
+		for _, p := range problems {
+			if strings.Contains(p, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("the summary does not report the missing %s:\n  %s",
+				want, strings.Join(problems, "\n  "))
+		}
+	}
+}
+
+// A field the operator can break has to be reported on the screen that
+// produced it, not hours later.
+func TestSummaryReportsAnInvalidDocument(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepSummary)
+	// ADR-008: the join address must not be a node's own.
+	m.cfg.Registration = m.cfg.Server
+
+	problems := m.validateConfig()
+	if len(problems) == 0 {
+		t.Fatal("a join address equal to the server was accepted")
+	}
+	var named bool
+	for _, p := range problems {
+		if strings.Contains(p, "ADR-008") {
+			named = true
+		}
+	}
+	if !named {
+		t.Errorf("the problem does not explain itself: %v", problems)
 	}
 }

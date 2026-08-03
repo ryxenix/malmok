@@ -20,6 +20,9 @@ nodes:
   agents: agent IP
   user: SSH 사용자
   port: SSH 포트
+  registration: 조인 주소
+  version: RKE2 버전
+  domain: 도메인
 profile:
   heading: 프로파일 선택
   help: 설치 환경을 고르십시오. 프로파일이 검증된 기준값을 정하고, 나머지 설정은 모두 그 위의 덮어쓰기입니다.
@@ -48,6 +51,8 @@ summary:
   heading: 설치 요약
   help: 변경 전 마지막 확인입니다. 아직 어떤 노드에도 쓰지 않았습니다.
   warnings: 사전 검사 지적사항
+  valid: 문서가 유효합니다
+  invalid: 문서에 문제가 있습니다
 install:
   heading: 설치 진행
 done:
@@ -83,4 +88,5 @@ hint:
   finished: 끝났습니다
   close: Enter 로 닫기
 note:
-  unwired: 요약에는 기록되지만 엔진이 아직 사용하지 않습니다
+  profile: 프로파일이 검증된 기준값을 정합니다. 옵션 화면에 무엇이 선택됐는지 표시됩니다.
+  options: 프로파일을 덮어씁니다. CNI·게이트웨이·LB IP 는 하나의 원자적 선택입니다 (ADR-004).

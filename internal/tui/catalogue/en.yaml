@@ -21,6 +21,9 @@ nodes:
   agents: Agent IPs
   user: SSH user
   port: SSH port
+  registration: Join address
+  version: RKE2 version
+  domain: Domain
 profile:
   heading: Profile
   help: Pick the environment. The profile decides the validated baseline; every other setting is an override.
@@ -49,6 +52,8 @@ summary:
   heading: Summary
   help: Review before anything is changed. Nothing has been written to a node yet.
   warnings: findings from preflight
+  valid: The document is valid
+  invalid: The document has problems
 install:
   heading: Installing
 done:
@@ -84,4 +89,5 @@ hint:
   finished: Finished
   close: Enter to close
 note:
-  unwired: Recorded in the summary; the engine does not consume it yet
+  profile: The profile fixes the validated baseline; the options screen shows what it chose.
+  options: Overrides the profile. CNI, gateway and load balancer IP are one atomic choice (ADR-004).

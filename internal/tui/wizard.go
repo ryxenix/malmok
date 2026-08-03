@@ -48,11 +48,18 @@ const (
 // Config is what the wizard collects. The engine consumes what it can today;
 // fields it cannot are marked on screen rather than silently ignored.
 type Config struct {
-	Lang      Lang
-	Server    string
-	Agents    []string
-	SSHUser   string
-	SSHPort   string
+	Lang    Lang
+	Server  string
+	Agents  []string
+	SSHUser string
+	SSHPort string
+
+	// Registration is what every node joins through. A VIP or DNS name, never
+	// a node's own address (ADR-008).
+	Registration string
+	Version      string
+	Domain       string
+
 	Profile   string
 	Dataplane string
 	Storage   string
@@ -133,7 +140,10 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			Lang: lang, Server: "10.10.0.11",
 			Agents:  []string{"10.10.20.21", "10.10.0.22"},
 			SSHUser: "root", SSHPort: "22",
-			Profile: "onprem-dmz", Dataplane: "cilium-gw", Storage: "longhorn",
+			Registration: "k8s-api.acme.internal",
+			Version:      "v1.34.5+rke2r1",
+			Domain:       "acme.internal",
+			Profile:      "onprem-dmz", Dataplane: "cilium-gw", Storage: "longhorn",
 		},
 	}
 	wz.enter()
@@ -309,7 +319,13 @@ func (w *Wizard) commitContent() (tea.Model, tea.Cmd) {
 	case StepNodes:
 		w.editing = true
 	case StepProfile:
-		w.cfg.Profile = profiles[cur].id
+		if choices := profileChoices(); cur < len(choices) {
+			w.cfg.Profile = choices[cur].id
+			// The profile decides the validated baseline; showing the previous
+			// dataplane and storage next to a new profile would misdescribe
+			// what is about to be installed.
+			w.applyProfileDefaults()
+		}
 	case StepOptions:
 		if cur < len(dataplanes) {
 			w.cfg.Dataplane = dataplanes[cur].id
@@ -479,7 +495,11 @@ func (w *Wizard) phase(id string) *phaseView {
 // ---------------------------------------------------------------------------
 
 func (w *Wizard) nodeValues() []string {
-	return []string{w.cfg.Server, strings.Join(w.cfg.Agents, ", "), w.cfg.SSHUser, w.cfg.SSHPort}
+	return []string{
+		w.cfg.Server, strings.Join(w.cfg.Agents, ", "),
+		w.cfg.SSHUser, w.cfg.SSHPort,
+		w.cfg.Registration, w.cfg.Version, w.cfg.Domain,
+	}
 }
 
 func (w *Wizard) setNodeValue(i int, v string) {
@@ -498,6 +518,12 @@ func (w *Wizard) setNodeValue(i int, v string) {
 		w.cfg.SSHUser = v
 	case 3:
 		w.cfg.SSHPort = v
+	case 4:
+		w.cfg.Registration = v
+	case 5:
+		w.cfg.Version = v
+	case 6:
+		w.cfg.Domain = v
 	}
 }
 
@@ -507,9 +533,9 @@ func (w *Wizard) contentLen() int {
 	case StepLang:
 		return 2
 	case StepNodes:
-		return 4
+		return len(w.nodeValues())
 	case StepProfile:
-		return len(profiles)
+		return len(profileChoices())
 	case StepOptions:
 		return len(dataplanes) + len(storages)
 	default:

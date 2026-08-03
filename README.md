@@ -14,7 +14,7 @@ CHANGELOG.md
 docs/
 ├── 00-architecture.md       ADR 10건, 레이어 분해, Tier 제도, 로드맵
 ├── 10-preflight-plan.md     프로브 카탈로그, 강등 결정 트리
-├── 11-execute.md            [미작성] phase / 멱등 / 재개 / 이벤트 스키마
+├── 11-execute.md            phase / 멱등성 계약 / 재개 / 이벤트 스키마 · §7 수용 기준
 ├── 20-cert.md               인증서 라이프사이클 (조립·검증·갱신)
 ├── 30-maintenance.md        인증서 수명 관리, 정기 점검, 보고서
 └── 99-codes.md              [생성물] 진단 코드 레지스트리. 손으로 고치지 말 것
@@ -45,8 +45,7 @@ examples/
 
 | 항목 | 내용 |
 |---|---|
-| `docs/11-execute.md` | phase 정의, 멱등성 계약, 재개 모델, JSONL 이벤트 스키마 |
-| WP 문서 §7 수용 기준 | 기존 문서를 테스트 가능한 형태로 보강 |
+| WP 문서 §7 수용 기준 | `11-execute.md` 는 작성됨. `10`·`20`·`30` 을 테스트 가능한 형태로 보강 |
 | L0/L1 Ansible 롤 | |
 | CI 매트릭스 (T1 6종) | libvirt VM, airgap 은 default route 제거로 실제 격리 |
 

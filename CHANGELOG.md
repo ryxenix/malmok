@@ -5,6 +5,36 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.5.0] - 2026-08-03
+
+### Added
+
+- `docs/11-execute.md`, the engine↔renderer contract and the last unwritten WP
+  document: 13-phase catalogue with grades and ordering constraints, the
+  step-level idempotency contract (`Observe`/`Satisfied`/`Apply`), the resume
+  model and state file, the JSONL event schema, retry policy, and §7 acceptance
+  criteria in five groups.
+- `platformctl attach` and `apply --detach` in `docs/00-architecture.md` §4.
+  The engine outliving the renderer needs a way back in, and a dropped SSH
+  session at a customer site is routine rather than exceptional.
+
+### Changed
+
+- `CLAUDE.md`'s prohibition table said the TUI is "merely a cluster.yaml
+  generator". That reading is what would make someone remove the TUI's execute
+  button, and implementation sessions read `CLAUDE.md` rather than the ADRs, so
+  the row is rewritten and followed by an explicit note: installs run inside the
+  TUI; the only forbidden thing is the TUI owning installation logic.
+- `api/v1alpha1/types.go` no longer claims the TUI is "never a participant in
+  execution". The real invariant — no code path may *require* a terminal — is
+  stated separately from who initiates the run.
+
+### Fixed
+
+- `docs/00-architecture.md` §1.1 and §1.2 reverted to `preflight-probes.md`,
+  `cert-bundle.md`, `day2-maintenance.md` and `ingress.go` when the ADR-002
+  rewrite landed on a pre-`b6ea94a` copy. Restored, with `11-execute.md` added.
+
 ## [0.4.2] - 2026-08-03
 
 ### Added

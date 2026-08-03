@@ -145,6 +145,12 @@ func (w *Wizard) buttons() []Button {
 		}
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepSummary:
+		// An invalid document must not offer to install. Offering the fix
+		// instead is the difference between a report and something the
+		// operator can act on.
+		if _, broken := w.firstProblemStep(); broken {
+			return []Button{back, {Label: w.cat.T("btn.fix"), Primary: true}}
+		}
 		return []Button{back, {Label: w.cat.T("btn.install"), Primary: true}}
 	case StepInstall:
 		if w.busy {
@@ -280,15 +286,25 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 	// a malformed field is reported while the operator is still in front of the
 	// screen that produced it.
 	b.WriteString("\n")
-	if problems := w.validateConfig(); len(problems) > 0 {
+	if problems := w.problems(); len(problems) > 0 {
 		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+w.cat.T("summary.invalid")) + "\n")
-		for _, line := range problems {
-			b.WriteString("  " + w.dim(line, width-2) + "\n")
+		// Each line says which screen fixes it. A message that only states what
+		// is wrong leaves the operator pressing Back until they find it.
+		for _, pr := range problems {
+			label := "[" + w.cat.T(stepKeys[pr.Step]) + "] "
+			b.WriteString("  " + w.theme.Body.Render(label) + "\n")
+			for _, line := range strings.Split(wrapCells(pr.Text, width-6), "\n") {
+				b.WriteString("    " + w.theme.Dim.Render(line) + "\n")
+			}
 		}
 	} else {
 		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T("summary.valid")) + "\n")
 	}
-	return w.cat.T("summary.heading"), b.String(), w.cat.T("hint.install")
+	hint := "hint.install"
+	if _, broken := w.firstProblemStep(); broken {
+		hint = "hint.fix"
+	}
+	return w.cat.T("summary.heading"), b.String(), w.cat.T(hint)
 }
 
 // ---------------------------------------------------------------------------

@@ -81,6 +81,7 @@ btn:
   abort: Abort
   check: Retry checks
   install: Install
+  fix: Go and fix
   logs: Logs
   close: Close
 key:
@@ -96,6 +97,7 @@ hint:
   edit: Enter to edit the field, Tab for the buttons
   editing: Typing. Enter or Esc to finish
   install: Continue writes to the nodes
+  fix: Fix the problems before installing
   working: Working
   finished: Finished
   close: Enter to close

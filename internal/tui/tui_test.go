@@ -614,3 +614,95 @@ func containsAny(xs []string, want string) bool {
 	}
 	return false
 }
+
+// An invalid document must not be installable. Validating and then installing
+// anyway would make the check decoration -- which is what it was until this
+// test existed.
+func TestInvalidDocumentCannotBeInstalled(t *testing.T) {
+	var started bool
+	m, err := NewWizard("run", false, true, LangEN, nil,
+		func(context.Context, Config) error { started = true; return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height, m.step = 90, 26, StepSummary
+	m.cfg.RegistryHost = "" // a field the validator requires
+	m.enter()
+
+	for _, b := range m.buttons() {
+		if b.Label == m.cat.T("btn.install") {
+			t.Error("an invalid document still offers Install")
+		}
+	}
+
+	// Even reached directly, the transition has to refuse.
+	m.next()
+	if m.step == StepInstall || started {
+		t.Error("the install ran against a document the validator rejected")
+	}
+}
+
+// A message that only says what is wrong leaves the operator pressing Back
+// until they find the screen. Every problem carries the step that fixes it,
+// and the primary button goes there.
+func TestProblemsAreRoutedToTheScreenThatFixesThem(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepSummary)
+	m.cfg.RegistryHost = ""
+	m.cfg.LBPool = nil
+
+	ps := m.problems()
+	if len(ps) < 2 {
+		t.Fatalf("expected several problems, got %d", len(ps))
+	}
+
+	want := map[Step]string{StepRegistry: "systemDefaultRegistry", StepNetwork: "loadBalancerPool"}
+	for step, needle := range want {
+		var found bool
+		for _, p := range ps {
+			if p.Step == step && strings.Contains(p.Text, needle) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s is not routed to step %d: %+v", needle, step, ps)
+		}
+	}
+
+	// Ordered by screen so the operator walks forwards, not back and forth.
+	for i := 1; i < len(ps); i++ {
+		if ps[i].Step < ps[i-1].Step {
+			t.Errorf("problems are out of screen order: %+v", ps)
+		}
+	}
+
+	// The primary button takes them there.
+	m.focus = focusButtons
+	m.btn = primaryIndex(m.buttons())
+	m.press(m.buttons()[m.btn].Label)
+	if m.step != ps[0].Step {
+		t.Errorf("the fix button went to step %d, want %d", m.step, ps[0].Step)
+	}
+}
+
+// Every field the validator can complain about has to belong to a screen, or
+// its message is a dead end.
+func TestEveryValidationMessageHasAnOwningScreen(t *testing.T) {
+	messages := []string{
+		"topology.registrationAddress is required",
+		"kubernetes.version is required",
+		"kubernetes.dataplane.loadBalancerPool is required with preset cilium-gw",
+		"kubernetes.dataplane.preset is required",
+		"network.proxy is required when network.mode is proxy",
+		"pki.acme.email is required with mode acme-dns01",
+		"pki.privateCA is required with mode private-ca",
+		"pki.domain is required",
+		"registry.systemDefaultRegistry is required with mode external",
+		"storage.nfs.server and .path are required with driver nfs",
+		"gateway.domainSuffix is required",
+	}
+	for _, msg := range messages {
+		if got := ownerOf(msg); got == StepSummary {
+			t.Errorf("no screen owns %q; the operator is told what is wrong and not where", msg)
+		}
+	}
+}

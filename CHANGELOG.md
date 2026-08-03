@@ -5,6 +5,26 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.17.0] - 2026-08-04
+
+### Fixed
+
+- **An invalid document could still be installed.** The summary screen
+  validated and reported, and then `Install` proceeded anyway. Validating and
+  installing regardless makes the check decoration. The button is now absent
+  while the document is broken, and the transition refuses even if reached
+  directly.
+- **Validation messages led nowhere.** They said what was wrong and left the
+  operator pressing Back to find the screen that owned it. Each problem now
+  carries the step that fixes it, is shown under that screen's name, and the
+  primary button becomes "Go and fix", which jumps there. Problems are ordered
+  by screen so the operator walks forwards.
+
+### Added
+
+- `ownerOf` maps a field path to the screen that collects it, and a test walks
+  eleven real validator messages to assert none of them is a dead end.
+
 ## [0.16.0] - 2026-08-04
 
 ### Added

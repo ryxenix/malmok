@@ -415,6 +415,14 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 		// Re-run the checks in place. Distinct from Continue, which moves on:
 		// wiring both to the same action left the operator re-checking forever.
 		return w, w.start(w.preflight)
+	case w.cat.T("btn.fix"):
+		// Jump to the screen that owns the first problem rather than making
+		// the operator press Back until they find it.
+		if step, ok := w.firstProblemStep(); ok {
+			w.step = step
+			w.enter()
+		}
+		return w, nil
 	case w.cat.T("btn.next"), w.cat.T("btn.install"):
 		return w.next()
 	}
@@ -457,6 +465,11 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 		w.enter()
 		return w, nil
 	case StepSummary:
+		// The gate, not just the warning. Validating and then installing
+		// anyway would make the check decoration.
+		if _, broken := w.firstProblemStep(); broken {
+			return w, nil
+		}
 		w.step = StepInstall
 		w.enter()
 		w.focus = focusButtons

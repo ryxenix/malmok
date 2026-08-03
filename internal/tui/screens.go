@@ -77,7 +77,13 @@ func (w *Wizard) View() tea.View {
 	case StepLang:
 		f.Heading, f.Body, f.Status = w.langScreen(body)
 	case StepNodes:
-		f.Heading, f.Body, f.Status = w.nodesScreen(body)
+		f.Heading, f.Body, f.Status = w.formScreen(StepNodes, "nodes.heading", "nodes.help", body)
+	case StepNetwork:
+		f.Heading, f.Body, f.Status = w.formScreen(StepNetwork, "net.heading", "net.help", body)
+	case StepRegistry:
+		f.Heading, f.Body, f.Status = w.formScreen(StepRegistry, "reg.heading", "reg.help", body)
+	case StepPKI:
+		f.Heading, f.Body, f.Status = w.pkiScreen(body)
 	case StepProfile:
 		f.Heading, f.Body, f.Status = w.profileScreen(body)
 	case StepOptions:
@@ -128,7 +134,7 @@ func (w *Wizard) buttons() []Button {
 	switch w.step {
 	case StepLang:
 		return []Button{quit, {Label: w.cat.T("btn.next"), Primary: true}}
-	case StepNodes, StepProfile, StepOptions:
+	case StepProfile, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepPreflight:
 		if w.busy {
@@ -170,20 +176,39 @@ func langIndex(l Lang) int {
 	return 0
 }
 
-func (w *Wizard) nodesScreen(width int) (string, string, string) {
-	labels := []string{
-		w.cat.T("nodes.server"), w.cat.T("nodes.agents"),
-		w.cat.T("nodes.user"), w.cat.T("nodes.port"),
-		w.cat.T("nodes.registration"), w.cat.T("nodes.version"), w.cat.T("nodes.domain"),
+// formScreen renders any step whose content is a list of editable fields.
+//
+// One function for all of them: a screen that exists because the validator
+// asks for a value should not also be a place where the layout can differ.
+func (w *Wizard) formScreen(step Step, headingKey, helpKey string, width int) (string, string, string) {
+	cur := w.cursor[step]
+	body := w.dim(w.cat.T(helpKey), width) + "\n\n" +
+		w.theme.Fields(w.labels(step), w.maskedValues(step), cur, w.editing, width, w.glyphs)
+
+	if h := w.fieldHint(int(step), cur); h != "" {
+		body += "\n" + w.dim(w.glyphs.Dot+" "+h, width)
 	}
-	body := w.dim(w.cat.T("nodes.help"), width) + "\n\n" +
-		w.theme.Fields(labels, w.nodeValues(), w.cursor[StepNodes], w.editing, width, w.glyphs)
 
 	hint := w.cat.T("hint.edit")
 	if w.editing {
 		hint = w.cat.T("hint.editing")
 	}
-	return w.cat.T("nodes.heading"), body, hint
+	return w.cat.T(headingKey), body, hint
+}
+
+// maskedValues hides secret fields unless they are being edited. What is
+// stored is a SourceRef rather than a secret, but a token typed at a customer
+// site is still read over somebody's shoulder.
+func (w *Wizard) maskedValues(step Step) []string {
+	vals := w.values(step)
+	secret := w.masked(step)
+	cur := w.cursor[step]
+	for i := range vals {
+		if secret[i] && !(w.editing && i == cur) && vals[i] != "" {
+			vals[i] = strings.Repeat("*", min(len([]rune(vals[i])), 12))
+		}
+	}
+	return vals
 }
 
 func (w *Wizard) profileScreen(width int) (string, string, string) {
@@ -216,6 +241,12 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("options.storage")) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(storages), notesOf(w.cat, storages),
 		indexOf(storages, w.cfg.Storage), cur-len(dataplanes), width, w.glyphs))
+
+	if fs := w.fieldsFor(StepOptions); len(fs) > 0 {
+		b.WriteString("\n")
+		b.WriteString(w.theme.Fields(w.labels(StepOptions), w.maskedValues(StepOptions),
+			w.fieldIndex(), w.editing, width, w.glyphs))
+	}
 
 	b.WriteString("\n" + w.dim(w.cat.T("note.options"), width))
 	return w.cat.T("options.heading"), b.String(), w.cat.T("hint.select")
@@ -401,4 +432,19 @@ func (w *Wizard) dim(text string, width int) string {
 		out = append(out, w.theme.Dim.Render(line))
 	}
 	return strings.Join(out, "\n")
+}
+
+// pkiScreen adapts to the mode the profile chose. Asking for an offline CA's
+// intermediate key on a cluster that uses ACME would be asking for something
+// that does not exist.
+func (w *Wizard) pkiScreen(width int) (string, string, string) {
+	help := "pki.help_ca"
+	if isACME(w.pkiMode()) {
+		help = "pki.help_acme"
+	}
+	heading, body, status := w.formScreen(StepPKI, "pki.heading", help, width)
+	// The code is appended here rather than living in the catalogue: PF-706 is
+	// an identifier and is the same in every language.
+	body += "\n" + w.dim(w.glyphs.Warn+" "+w.cat.T("pki.note_rootkey")+" (PF-706)", width)
+	return heading, body, status
 }

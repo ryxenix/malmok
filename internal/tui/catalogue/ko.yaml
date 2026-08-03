@@ -6,6 +6,9 @@ step:
   nodes: 노드
   profile: 프로파일
   options: 옵션
+  network: 네트워크
+  registry: 레지스트리
+  pki: 인증서
   preflight: 사전 검사
   summary: 요약
   install: 설치
@@ -45,6 +48,8 @@ st:
   local: 단일 노드 전용
   longhorn: 복제본 · iscsid 필요
   nfs: 외부 서버
+  server: NFS 서버
+  path: 내보내기 경로
 preflight:
   heading: 사전 검사
 summary:
@@ -80,6 +85,12 @@ btn:
 key:
   retry: 재시도
 hint:
+  registration: VIP 또는 DNS 이름. 노드 자신의 주소는 안 됩니다 (ADR-008)
+  lbpool: 게이트웨이가 외부 주소를 받아갈 CIDR
+  noproxy: pod·service CIDR 을 넣지 않으면 클러스터 내부 통신이 프록시를 탑니다
+  registry: 모든 시스템 이미지를 여기서 받습니다
+  sourceref: file:// · env:// · sops:// — 값이 아니라 참조
+  rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
   select: 위아래로 이동, Enter 로 선택, Tab 으로 버튼 이동
   edit: Enter 로 편집, Tab 으로 버튼 이동
   editing: 입력 중. Enter 또는 Esc 로 마침
@@ -90,3 +101,28 @@ hint:
 note:
   profile: 프로파일이 검증된 기준값을 정합니다. 옵션 화면에 무엇이 선택됐는지 표시됩니다.
   options: 프로파일을 덮어씁니다. CNI·게이트웨이·LB IP 는 하나의 원자적 선택입니다 (ADR-004).
+net:
+  heading: 네트워크
+  help: 고객사 네트워크팀과 합의해야 하는 주소들입니다. LB 주소 풀은 게이트웨이가 외부 주소를 받아가는 대역입니다.
+  proxyHTTP: HTTP 프록시
+  proxyHTTPS: HTTPS 프록시
+  noProxy: 프록시 제외
+  lbpool: LB 주소 풀
+reg:
+  heading: 레지스트리
+  help: 이미지를 받아올 곳입니다. 자격증명은 값이 아니라 참조로 적습니다.
+  host: 레지스트리 주소
+  user: 사용자 참조
+  pass: 비밀번호 참조
+  ca: CA 인증서 참조
+pki:
+  heading: 인증서
+  help_ca: 클러스터 내부 인증서를 발급할 사설 CA 입니다.
+  help_acme: 공인 인증서를 발급받을 ACME 계정입니다.
+  note_rootkey: 오프라인 root 의 개인키는 묻지 않으며 입력란도 없습니다. 공개 root 만 참조합니다.
+  root: root 인증서 참조
+  inter: intermediate 참조
+  key: intermediate 키 참조
+  email: 계정 이메일
+  provider: DNS 공급자
+  token: API 토큰 참조

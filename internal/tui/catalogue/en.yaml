@@ -7,6 +7,9 @@ step:
   nodes: Nodes
   profile: Profile
   options: Options
+  network: Network
+  registry: Registry
+  pki: Certificates
   preflight: Checks
   summary: Summary
   install: Install
@@ -46,6 +49,8 @@ st:
   local: single node only
   longhorn: replicated, needs iscsid
   nfs: external server
+  server: NFS server
+  path: Export path
 preflight:
   heading: Preflight checks
 summary:
@@ -81,6 +86,12 @@ btn:
 key:
   retry: retry
 hint:
+  registration: A VIP or DNS name, never a node's own address (ADR-008)
+  lbpool: CIDRs the gateway takes its external address from
+  noproxy: Include the pod and service CIDRs, or in-cluster traffic goes through the proxy
+  registry: Every system image is pulled from here
+  sourceref: file://, env:// or sops:// -- a reference, not the value
+  rootkey: This is the intermediate key. The root key stays offline
   select: Up and down to move, Enter to choose, Tab for the buttons
   edit: Enter to edit the field, Tab for the buttons
   editing: Typing. Enter or Esc to finish
@@ -91,3 +102,28 @@ hint:
 note:
   profile: The profile fixes the validated baseline; the options screen shows what it chose.
   options: Overrides the profile. CNI, gateway and load balancer IP are one atomic choice (ADR-004).
+net:
+  heading: Network
+  help: Addressing the customer's network team has to agree to. The load balancer pool is what the gateway takes its external address from.
+  proxyHTTP: HTTP proxy
+  proxyHTTPS: HTTPS proxy
+  noProxy: No proxy
+  lbpool: LB address pool
+reg:
+  heading: Registry
+  help: Where images are pulled from. Credentials are references, not values.
+  host: Registry host
+  user: Username ref
+  pass: Password ref
+  ca: CA certificate ref
+pki:
+  heading: Certificates
+  help_ca: The private CA that issues certificates inside the cluster.
+  help_acme: The ACME account that issues public certificates.
+  note_rootkey: The offline root's private key is never asked for and has no field. Only the public root is referenced.
+  root: Root cert ref
+  inter: Intermediate ref
+  key: Intermediate key ref
+  email: Account email
+  provider: DNS provider
+  token: API token ref

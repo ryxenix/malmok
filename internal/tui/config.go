@@ -46,6 +46,41 @@ func (c Config) ToSpec() v1alpha1.ClusterSpec {
 		Gateway: v1alpha1.GatewaySpec{DomainSuffix: c.Domain},
 	}
 
+	s.Kubernetes.Dataplane.LoadBalancerPool = c.LBPool
+
+	if c.Storage == string(v1alpha1.StorageNFS) {
+		s.Storage.NFS = &v1alpha1.NFSSpec{Server: c.NFSServer, Path: c.NFSPath}
+	}
+
+	if c.ProxyHTTP != "" || c.ProxyHTTPS != "" {
+		s.Network.Proxy = &v1alpha1.ProxySpec{
+			HTTP: c.ProxyHTTP, HTTPS: c.ProxyHTTPS, NoProxy: c.NoProxy,
+		}
+	}
+
+	if c.RegistryHost != "" {
+		s.Registry.SystemDefaultRegistry = c.RegistryHost
+		s.Registry.Username = v1alpha1.SourceRef(c.RegistryUser)
+		s.Registry.Password = v1alpha1.SourceRef(c.RegistryPass)
+		s.Registry.CACert = v1alpha1.SourceRef(c.RegistryCA)
+	}
+
+	// The offline root's private key has no field here and never will: it must
+	// not leave its custody (PF-706). Only the public root is referenced.
+	if c.CARoot != "" || c.CAIntermediate != "" || c.CAKey != "" {
+		s.PKI.PrivateCA = &v1alpha1.PrivateCASpec{
+			RootCert:         v1alpha1.SourceRef(c.CARoot),
+			IntermediateCert: v1alpha1.SourceRef(c.CAIntermediate),
+			IntermediateKey:  v1alpha1.SourceRef(c.CAKey),
+		}
+	}
+	if c.ACMEEmail != "" {
+		s.PKI.ACME = &v1alpha1.ACMESpec{
+			Email: c.ACMEEmail, DNSProvider: c.ACMEProvider,
+			APIToken: v1alpha1.SourceRef(c.ACMEToken),
+		}
+	}
+
 	for _, a := range c.Agents {
 		s.Topology.Agents = append(s.Topology.Agents, v1alpha1.NodeSpec{
 			Host: a, Role: v1alpha1.RoleAgent,

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,9 +22,15 @@ type Step int
 
 const (
 	StepLang Step = iota
-	StepNodes
+	// Profile comes before everything it decides: the network mode, the PKI
+	// mode and the storage driver all follow from it, and a screen that asks
+	// about a proxy before knowing whether there is one wastes a question.
 	StepProfile
+	StepNodes
+	StepNetwork
 	StepOptions
+	StepRegistry
+	StepPKI
 	StepPreflight
 	StepSummary
 	StepInstall
@@ -33,8 +38,9 @@ const (
 )
 
 var stepKeys = []string{
-	"step.lang", "step.nodes", "step.profile", "step.options",
-	"step.preflight", "step.summary", "step.install", "step.done",
+	"step.lang", "step.profile", "step.nodes", "step.network", "step.options",
+	"step.registry", "step.pki", "step.preflight", "step.summary",
+	"step.install", "step.done",
 }
 
 // focus is which half of the screen the keyboard is driving.
@@ -63,6 +69,31 @@ type Config struct {
 	Profile   string
 	Dataplane string
 	Storage   string
+
+	// Addressing the customer's network team has to agree to.
+	ProxyHTTP  string
+	ProxyHTTPS string
+	NoProxy    []string
+	LBPool     []string
+
+	// SourceRefs, not values. cluster.yaml is handed over at the end of the
+	// engagement, so what is collected here is where to find a secret rather
+	// than the secret itself.
+	RegistryHost string
+	RegistryUser string
+	RegistryPass string
+	RegistryCA   string
+
+	NFSServer string
+	NFSPath   string
+
+	CARoot         string
+	CAIntermediate string
+	CAKey          string
+
+	ACMEEmail    string
+	ACMEProvider string
+	ACMEToken    string
 }
 
 // Work is a long operation the wizard drives, reported through the event
@@ -144,6 +175,24 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			Version:      "v1.34.5+rke2r1",
 			Domain:       "acme.internal",
 			Profile:      "onprem-dmz", Dataplane: "cilium-gw", Storage: "longhorn",
+			ProxyHTTP:  "http://proxy.acme.local:3128",
+			ProxyHTTPS: "http://proxy.acme.local:3128",
+			NoProxy:    []string{"10.0.0.0/8", ".acme.internal"},
+			LBPool:     []string{"10.10.20.240/29"},
+
+			RegistryHost: "harbor.acme.internal",
+			RegistryUser: "env://REGISTRY_USER",
+			RegistryPass: "env://REGISTRY_PASSWORD",
+
+			NFSServer: "10.10.0.30", NFSPath: "/export/rke2",
+
+			CARoot:         "file://./pki/root.crt",
+			CAIntermediate: "file://./pki/intermediate.crt",
+			CAKey:          "env://CA_INTERMEDIATE_KEY",
+
+			ACMEEmail:    "ops@acme.co.kr",
+			ACMEProvider: "cloudflare",
+			ACMEToken:    "env://ACME_API_TOKEN",
 		},
 	}
 	wz.enter()
@@ -286,8 +335,12 @@ func (w *Wizard) contentKey(s string) (tea.Model, tea.Cmd) {
 }
 
 func (w *Wizard) editKey(s string) (tea.Model, tea.Cmd) {
-	i := w.cursor[StepNodes]
-	vals := w.nodeValues()
+	i := w.fieldIndex()
+	vals := w.values(w.step)
+	if i < 0 || i >= len(vals) {
+		w.editing = false
+		return w, nil
+	}
 
 	switch s {
 	case "enter", "esc":
@@ -295,13 +348,15 @@ func (w *Wizard) editKey(s string) (tea.Model, tea.Cmd) {
 	case "backspace":
 		if v := vals[i]; v != "" {
 			r := []rune(v)
-			w.setNodeValue(i, string(r[:len(r)-1]))
+			w.setValue(w.step, i, string(r[:len(r)-1]))
 		}
+	case "space":
+		w.setValue(w.step, i, vals[i]+" ")
 	default:
 		// Single printable characters only. Anything else is a navigation key
 		// that has no business inside a hostname.
 		if len([]rune(s)) == 1 && s != "\t" {
-			w.setNodeValue(i, vals[i]+s)
+			w.setValue(w.step, i, vals[i]+s)
 		}
 	}
 	return w, nil
@@ -316,8 +371,10 @@ func (w *Wizard) commitContent() (tea.Model, tea.Cmd) {
 		if cat, err := LoadCatalogue(lang); err == nil {
 			w.cat, w.cfg.Lang = cat, lang
 		}
-	case StepNodes:
-		w.editing = true
+	case StepNodes, StepNetwork, StepRegistry, StepPKI:
+		if len(w.fieldsFor(w.step)) > 0 {
+			w.editing = true
+		}
 	case StepProfile:
 		if choices := profileChoices(); cur < len(choices) {
 			w.cfg.Profile = choices[cur].id
@@ -327,10 +384,16 @@ func (w *Wizard) commitContent() (tea.Model, tea.Cmd) {
 			w.applyProfileDefaults()
 		}
 	case StepOptions:
-		if cur < len(dataplanes) {
+		switch {
+		case cur < len(dataplanes):
 			w.cfg.Dataplane = dataplanes[cur].id
-		} else {
+		case cur < len(dataplanes)+len(storages):
 			w.cfg.Storage = storages[cur-len(dataplanes)].id
+		default:
+			// The driver's own settings sit below the choice that reveals them.
+			if len(w.fieldsFor(StepOptions)) > 0 {
+				w.editing = true
+			}
 		}
 	}
 	return w, nil
@@ -494,50 +557,17 @@ func (w *Wizard) phase(id string) *phaseView {
 // Node field helpers
 // ---------------------------------------------------------------------------
 
-func (w *Wizard) nodeValues() []string {
-	return []string{
-		w.cfg.Server, strings.Join(w.cfg.Agents, ", "),
-		w.cfg.SSHUser, w.cfg.SSHPort,
-		w.cfg.Registration, w.cfg.Version, w.cfg.Domain,
-	}
-}
-
-func (w *Wizard) setNodeValue(i int, v string) {
-	switch i {
-	case 0:
-		w.cfg.Server = v
-	case 1:
-		var out []string
-		for _, part := range strings.Split(v, ",") {
-			if p := strings.TrimSpace(part); p != "" {
-				out = append(out, p)
-			}
-		}
-		w.cfg.Agents = out
-	case 2:
-		w.cfg.SSHUser = v
-	case 3:
-		w.cfg.SSHPort = v
-	case 4:
-		w.cfg.Registration = v
-	case 5:
-		w.cfg.Version = v
-	case 6:
-		w.cfg.Domain = v
-	}
-}
-
 // contentLen is how many rows the current step's content pane has.
 func (w *Wizard) contentLen() int {
 	switch w.step {
 	case StepLang:
 		return 2
-	case StepNodes:
-		return len(w.nodeValues())
+	case StepNodes, StepNetwork, StepRegistry, StepPKI:
+		return len(w.fieldsFor(w.step))
 	case StepProfile:
 		return len(profileChoices())
 	case StepOptions:
-		return len(dataplanes) + len(storages)
+		return len(dataplanes) + len(storages) + len(w.fieldsFor(StepOptions))
 	default:
 		return 0
 	}
@@ -552,4 +582,15 @@ func startStep(preflight, install Work) Step {
 		return StepInstall
 	}
 	return StepLang
+}
+
+// fieldIndex maps the content cursor onto the step's field list. On the options
+// screen the fields sit below two radio groups, so the cursor has to be shifted
+// past them.
+func (w *Wizard) fieldIndex() int {
+	i := w.cursor[w.step]
+	if w.step == StepOptions {
+		i -= len(dataplanes) + len(storages)
+	}
+	return i
 }

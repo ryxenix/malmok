@@ -507,34 +507,6 @@ func TestChoosingAProfileAppliesItsBaseline(t *testing.T) {
 	}
 }
 
-// What the screens collect becomes a real document, checked by the real
-// validator. The wizard does not yet ask for everything a cluster needs -- the
-// proxy, the load balancer pool, the registry and the PKI material are still
-// missing -- and the point of building the document here is that the summary
-// screen says so by name instead of the operator finding out at install time.
-func TestSummaryNamesTheFieldsTheWizardDoesNotAskFor(t *testing.T) {
-	m := wizard(t, LangEN, false, 90, 26, StepSummary)
-	problems := m.validateConfig()
-
-	if len(problems) == 0 {
-		t.Fatal("the wizard now collects everything; fold these fields into the summary test")
-	}
-	// Each of these is a field a screen will have to grow. Listing them keeps
-	// the gap visible rather than letting it be discovered on a customer site.
-	for _, want := range []string{"loadBalancerPool", "privateCA", "systemDefaultRegistry"} {
-		var found bool
-		for _, p := range problems {
-			if strings.Contains(p, want) {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("the summary does not report the missing %s:\n  %s",
-				want, strings.Join(problems, "\n  "))
-		}
-	}
-}
-
 // A field the operator can break has to be reported on the screen that
 // produced it, not hours later.
 func TestSummaryReportsAnInvalidDocument(t *testing.T) {
@@ -555,4 +527,90 @@ func TestSummaryReportsAnInvalidDocument(t *testing.T) {
 	if !named {
 		t.Errorf("the problem does not explain itself: %v", problems)
 	}
+}
+
+// What the screens collect has to become a document the real validator
+// accepts. The wizard grew a screen for every group of values that came back
+// missing, so this is the assertion that the set is now complete.
+func TestCollectedValuesBuildAValidDocument(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepSummary)
+
+	if problems := m.validateConfig(); len(problems) > 0 {
+		t.Errorf("the default configuration does not validate:\n  %s",
+			strings.Join(problems, "\n  "))
+	}
+}
+
+// Every profile has to produce a valid document, not just the default one. A
+// profile the wizard offers but cannot complete is a dead end an operator
+// discovers after answering eight screens.
+func TestEveryProfileProducesAValidDocument(t *testing.T) {
+	for _, c := range profileChoices() {
+		t.Run(c.id, func(t *testing.T) {
+			m := wizard(t, LangEN, false, 90, 26, StepSummary)
+			m.cfg.Profile = c.id
+			m.applyProfileDefaults()
+
+			if problems := m.validateConfig(); len(problems) > 0 {
+				t.Errorf("profile %s cannot be completed:\n  %s",
+					c.id, strings.Join(problems, "\n  "))
+			}
+		})
+	}
+}
+
+// A screen must only ask for values that apply. An ACME profile has no
+// intermediate key, and a homelab has no proxy.
+func TestScreensAdaptToTheProfile(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepPKI)
+
+	m.cfg.Profile = string(v1alpha1.ProfileHomelab) // acme-dns01, online
+	if got := m.labels(StepPKI); !containsAny(got, "Account email") {
+		t.Errorf("an ACME profile is asked for CA material: %v", got)
+	}
+	if got := m.labels(StepNetwork); containsAny(got, "HTTP proxy") {
+		t.Errorf("an online profile is asked about a proxy: %v", got)
+	}
+
+	m.cfg.Profile = string(v1alpha1.ProfileOnpremDMZ) // private-ca, proxy
+	if got := m.labels(StepPKI); !containsAny(got, "Intermediate key ref") {
+		t.Errorf("a private-CA profile is not asked for CA material: %v", got)
+	}
+	if got := m.labels(StepNetwork); !containsAny(got, "HTTP proxy") {
+		t.Errorf("a proxy profile is not asked about the proxy: %v", got)
+	}
+}
+
+// Secrets are references, and even a reference typed at a customer site is
+// read over somebody's shoulder.
+func TestSecretFieldsAreMaskedUntilEdited(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepRegistry)
+
+	secret := m.masked(StepRegistry)
+	idx := -1
+	for i, s := range secret {
+		if s {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatal("no field on the registry screen is marked secret")
+	}
+
+	if got := m.maskedValues(StepRegistry)[idx]; !strings.HasPrefix(got, "*") {
+		t.Errorf("secret field shows %q unmasked", got)
+	}
+	m.editing, m.cursor[StepRegistry] = true, idx
+	if got := m.maskedValues(StepRegistry)[idx]; strings.HasPrefix(got, "*") {
+		t.Error("the field stays masked while being edited, so it cannot be corrected")
+	}
+}
+
+func containsAny(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
 }

@@ -5,6 +5,40 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.16.0] - 2026-08-04
+
+### Added
+
+- Network, Registry and Certificates screens, and NFS settings on the options
+  screen. These are exactly the fields the validator reported missing in
+  v0.15.0, so the wizard now produces a `ClusterSpec` that validates — the
+  summary screen says so rather than listing gaps.
+- Field editing is generalised: any step can declare a list of editable lines.
+  It used to be hardcoded to the nodes screen, which is why a screen only
+  existed for the group of values that happened to be written first.
+- Screens adapt to the profile. An ACME profile is asked for an account email
+  and a DNS provider; a private-CA profile for certificate references. An
+  online profile is not asked about a proxy, and NFS settings appear only when
+  NFS is the chosen driver.
+- Secret fields are masked until focused. What is stored is a `SourceRef`
+  rather than a secret, but a token typed at a customer site is still read over
+  somebody's shoulder — and masking it while it is being corrected would make
+  it uncorrectable.
+
+### Changed
+
+- The profile step moved ahead of everything it decides. Network mode, PKI mode
+  and storage driver all follow from it, and asking about a proxy before
+  knowing whether there is one wastes a question. Eleven steps now.
+- The nodes screen gained the join address, RKE2 version and domain.
+
+### Notes
+
+- `TestEveryProfileProducesAValidDocument` checks all six Tier-1 profiles, not
+  just the default. It immediately caught `airgap-conservative`, which uses NFS
+  and had no screen asking for the server and export path — a dead end an
+  operator would have found after answering eight screens.
+
 ## [0.15.0] - 2026-08-04
 
 ### Changed

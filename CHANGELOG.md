@@ -5,6 +5,43 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.14.0] - 2026-08-03
+
+### Added
+
+- `internal/spec`: reads and validates `cluster.yaml`. Unknown keys are an
+  error rather than something to ignore — a typo in `registrationAddress` that
+  silently becomes nothing is the class of failure that surfaces months later
+  as an unexplained rejoin. Validation reports every problem at once, each
+  naming its field path.
+- `SourceRef` resolution for `file://`, `env://` and `literal://`, with
+  `sops://` recognised and refused rather than read as a filename. A
+  `literal://` on a secret field is rejected unless `--allow-literal-secrets`:
+  cluster.yaml is an audit artifact handed to customers, and a password in it
+  outlives the engagement.
+- Profile baselines for the six Tier-1 combinations of ADR-003. A profile
+  fills only what the document left at its zero value, and `ApplyProfile`
+  returns the list of fields it supplied so the audit report can separate what
+  the operator chose from what the tool did. `rke2-ingress-nginx` is disabled
+  whatever the document says (ADR-005), and that is recorded rather than
+  silent.
+- `internal/preflight`: `NodeCapability` and `ProbeResult`, the types
+  `docs/10-preflight-plan.md` sketches. A probe that never ran is not a pass —
+  missing evidence must not read as good news.
+- `internal/plan`: the downgrade decision tree as a pure function.
+  `(ClusterSpec, []NodeCapability) -> Plan`, no side effects and no clock, so
+  the whole tree is table-driven tested without a cluster. Every downgrade
+  records its triggering probes and the nodes involved, because "why is this
+  running Traefik" has no answer without them.
+- `platformctl plan -f cluster.yaml [--validate-only]`, which prints the
+  resolved configuration and marks each value the profile supplied.
+
+### Notes
+
+- `plan` without `--validate-only` reports that preflight is not implemented
+  instead of planning against assumed capabilities. A plan derived from nodes
+  nobody has looked at is worse than no plan.
+
 ## [0.13.0] - 2026-08-03
 
 ### Changed

@@ -142,6 +142,14 @@ func TestNoDanglingReferences(t *testing.T) {
 		default:
 			return nil
 		}
+		// Test files are exempt. A negative test has to name an unregistered
+		// code to prove the rejection path works -- internal/event does exactly
+		// that with PF-908 and PF-999. What this test guards against is
+		// production code citing a code that does not exist, which is how
+		// PF-908 lived in api/v1alpha1 for a release.
+		if strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
 		body, err := os.ReadFile(path)
 		if err != nil {
 			return err

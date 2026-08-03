@@ -5,6 +5,31 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.6.0] - 2026-08-03
+
+### Added
+
+- `internal/event`, the first implementation of the `docs/11-execute.md` §5
+  contract: the `Event` schema, a sequence-owning append-only `Writer`, a
+  `Scanner` that verifies per-run sequence continuity, and replay helpers for
+  `attach`.
+- `Event.Validate` enforces the §7 group C acceptance criteria in the engine
+  itself rather than only in tests — codes must exist in `internal/codes`, a
+  failed or blocked status must carry one, detail must be single-line printable
+  ASCII, and no event may contain ANSI escapes or block-drawing glyphs.
+- `TestScreenElementsFromADR002` encodes criterion C6: every screen element in
+  the ADR-002 mockup is constructed as an event and validated, so a schema too
+  thin to draw the TUI fails the build instead of being discovered when the TUI
+  reaches into the engine for a missing value.
+- `Timestamp` renders RFC3339 at exactly millisecond precision. `time.Time`'s
+  variable-width nanoseconds make event files noisy to diff and to read on site.
+
+### Changed
+
+- `internal/codes`' dangling-reference test now skips `_test.go`. Negative tests
+  must name unregistered codes to prove the rejection path; the guard exists for
+  production code, which is where `PF-908` actually lived.
+
 ## [0.5.0] - 2026-08-03
 
 ### Added

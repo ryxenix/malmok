@@ -379,11 +379,42 @@ func TestTextRendererOutput(t *testing.T) {
 	}
 }
 
+// A failed phase or run restates the step that failed. Counting all three
+// turns one incident into three entries and the summary stops being read.
+func TestSummaryListsOriginatingFailuresOnly(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewTextRenderer(&buf)
+
+	events := []event.Event{
+		{Kind: event.KindStep, Phase: "l1-bootstrap", Step: "rke2-server-ready",
+			Node: "10.10.0.11", Status: event.StatusFailed, Code: "PF-601",
+			Detail: "port 9345 unreachable"},
+		{Kind: event.KindPhase, Phase: "l1-bootstrap", Status: event.StatusFailed, Code: "PF-601"},
+		{Kind: event.KindRun, Status: event.StatusFailed, Code: "PF-601",
+			Detail: "apply halted at l1-bootstrap"},
+	}
+	for _, e := range events {
+		e.TS, e.Run, e.Seq = event.NewTimestamp(clock()()), runA, 1
+		if err := r.Handle(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	summary := r.Summary()
+	if !strings.Contains(summary, "1 failure(s)") {
+		t.Errorf("one incident should be reported once:\n%s", summary)
+	}
+	if !strings.Contains(summary, "port 9345 unreachable") {
+		t.Errorf("the originating failure is missing:\n%s", summary)
+	}
+}
+
 func TestTextRendererResetClearsState(t *testing.T) {
 	var buf bytes.Buffer
 	r := NewTextRenderer(&buf)
 
-	e := phase("preflight", event.StatusFailed)
+	e := event.Event{Kind: event.KindProbe, Phase: "preflight", Node: "10.10.0.12",
+		Status: event.StatusFailed, Detail: "eBPF load denied"}
 	e.TS, e.Run, e.Seq, e.Code = event.NewTimestamp(clock()()), runA, 1, "PF-204"
 	if err := r.Handle(e); err != nil {
 		t.Fatal(err)

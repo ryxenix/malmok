@@ -60,7 +60,11 @@ func (r *TextRenderer) Handle(e event.Event) error {
 		}
 		r.phases[e.Phase] = e.Status
 	}
-	if e.Status == event.StatusFailed || e.Status == event.StatusBlocked {
+	// Only originating failures go in the summary. A failed phase or run is a
+	// rollup of the step or probe that actually failed, and listing both makes
+	// one incident look like three -- which is how a report stops being read.
+	if (e.Status == event.StatusFailed || e.Status == event.StatusBlocked) &&
+		(e.Kind == event.KindProbe || e.Kind == event.KindStep) {
 		r.failed = append(r.failed, e)
 	}
 	if e.Kind == event.KindLog && !r.Verbose {

@@ -5,6 +5,26 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.9.0] - 2026-08-03
+
+### Added
+
+- `cmd/platformctl` — the first runnable binary, with `attach` as its only
+  subcommand. Commands are registered as they are implemented; one that exists
+  and does nothing is worse at a customer site than one that is absent.
+- `platformctl attach` resolves the event file from `--file`, else the newest
+  run under `--bundle`, else the bundle's shared event log. `--follow=false`
+  replays a finished run, `--verbose` includes log lines, and `-o json` passes
+  the stream through unchanged — the engine already emits JSONL, so that format
+  is the stream itself rather than a second serialisation.
+- `github.com/spf13/cobra`, the CLI framework fixed by `CLAUDE.md`.
+
+### Changed
+
+- The failure summary lists only originating failures — probe and step events.
+  A failed phase or run restates the step that failed, and counting all three
+  turned one incident into three entries.
+
 ## [0.8.0] - 2026-08-03
 
 ### Added

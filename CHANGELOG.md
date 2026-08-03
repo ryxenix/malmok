@@ -5,6 +5,30 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.8.0] - 2026-08-03
+
+### Added
+
+- `internal/attach`: replay an event file, then tail it. Implements
+  `docs/11-execute.md` §1.2 and §5.6. It waits for the file to appear, survives
+  rotation, never consumes a partial trailing line, and filters to one run when
+  a fixed `output.eventLog` holds several.
+- `TextRenderer`, the first consumer of the stream, plus `Collector` for tests
+  and `--output json`. The progress bar is drawn here — `Bar()` is the only
+  place block glyphs exist, and a test asserts that an event carrying its output
+  is rejected by `Event.Validate`. That is §5.3 made mechanical instead of
+  aspirational.
+- `GapReporter`, an optional `Sink` extension for gaps that survive a re-read.
+- `LatestRun` and `LatestRunDir` for `attach` with no arguments. Run ids are
+  ULIDs, so lexical order is chronological and no clock has to be trusted.
+
+### Changed
+
+- `docs/11-execute.md` §5.6: a gap now triggers at most one re-read. Re-reading
+  recovers lines this reader missed but cannot conjure lines the file lacks, so
+  a gap that survives is reported and accepted. Unconditional re-reading put the
+  follower in a loop it never left — the test caught it.
+
 ## [0.7.0] - 2026-08-03
 
 ### Added

@@ -5,6 +5,34 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.7.0] - 2026-08-03
+
+### Added
+
+- `internal/state`, implementing `docs/11-execute.md` §4: the run state file,
+  the resume decision, and atomic persistence. Every §7 group B acceptance
+  criterion is covered by a test.
+- `State.Decide` returns run / skip / **confirm**. The third exists because a
+  `oneShot` step left running or failed is neither obviously safe nor obviously
+  unsafe to repeat, and deciding automatically goes wrong in one direction or
+  the other.
+- `Save` writes through a temporary file in the same directory with `fsync`,
+  `rename`, then a directory `fsync`. This closes the open question in
+  §11-execute about atomic state updates.
+- `CheckResumable` refuses a run whose `cluster.yaml` digest has changed, and
+  names `--force-resume` in the error rather than just failing.
+
+### Changed
+
+- `docs/11-execute.md` §4.1's state file example now matches the
+  implementation: node progress is recorded per step as `step@node` rather than
+  as a `nodes` summary, which is the granularity criterion B4 needs. The node
+  rollup is derived instead of stored so it cannot drift from the steps it
+  summarises. §4.2 gains the three-way resume decision table.
+- Step keys split on the first `@`, putting the "no `@`" constraint on step ids
+  — constants we author — rather than on node ids, which come from a customer's
+  `cluster.yaml` and are whatever they are.
+
 ## [0.6.0] - 2026-08-03
 
 ### Added

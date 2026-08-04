@@ -202,7 +202,7 @@ func validatePKI(s *v1alpha1.ClusterSpec) []error {
 	// Required only where something is being issued. At a first build the
 	// service domain is frequently not decided yet, and a placeholder here
 	// becomes a certificate for a name nobody uses.
-	if p.Mode != v1alpha1.PKINone && strings.TrimSpace(p.Domain) == "" {
+	if p.Mode != "" && p.Mode != v1alpha1.PKINone && strings.TrimSpace(p.Domain) == "" {
 		errs = append(errs, fmt.Errorf("pki.domain is required with mode %s", p.Mode))
 	}
 

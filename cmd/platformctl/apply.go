@@ -13,10 +13,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/attach"
 	"platform.ryxen.dev/platformctl/internal/demo"
 	"platform.ryxen.dev/platformctl/internal/engine"
 	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/platformctl/internal/spec"
 	"platform.ryxen.dev/platformctl/internal/state"
 	"platform.ryxen.dev/platformctl/internal/tui"
 )
@@ -97,10 +99,25 @@ starting over. See docs/11-execute.md.`,
 				// can be reviewed, then the remaining phases. Both go through
 				// the same runner and state file, so resume treats them as one
 				// run.
-				preflight := func(c context.Context, _ tui.Config) error {
+				// The run keeps the document it was built from, so it can be
+				// re-run, resumed or handed over on its own (§1.1). Written
+				// before the first phase touches anything: a run that fails
+				// early still leaves behind what it was trying to do.
+				snapshot := func(cfg tui.Config) error {
+					return spec.Snapshot(runDir, cfg.ToSpec())
+				}
+				preflight := func(c context.Context, cfg tui.Config) error {
+					if err := snapshot(cfg); err != nil {
+						return err
+					}
 					return runner.Run(c, phases[:1])
 				}
-				install := func(c context.Context, _ tui.Config) error {
+				install := func(c context.Context, cfg tui.Config) error {
+					// Written again: the operator may have gone back and
+					// changed something after the checks ran.
+					if err := snapshot(cfg); err != nil {
+						return err
+					}
 					return runner.Run(c, phases[1:])
 				}
 				sc, err := screen.screen(ctx, st.Run, runDir, preflight, install)
@@ -131,6 +148,12 @@ starting over. See docs/11-execute.md.`,
 			defer summary()
 
 			fmt.Fprintf(cmd.ErrOrStderr(), "run %s\n  %s\n\n", st.Run, runDir)
+
+			// Even the simulated run leaves its document behind, so the run
+			// directory always means the same thing.
+			if err := spec.Snapshot(runDir, demoSpec(opts)); err != nil {
+				return err
+			}
 
 			done := followRun(ctx, eventPath, st.Run, sink)
 			runErr := runner.Run(ctx, phases)
@@ -209,4 +232,41 @@ func followRun(ctx context.Context, path, run string, sink attach.Sink) <-chan s
 		_ = f.Follow(ctx, sink)
 	}()
 	return done
+}
+
+// demoSpec is what the simulated run would have been built from. It exists so
+// that a run directory always contains the same set of files, whether the run
+// was real or not -- a directory that is sometimes missing its document is one
+// nobody can write a handover procedure against.
+func demoSpec(o demo.Options) v1alpha1.ClusterSpec {
+	nodes := o.Nodes
+	if len(nodes) == 0 {
+		nodes = []string{"10.10.0.11", "10.10.20.21", "10.10.0.22"}
+	}
+	// A profile, so the baseline fills in everything a document needs and the
+	// snapshot is one that can actually be re-read. The annotation is what
+	// tells a reader six months later that no node was ever touched.
+	s := v1alpha1.ClusterSpec{
+		APIVersion: v1alpha1.APIVersion, Kind: v1alpha1.KindSpec,
+		Metadata: v1alpha1.Metadata{
+			Name:        "demo",
+			Profile:     v1alpha1.ProfileHomelab,
+			Annotations: map[string]string{"platform.ryxen.dev/simulated": "true"},
+		},
+		Topology: v1alpha1.TopologySpec{
+			RegistrationAddress: "k8s-api.demo.invalid",
+			Servers:             []v1alpha1.NodeSpec{{Host: nodes[0], Role: v1alpha1.RoleServer}},
+		},
+		Kubernetes: v1alpha1.KubernetesSpec{
+			Version: "v1.34.5+rke2r1",
+			// homelab uses cilium-gw, and Cilium LB-IPAM needs somewhere to
+			// take the gateway address from.
+			Dataplane: v1alpha1.DataplaneSpec{LoadBalancerPool: []string{"10.10.20.240/29"}},
+		},
+	}
+	for _, n := range nodes[1:] {
+		s.Topology.Agents = append(s.Topology.Agents,
+			v1alpha1.NodeSpec{Host: n, Role: v1alpha1.RoleAgent})
+	}
+	return s
 }

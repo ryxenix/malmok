@@ -5,6 +5,36 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.20.0] - 2026-08-04
+
+### Added
+
+- Every run now writes the document it was built from to
+  `<runDir>/cluster.yaml`, which `docs/11-execute.md` §1.1 has called for since
+  it was written. The finished screen had been naming a file that did not
+  exist.
+- `spec.Marshal`, `Save`, `Snapshot` and `SnapshotRaw`. Serialisation lives in
+  the same package as the loader so the two cannot drift; `TestRoundTrip`
+  asserts that what the writer produces parses strictly and validates.
+- The generated document carries a header saying where it came from. A
+  `cluster.yaml` found on a customer site months later has to explain itself:
+  whether it was written by hand or produced by the installer changes what may
+  be edited.
+- An operator's own file is snapshotted byte for byte rather than
+  re-marshalled. The digest the resume check compares is of those bytes, and a
+  round trip through the encoder changes them even where nothing that matters
+  changed.
+
+### Changed
+
+- `Snapshot` refuses to write a document that would not load. A snapshot that
+  cannot be re-read defeats every reason for keeping one — and the rule
+  immediately caught the simulated run, which was leaving behind a document
+  missing half its required fields. `--demo` now carries the `homelab` profile
+  so its snapshot is a real, reloadable document.
+- `pki.domain` is no longer demanded when `pki.mode` is empty; the missing mode
+  is the error worth reporting.
+
 ## [0.19.0] - 2026-08-04
 
 ### Added

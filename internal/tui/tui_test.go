@@ -496,7 +496,7 @@ func TestChoosingAProfileAppliesItsBaseline(t *testing.T) {
 	}
 
 	m.cursor[StepProfile] = target
-	m.commitContent()
+	m.selectUnderCursor()
 
 	b, _ := spec.BaselineFor(v1alpha1.ProfileAirgapConservative)
 	if m.cfg.Dataplane != string(b.Dataplane) {
@@ -782,5 +782,214 @@ func TestRegistryDetailsOnlyWhereThereIsARegistry(t *testing.T) {
 	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
 	if got := m.fieldsFor(StepRegistry); len(got) == 0 {
 		t.Error("mode external does not ask where the registry is")
+	}
+}
+
+// Glyphs belong to the character set, not the catalogue. A translator has no
+// way to know whether the terminal can draw one, and a catalogue string with a
+// bullet in it defeats the ASCII fallback wholesale.
+func TestCataloguesContainNoGlyphs(t *testing.T) {
+	// English only. The Korean catalogue is never shown on a terminal that
+	// cannot draw these, because the ASCII fallback forces English -- a console
+	// that mangles a box character mangles Hangul too.
+	for _, lang := range []Lang{LangEN} {
+		cat, err := LoadCatalogue(lang)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for key, val := range cat.table {
+			for _, bad := range []string{"·", "✓", "▸", "✗", "─", "│", "█", "░", "–"} {
+				if strings.Contains(val, bad) {
+					t.Errorf("%s: %q contains the glyph %q; use Glyphs at render time",
+						lang, key, bad)
+				}
+			}
+		}
+	}
+}
+
+// A terminal that cannot draw a box character cannot draw Hangul either, so
+// the ASCII fallback takes the language with it. Leaving Korean on would make
+// the fallback half-work, which is worse than not having it.
+func TestASCIIFallbackForcesEnglish(t *testing.T) {
+	m, err := NewWizard("run", true, true, LangKO, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.cat.Lang() != LangEN {
+		t.Errorf("ASCII mode kept the %s catalogue", m.cat.Lang())
+	}
+
+	// And toggling into ASCII at runtime does the same.
+	n, err := NewWizard("run", false, true, LangKO, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.key(fakeKey("a"))
+	if n.cat.Lang() != LangEN {
+		t.Errorf("toggling ASCII kept the %s catalogue", n.cat.Lang())
+	}
+}
+
+// A final screen that says only "finished" leaves the operator to work out
+// what was built, where it went and what to run next. All three have to be on
+// it.
+func TestFinishedScreenCarriesTheInstallation(t *testing.T) {
+	m := wizard(t, LangEN, false, 100, 34, StepDone)
+	m.runDir = "/srv/out/runs/01KZ3Z5GAPJJKBA4AR49G8DE4E"
+	m.fold(event.Event{Kind: event.KindRun, Status: event.StatusRunning, TS: ts(0)})
+	m.fold(event.Event{Kind: event.KindRun, Status: event.StatusOK, TS: ts(45)})
+
+	screen := plain(render(t, m, nil))
+
+	for _, want := range []string{
+		m.cfg.Profile,                  // what was built
+		m.cfg.Dataplane, m.cfg.Storage, //
+		m.cfg.Server,             // and where
+		"/srv/out/runs/01KZ3Z5G", // the run directory, not just the id
+		"cluster.yaml", "events.jsonl", "state.json",
+		"platformctl attach --run", // what to run next
+		"45s",                      // how long it took
+	} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the finished screen does not mention %q:\n%s", want, screen)
+		}
+	}
+}
+
+// A failed run has to say what failed and hand back the exact command that
+// continues it. "Installation stopped" on its own is not actionable.
+func TestFailedScreenNamesTheCauseAndTheWayForward(t *testing.T) {
+	m := wizard(t, LangEN, false, 100, 34, StepDone)
+	m.runDir = "/srv/out/runs/01KZ"
+	m.fold(event.Event{
+		Kind: event.KindStep, Phase: "l1-bootstrap", Step: "rke2-server-ready",
+		Node: "10.10.0.11", Status: event.StatusFailed, Code: "PF-601", TS: ts(30),
+		Detail: "port 9345 unreachable from 10.10.20.21"})
+
+	screen := plain(render(t, m, nil))
+
+	for _, want := range []string{
+		"PF-601", "l1-bootstrap", "10.10.0.11", "port 9345 unreachable",
+		"--resume " + m.runID,
+	} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the failed screen does not mention %q:\n%s", want, screen)
+		}
+	}
+}
+
+// Deferring certificates has to be legible on the final screen: an operator
+// reading it months later needs to know why there is no TLS.
+func TestFinishedScreenSaysWhenNothingWasIssued(t *testing.T) {
+	m := wizard(t, LangEN, false, 100, 34, StepDone)
+	m.cfg.PKIMode = string(v1alpha1.PKINone)
+
+	if got := plain(render(t, m, nil)); !strings.Contains(got, "add certificates later") {
+		t.Errorf("the finished screen does not explain the missing certificates:\n%s", got)
+	}
+}
+
+// Space chooses, Enter moves on. Making Enter select meant Tabbing to the
+// buttons on every screen, which is eleven extra keystrokes on a first build.
+func TestSpaceSelectsAndEnterAdvances(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepProfile)
+	choices := profileChoices()
+
+	// Space on a choice selects it and stays put.
+	m.cursor[StepProfile] = len(choices) - 1
+	m.key(fakeKey("space"))
+	if m.step != StepProfile {
+		t.Errorf("Space moved to step %d; it must select in place", m.step)
+	}
+	if m.cfg.Profile != choices[len(choices)-1].id {
+		t.Errorf("Space did not select: profile is %s", m.cfg.Profile)
+	}
+
+	// Enter on a choice moves on without touching the selection.
+	before := m.cfg.Profile
+	m.key(fakeKey("enter"))
+	if m.step == StepProfile {
+		t.Error("Enter did not advance from a choice screen")
+	}
+	if m.cfg.Profile != before {
+		t.Errorf("Enter changed the selection from %s to %s", before, m.cfg.Profile)
+	}
+}
+
+// A field still needs Enter to open it: there is nothing else the key could
+// mean while the cursor is on one.
+func TestEnterOpensAFieldRatherThanAdvancing(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepNodes)
+	m.cursor[StepNodes] = 0
+
+	m.key(fakeKey("enter"))
+	if !m.editing {
+		t.Error("Enter on a field did not start editing")
+	}
+	if m.step != StepNodes {
+		t.Errorf("Enter on a field advanced to step %d", m.step)
+	}
+}
+
+// On a screen that mixes choices and fields, the key means whichever the
+// cursor is on.
+func TestMixedScreenKeysFollowTheCursor(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepOptions)
+	m.cfg.Storage = string(v1alpha1.StorageNFS) // reveals the NFS fields
+
+	// On a radio row.
+	m.cursor[StepOptions] = 0
+	if m.cursorIsField() {
+		t.Error("a dataplane row is reported as a field")
+	}
+
+	// On a field row below them.
+	m.cursor[StepOptions] = len(dataplanes) + len(storages)
+	if !m.cursorIsField() {
+		t.Error("the NFS server row is not reported as a field")
+	}
+	m.key(fakeKey("enter"))
+	if !m.editing {
+		t.Error("Enter on the NFS row did not start editing")
+	}
+}
+
+// Enter walks a form: commit, next field, and off the last one onto the
+// buttons. Alternating Enter and Tab on every field is eleven screens of
+// friction on a first build.
+func TestEnterWalksTheFormOntoTheButtons(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepNodes)
+	n := len(m.fieldsFor(StepNodes))
+	if n < 2 {
+		t.Fatalf("expected several fields, got %d", n)
+	}
+
+	m.cursor[StepNodes] = 0
+	m.key(fakeKey("enter")) // open the first field
+	if !m.editing {
+		t.Fatal("Enter did not open the first field")
+	}
+
+	for i := 0; i < n-1; i++ {
+		m.key(fakeKey("enter"))
+		if want := i + 1; m.cursor[StepNodes] != want {
+			t.Fatalf("Enter moved the cursor to %d, want %d", m.cursor[StepNodes], want)
+		}
+		if !m.editing {
+			t.Fatalf("field %d did not open", m.cursor[StepNodes])
+		}
+	}
+
+	// Off the last one.
+	m.key(fakeKey("enter"))
+	if m.editing {
+		t.Error("the form stayed in edit mode past the last field")
+	}
+	if m.focus != focusButtons {
+		t.Error("Enter on the last field did not reach the buttons")
+	}
+	if btns := m.buttons(); m.btn < 0 || m.btn >= len(btns) || !btns[m.btn].Primary {
+		t.Error("the primary action is not preselected after leaving the form")
 	}
 }

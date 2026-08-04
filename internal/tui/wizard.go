@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"sync"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -114,7 +115,12 @@ type Wizard struct {
 	mono   bool
 
 	runID         string
+	runDir        string
 	width, height int
+
+	// Taken from the run events rather than a clock of its own, so the elapsed
+	// time on screen is the engine's own record and matches the event file.
+	startedAt, finishedAt time.Time
 
 	step  Step
 	focus focus
@@ -136,6 +142,7 @@ type Wizard struct {
 	preflight Work
 	install   Work
 	workCtx   context.Context
+	hideRail  bool
 	busy      bool
 	workErr   error
 	aborted   bool
@@ -203,6 +210,7 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 	// The default profile's baseline applies from the start, so a screen never
 	// shows a mode that the chosen profile would not use.
 	wz.applyProfileDefaults()
+	wz.enforceASCIILanguage()
 	wz.enter()
 	return wz, nil
 }
@@ -290,11 +298,17 @@ func (w *Wizard) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		w.ascii = !w.ascii
 		w.glyphs = GlyphsFor(w.ascii)
+		w.enforceASCIILanguage()
 		return w, nil
 	case "g":
 		if cat, err := LoadCatalogue(w.cat.Other()); err == nil {
 			w.cat, w.cfg.Lang = cat, cat.Lang()
 		}
+		return w, nil
+	case "s":
+		// The step list, on or off. Some operators want to see where they are;
+		// others want the width.
+		w.hideRail = !w.hideRail
 		return w, nil
 	case "tab":
 		w.focus = 1 - w.focus
@@ -314,11 +328,28 @@ func (w *Wizard) buttonKey(s string) (tea.Model, tea.Cmd) {
 	btns := w.buttons()
 	switch s {
 	case "left", "h":
-		w.btn = max(w.btn-1, 0)
+		// Stepping left off the first action reaches the bottom-left exit.
+		if w.btn == 0 && w.exitButton() != nil {
+			w.btn = exitFocus
+		} else if w.btn > 0 {
+			w.btn--
+		}
 	case "right", "l":
-		w.btn = min(w.btn+1, len(btns)-1)
+		if w.btn == exitFocus {
+			w.btn = 0
+		} else {
+			w.btn = min(w.btn+1, len(btns)-1)
+		}
 	case "enter", "space":
-		return w.activate(btns[w.btn].Label)
+		if w.btn == exitFocus {
+			if ex := w.exitButton(); ex != nil {
+				return w.activate(ex.Label)
+			}
+			return w, nil
+		}
+		if w.btn >= 0 && w.btn < len(btns) {
+			return w.activate(btns[w.btn].Label)
+		}
 	case "esc":
 		w.focus = focusContent
 	}
@@ -334,8 +365,18 @@ func (w *Wizard) contentKey(s string) (tea.Model, tea.Cmd) {
 		w.cursor[w.step] = max(cur-1, 0)
 	case "down", "j":
 		w.cursor[w.step] = min(cur+1, max(n-1, 0))
-	case "enter", "space":
-		return w.commitContent()
+	case "space":
+		// Space selects. Enter is reserved for moving on, so the operator is
+		// not made to Tab to the buttons on every screen.
+		return w.selectUnderCursor()
+	case "enter":
+		// A field still needs Enter to open it; there is nothing else the key
+		// could mean while the cursor is on one.
+		if w.cursorIsField() {
+			w.editing = true
+			return w, nil
+		}
+		return w.next()
 	case "esc":
 		return w.back()
 	}
@@ -351,8 +392,22 @@ func (w *Wizard) editKey(s string) (tea.Model, tea.Cmd) {
 	}
 
 	switch s {
-	case "enter", "esc":
+	case "esc":
+		// Esc closes the field and leaves the cursor on it.
 		w.editing = false
+	case "enter":
+		// Enter commits and moves to the next field, and off the last one onto
+		// the buttons. That is how every form behaves, and it means a field
+		// screen can be walked with one key instead of alternating Enter and
+		// Tab.
+		w.editing = false
+		if i+1 < len(vals) {
+			w.cursor[w.step]++
+			w.editing = true
+		} else {
+			w.focus = focusButtons
+			w.btn = primaryIndex(w.buttons())
+		}
 	case "backspace":
 		if v := vals[i]; v != "" {
 			r := []rune(v)
@@ -370,8 +425,9 @@ func (w *Wizard) editKey(s string) (tea.Model, tea.Cmd) {
 	return w, nil
 }
 
-// commitContent applies Enter on the content pane.
-func (w *Wizard) commitContent() (tea.Model, tea.Cmd) {
+// selectUnderCursor applies Space: it chooses the option the cursor is on and
+// does nothing when the cursor is on a field.
+func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 	cur := w.cursor[w.step]
 	switch w.step {
 	case StepLang:
@@ -379,21 +435,13 @@ func (w *Wizard) commitContent() (tea.Model, tea.Cmd) {
 		if cat, err := LoadCatalogue(lang); err == nil {
 			w.cat, w.cfg.Lang = cat, lang
 		}
-	case StepNodes, StepNetwork:
-		if len(w.fieldsFor(w.step)) > 0 {
-			w.editing = true
-		}
 	case StepRegistry:
 		if cur < len(registryModes) {
 			w.cfg.RegistryMode = registryModes[cur].id
-		} else if len(w.fieldsFor(StepRegistry)) > 0 {
-			w.editing = true
 		}
 	case StepPKI:
 		if cur < len(pkiModes) {
 			w.cfg.PKIMode = pkiModes[cur].id
-		} else if len(w.fieldsFor(StepPKI)) > 0 {
-			w.editing = true
 		}
 	case StepProfile:
 		if choices := profileChoices(); cur < len(choices) {
@@ -409,11 +457,6 @@ func (w *Wizard) commitContent() (tea.Model, tea.Cmd) {
 			w.cfg.Dataplane = dataplanes[cur].id
 		case cur < len(dataplanes)+len(storages):
 			w.cfg.Storage = storages[cur-len(dataplanes)].id
-		default:
-			// The driver's own settings sit below the choice that reveals them.
-			if len(w.fieldsFor(StepOptions)) > 0 {
-				w.editing = true
-			}
 		}
 	}
 	return w, nil
@@ -472,7 +515,11 @@ func primaryIndex(btns []Button) int {
 			return i
 		}
 	}
-	return max(len(btns)-1, 0)
+	if len(btns) == 0 {
+		// Only the bottom-left action exists, so that is what focus means.
+		return exitFocus
+	}
+	return len(btns) - 1
 }
 
 func (w *Wizard) next() (tea.Model, tea.Cmd) {
@@ -544,6 +591,12 @@ func (w *Wizard) fold(e event.Event) {
 	switch e.Kind {
 	case event.KindRun:
 		w.runStat = e.Status
+		if w.startedAt.IsZero() {
+			w.startedAt = e.TS.Time
+		}
+		if e.Status.Terminal() {
+			w.finishedAt = e.TS.Time
+		}
 
 	case event.KindPhase:
 		p := w.phase(e.Phase)
@@ -635,4 +688,27 @@ func (w *Wizard) fieldIndex() int {
 		i -= len(pkiModes)
 	}
 	return i
+}
+
+// enforceASCIILanguage falls back to English whenever the character set does.
+//
+// The ASCII glyphs exist for a terminal that cannot draw box characters -- a
+// serial console, an IPMI viewer, PuTTY with the wrong codepage. None of those
+// can draw Hangul either, so a Korean screen there is unreadable in a way the
+// glyph fallback cannot fix. Tying the two keeps the fallback honest instead of
+// half-working.
+func (w *Wizard) enforceASCIILanguage() {
+	if !w.ascii || w.cat.Lang() == LangEN {
+		return
+	}
+	if cat, err := LoadCatalogue(LangEN); err == nil {
+		w.cat, w.cfg.Lang = cat, LangEN
+	}
+}
+
+// cursorIsField reports whether the content cursor is on an editable line
+// rather than on a choice.
+func (w *Wizard) cursorIsField() bool {
+	i := w.fieldIndex()
+	return i >= 0 && i < len(w.fieldsFor(w.step))
 }

@@ -103,7 +103,7 @@ starting over. See docs/11-execute.md.`,
 				install := func(c context.Context, _ tui.Config) error {
 					return runner.Run(c, phases[1:])
 				}
-				sc, err := screen.screen(ctx, st.Run, preflight, install)
+				sc, err := screen.screen(ctx, st.Run, runDir, preflight, install)
 				if err != nil {
 					return err
 				}

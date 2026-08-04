@@ -18,6 +18,7 @@ type tuiFlags struct {
 	ascii   bool
 	mono    bool
 	lang    string
+	rail    bool
 }
 
 func (f *tuiFlags) register(cmd *cobra.Command) {
@@ -26,9 +27,11 @@ func (f *tuiFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.ascii, "ascii", false, "force the ASCII character set (default: auto-detect)")
 	fl.StringVar(&f.lang, "lang", "en", "screen language: en | ko")
 	fl.BoolVar(&f.mono, "mono", false, "drop colour (NO_COLOR is honoured too)")
+	fl.BoolVar(&f.rail, "rail", true,
+		"show the step list down the left; --rail=false is the Proxmox layout (toggle with s)")
 }
 
-func (f *tuiFlags) screen(ctx context.Context, runID string, preflight, install tui.Work) (*tui.Screen, error) {
+func (f *tuiFlags) screen(ctx context.Context, runID, runDir string, preflight, install tui.Work) (*tui.Screen, error) {
 	ascii := f.ascii
 	if !ascii {
 		ascii = tui.DetectASCII(os.Getenv)
@@ -38,8 +41,9 @@ func (f *tuiFlags) screen(ctx context.Context, runID string, preflight, install 
 		return nil, fmt.Errorf("unknown --lang %q: want en or ko", f.lang)
 	}
 	return tui.NewScreen(ctx, tui.Options{
-		RunID: runID, ASCII: ascii, Mono: f.mono || os.Getenv("NO_COLOR") != "",
-		Lang: lang, Preflight: preflight, Install: install,
+		RunID: runID, RunDir: runDir, ASCII: ascii, Mono: f.mono || os.Getenv("NO_COLOR") != "",
+		Lang: lang, HideRail: !f.rail,
+		Preflight: preflight, Install: install,
 	})
 }
 

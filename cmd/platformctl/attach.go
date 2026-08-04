@@ -64,7 +64,7 @@ docs/11-execute.md §1.2.`,
 			if screen.enabled {
 				// Watching a run somebody else started: no work to drive, so
 				// the wizard opens straight on the progress screen.
-				sc, err := screen.screen(ctx, run, nil, nil)
+				sc, err := screen.screen(ctx, run, filepath.Dir(path), nil, nil)
 				if err != nil {
 					return err
 				}

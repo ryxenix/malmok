@@ -2,10 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
@@ -78,11 +81,13 @@ var storages = []choice{
 // View renders the current step.
 func (w *Wizard) View() tea.View {
 	f := Frame{
-		Title:   w.cat.T("app.title"),
-		Context: fmt.Sprintf("%d/%d", int(w.step)+1, len(stepKeys)),
-		Rail:    w.rail(),
-		Buttons: w.buttons(),
-		Focused: w.btn,
+		Title:    w.cat.T("app.title"),
+		Context:  fmt.Sprintf("%d/%d", int(w.step)+1, len(stepKeys)),
+		Rail:     w.rail(),
+		Buttons:  w.buttons(),
+		Focused:  w.btn,
+		Exit:     w.exitButton(),
+		HideRail: w.hideRail,
 	}
 	if w.focus == focusButtons {
 		f.Focused = w.btn
@@ -116,6 +121,20 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.doneScreen(body)
 	}
 
+	// The toggles are appended to whatever the screen wanted to say, so they
+	// are discoverable without a help screen nobody opens. The separator comes
+	// from the glyph set rather than the catalogue: a translator has no way to
+	// know whether the terminal can draw it.
+	sep := " " + w.glyphs.Dot + " "
+	toggles := strings.Join([]string{
+		w.cat.T("hint.toggle_steps"), w.cat.T("hint.toggle_ascii"), w.cat.T("hint.toggle_lang"),
+	}, sep)
+	if f.Status != "" {
+		f.Status += "   " + toggles
+	} else {
+		f.Status = toggles
+	}
+
 	v := tea.NewView(w.theme.Render(f, w.width, w.height, w.glyphs))
 	v.AltScreen = true
 	return v
@@ -147,16 +166,15 @@ func (w *Wizard) rail() []RailItem {
 // going back would mean undoing work already done on a node.
 func (w *Wizard) buttons() []Button {
 	back := Button{Label: w.cat.T("btn.back")}
-	quit := Button{Label: w.cat.T("btn.quit")}
 
 	switch w.step {
 	case StepLang:
-		return []Button{quit, {Label: w.cat.T("btn.next"), Primary: true}}
+		return []Button{{Label: w.cat.T("btn.next"), Primary: true}}
 	case StepProfile, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepPreflight:
 		if w.busy {
-			return []Button{{Label: w.cat.T("btn.abort")}}
+			return nil
 		}
 		if w.workErr != nil {
 			return []Button{back, {Label: w.cat.T("btn.check"), Primary: true}}
@@ -172,7 +190,7 @@ func (w *Wizard) buttons() []Button {
 		return []Button{back, {Label: w.cat.T("btn.install"), Primary: true}}
 	case StepInstall:
 		if w.busy {
-			return []Button{{Label: w.cat.T("btn.logs")}, {Label: w.cat.T("btn.abort")}}
+			return []Button{{Label: w.cat.T("btn.logs")}}
 		}
 		return []Button{{Label: w.cat.T("btn.next"), Primary: true}}
 	default:
@@ -394,24 +412,109 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 func (w *Wizard) doneScreen(width int) (string, string, string) {
 	var b strings.Builder
 
-	if w.workErr != nil || len(w.failures) > 0 {
-		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+w.cat.T("done.failed")) + "\n\n")
+	failed := w.workErr != nil || len(w.failures) > 0
+	if failed {
+		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+w.cat.T("done.failed")) + "\n")
+	} else {
+		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T("done.ok")) + "\n")
+	}
+
+	// What was built, where it went, and what to run next. A final screen that
+	// says only "finished" leaves the operator to guess all three.
+	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("done.cluster")) + "\n")
+	for _, r := range w.builtRows() {
+		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
+			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
+	}
+
+	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("done.artifacts")) + "\n")
+	for _, r := range w.artifactRows() {
+		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
+			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
+	}
+
+	if failed {
+		b.WriteString("\n" + w.theme.Err.Render(w.cat.T("done.problems")) + "\n")
 		for _, e := range w.failures {
 			where := e.Phase
 			if e.Node != "" {
 				where += " " + e.Node
 			}
 			b.WriteString("  " + w.theme.Body.Render(padCells(e.Code, 10)) +
-				w.theme.Dim.Render(padCells(truncCells(where, 24), 26)) +
-				w.theme.Body.Render(truncCells(e.Detail, max(width-42, 10))) + "\n")
+				w.theme.Dim.Render(padCells(truncCells(where, 22), 24)) +
+				w.theme.Body.Render(truncCells(e.Detail, max(width-40, 10))) + "\n")
 		}
-		b.WriteString("\n" + w.dim(w.cat.T("done.resume"), width))
+		b.WriteString("\n" + w.dim(w.cat.T("done.resume"), width) + "\n")
+		b.WriteString("  " + w.theme.Body.Render(w.resumeCommand()) + "\n")
 	} else {
-		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T("done.ok")) + "\n\n")
-		b.WriteString(w.dim(w.cat.T("done.artifacts"), width) + "\n")
-		b.WriteString("  " + w.theme.Body.Render(w.runID) + "\n")
+		b.WriteString("\n" + w.dim(w.cat.T("done.next"), width) + "\n")
+		b.WriteString("  " + w.theme.Body.Render(w.attachCommand()) + "\n")
 	}
+
 	return w.cat.T("done.heading"), b.String(), w.cat.T("hint.close")
+}
+
+// builtRows is what the cluster actually ended up being, not what was asked
+// for: the phase results are the record, and a downgrade would have changed
+// them.
+func (w *Wizard) builtRows() [][2]string {
+	nodes := 1 + len(w.cfg.Agents)
+	rows := [][2]string{
+		{w.cat.T("profile.heading"), w.cfg.Profile},
+		{w.cat.T("done.nodes"), fmt.Sprintf("%d (%s)", nodes, w.cfg.Server)},
+		{w.cat.T("options.dataplane"), w.cfg.Dataplane},
+		{w.cat.T("options.storage"), w.cfg.Storage},
+		{w.cat.T("step.pki"), w.pkiSummary()},
+		{w.cat.T("step.registry"), w.cfg.RegistryMode},
+	}
+	if d := w.elapsed(); d != "" {
+		rows = append(rows, [2]string{w.cat.T("done.elapsed"), d})
+	}
+	return rows
+}
+
+func (w *Wizard) pkiSummary() string {
+	if w.cfg.PKIMode == string(v1alpha1.PKINone) || w.cfg.PKIMode == "" {
+		return w.cat.T("done.pki_none")
+	}
+	return w.cfg.PKIMode + " " + w.glyphs.Dot + " " + w.cfg.Domain
+}
+
+// artifactRows names every file the run produced. These are what an operator
+// carries away, and what the handover document points at.
+func (w *Wizard) artifactRows() [][2]string {
+	dir := w.runDir
+	if dir == "" {
+		dir = w.runID
+	}
+	return [][2]string{
+		{w.cat.T("done.rundir"), dir},
+		{"cluster.yaml", filepath.Join(dir, "cluster.yaml")},
+		{"events.jsonl", filepath.Join(dir, "events.jsonl")},
+		{"state.json", filepath.Join(dir, "state.json")},
+	}
+}
+
+// elapsed is the engine's own record, taken from the run events rather than a
+// clock here, so it matches the event file an operator may be reading beside
+// this screen.
+func (w *Wizard) elapsed() string {
+	if w.startedAt.IsZero() || w.finishedAt.IsZero() {
+		return ""
+	}
+	d := w.finishedAt.Sub(w.startedAt).Round(time.Second)
+	if d < 0 {
+		return ""
+	}
+	return d.String()
+}
+
+func (w *Wizard) resumeCommand() string {
+	return "platformctl apply -f cluster.yaml --resume " + w.runID
+}
+
+func (w *Wizard) attachCommand() string {
+	return "platformctl attach --run " + w.runID
 }
 
 func (w *Wizard) currentNode() string {
@@ -524,4 +627,18 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 		hint = w.cat.T("hint.editing")
 	}
 	return w.cat.T("reg.heading"), b.String(), hint
+}
+
+// exitButton is the bottom-left action: the one that ends things. It says
+// "abort" while work is running and "quit" otherwise, because those are
+// different promises.
+func (w *Wizard) exitButton() *Button {
+	if w.step == StepDone {
+		return nil
+	}
+	label := w.cat.T("btn.quit")
+	if w.busy {
+		label = w.cat.T("btn.abort")
+	}
+	return &Button{Label: label}
 }

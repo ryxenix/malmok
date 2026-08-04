@@ -11,6 +11,9 @@ import (
 // Options configures the installer screen.
 type Options struct {
 	RunID string
+	// RunDir is where the run's artifacts landed. The final screen has to name
+	// it: a run id alone tells an operator nothing they can act on.
+	RunDir string
 
 	// ASCII forces the fallback character set; leave false to auto-detect.
 	ASCII bool
@@ -18,6 +21,11 @@ type Options struct {
 	Mono bool
 	// Lang selects the catalogue. Empty means English (ADR-009).
 	Lang Lang
+
+	// HideRail drops the step list, which is the layout Proxmox and the Ubuntu
+	// server installer use. With it, the layout is the Ubuntu desktop
+	// installer's. Both are offered because operators arrive from both.
+	HideRail bool
 
 	// Preflight and Install are the long operations the wizard drives. Both
 	// report progress through the event stream rather than through their
@@ -46,6 +54,8 @@ func NewScreen(ctx context.Context, o Options) (*Screen, error) {
 	if err != nil {
 		return nil, err
 	}
+	wz.hideRail = o.HideRail
+	wz.runDir = o.RunDir
 
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}
 	if o.Output != nil {

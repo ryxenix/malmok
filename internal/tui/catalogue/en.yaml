@@ -65,8 +65,15 @@ done:
   heading: Finished
   ok: Installation complete
   failed: Installation stopped
-  artifacts: Run directory
-  resume: Fix the cause and resume with the same run id; completed steps are not repeated.
+  cluster: What was built
+  artifacts: Where it went
+  rundir: Run directory
+  nodes: Nodes
+  elapsed: Elapsed
+  pki_none: none, add certificates later
+  problems: What failed
+  next: Reattach to this run with
+  resume: Fix the cause and resume with the same run id. Completed steps are not repeated.
 status:
   pending: waiting
   running: running
@@ -93,8 +100,11 @@ hint:
   registry: Every system image is pulled from here
   sourceref: file://, env:// or sops:// -- a reference, not the value
   rootkey: This is the intermediate key. The root key stays offline
-  select: Up and down to move, Enter to choose, Tab for the buttons
-  edit: Enter to edit the field, Tab for the buttons
+  toggle_steps: s steps
+  toggle_ascii: a ascii
+  toggle_lang: g 한국어
+  select: Up and down to move, Space to choose, Enter to continue
+  edit: Up and down to move, Enter to edit, Tab for the buttons
   editing: Typing. Enter or Esc to finish
   install: Continue writes to the nodes
   fix: Fix the problems before installing

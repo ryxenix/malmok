@@ -160,7 +160,18 @@ type Frame struct {
 	Buttons []Button
 	Focused int
 
-	Status string // one dim line above the buttons
+	// Exit is drawn bottom-left, away from the actions that move forward.
+	// Proxmox puts Abort there for the same reason: the key that ends the
+	// install should not sit next to the key that continues it.
+	Exit *Button
+
+	// Status is the key help, drawn at the very bottom under the buttons, the
+	// way both Proxmox and the Ubuntu server installer place it.
+	Status string
+
+	// HideRail drops the step list. Proxmox and the Ubuntu server installer
+	// have none; only the desktop installer does.
+	HideRail bool
 }
 
 // Button is a labelled action. Primary is drawn filled, the way a graphical
@@ -177,19 +188,23 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	var b strings.Builder
 	b.WriteString(t.titleBar(f, w))
 	b.WriteString("\n")
+	// A rule under the title separates the chrome from the work, which is what
+	// makes a terminal window read as an application rather than as output.
+	b.WriteString(t.Divider.Render(g.Line(w)))
+	b.WriteString("\n")
 
 	// The rail is dropped on a narrow terminal: knowing which choice is in
 	// front of you beats knowing which step it belongs to.
-	showRail := w >= minChromeW && len(f.Rail) > 0
+	showRail := w >= minChromeW && len(f.Rail) > 0 && !f.HideRail
 	contentW := w - gutter*2
 	if showRail {
 		contentW = w - railWidth - 3 - gutter
 	}
 
 	body := t.content(f, contentW, g)
-	footer := t.footer(f, w)
+	footer := t.footer(f, w, g)
 
-	bodyH := h - 1 - lines(footer)
+	bodyH := h - 2 - lines(footer)
 	bodyLines := strings.Split(padTo(body, bodyH), "\n")
 
 	if showRail {
@@ -216,14 +231,15 @@ func (t Theme) titleBar(f Frame, w int) string {
 func (t Theme) rail(items []RailItem, g Glyphs) string {
 	var b strings.Builder
 	b.WriteString("\n")
-	for _, it := range items {
+	for i, it := range items {
+		num := padCells(itoa(i+1), 2)
 		switch it.State {
 		case RailDone:
-			b.WriteString(t.RailDone.Render(g.OK+" ") + t.Rail.Render(it.Label))
+			b.WriteString(t.RailNext.Render(num) + t.RailDone.Render(g.OK+" ") + t.Rail.Render(it.Label))
 		case RailCurrent:
-			b.WriteString(t.RailNow.Render(g.Running + " " + it.Label))
+			b.WriteString(t.RailNow.Render(num + g.Running + " " + it.Label))
 		default:
-			b.WriteString(t.RailNext.Render("  " + it.Label))
+			b.WriteString(t.RailNext.Render(num + "  " + it.Label))
 		}
 		b.WriteString("\n")
 	}
@@ -242,30 +258,58 @@ func (t Theme) content(f Frame, w int, g Glyphs) string {
 	return b.String()
 }
 
-func (t Theme) footer(f Frame, w int) string {
+// footer draws the rule, then the action row, then the key help.
+//
+// The order matters: a rule above the buttons is what separates "what you are
+// looking at" from "what you can do about it", and every installer an operator
+// has used puts the keys last.
+func (t Theme) footer(f Frame, w int, g Glyphs) string {
 	var b strings.Builder
-	if f.Status != "" {
-		b.WriteString("  " + t.Dim.Render(truncCells(f.Status, w-4)) + "\n")
-	}
-	if len(f.Buttons) == 0 {
-		return b.String()
+	b.WriteString(t.Divider.Render(g.Line(w)) + "\n")
+
+	if len(f.Buttons) > 0 || f.Exit != nil {
+		right := ""
+		if len(f.Buttons) > 0 {
+			rendered := make([]string, len(f.Buttons))
+			for i, btn := range f.Buttons {
+				rendered[i] = t.button(btn, i == f.Focused)
+			}
+			right = strings.Join(rendered, " ")
+		}
+		left := ""
+		if f.Exit != nil {
+			// Bottom-left, away from the actions that move forward: the key
+			// that ends an install should not sit beside the one that
+			// continues it.
+			left = t.button(*f.Exit, f.Focused == exitFocus)
+		}
+
+		gap := w - buttonMargin*2 - cells(left) - cells(right)
+		if gap < 1 {
+			gap = 1
+		}
+		b.WriteString(" " + left + strings.Repeat(" ", gap) + right + " \n")
 	}
 
-	rendered := make([]string, len(f.Buttons))
-	for i, btn := range f.Buttons {
-		label := "  " + btn.Label + "  "
-		switch {
-		case i == f.Focused:
-			rendered[i] = t.BtnFocus.Render("[" + label + "]")
-		case btn.Primary:
-			rendered[i] = t.BtnPrimary.Render("[" + label + "]")
-		default:
-			rendered[i] = t.BtnSecondary.Render("[" + label + "]")
-		}
+	if f.Status != "" {
+		b.WriteString(" " + t.Dim.Render(truncCells(f.Status, w-2)) + "\n")
 	}
-	row := strings.Join(rendered, " ")
-	b.WriteString(lipgloss.PlaceHorizontal(w-buttonMargin, lipgloss.Right, row) + "\n")
 	return b.String()
+}
+
+// exitFocus is the Focused value that selects the bottom-left action.
+const exitFocus = -2
+
+func (t Theme) button(btn Button, focused bool) string {
+	label := "  " + btn.Label + "  "
+	switch {
+	case focused:
+		return t.BtnFocus.Render("[" + label + "]")
+	case btn.Primary:
+		return t.BtnPrimary.Render("[" + label + "]")
+	default:
+		return t.BtnSecondary.Render("[" + label + "]")
+	}
 }
 
 // ---------------------------------------------------------------------------

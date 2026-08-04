@@ -5,6 +5,38 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.19.0] - 2026-08-04
+
+### Added
+
+- `--rail` chooses the layout: the step list down the left (Ubuntu desktop
+  installer) or without it (Proxmox, Ubuntu server). `s` toggles it at runtime.
+  Operators arrive from both, so both are offered.
+- The finished screen now answers what was built, where it went and what to run
+  next. It listed a run id and nothing else; a run id alone is not something an
+  operator can act on. Elapsed time comes from the run's own events rather than
+  a clock here, so it matches the event file beside it.
+- A failed run lists the failures and hands back the exact `--resume` command.
+
+### Changed
+
+- Title bar and button row are separated by rules, the exit action sits
+  bottom-left away from the actions that move forward (Proxmox's placement),
+  and the key help moved below the buttons. Rail entries are numbered.
+- **Space selects, Enter continues.** Enter used to select, which meant Tabbing
+  to the buttons on all eleven screens. On a form, Enter now commits the field
+  and moves to the next, and off the last one onto the buttons.
+- The ASCII fallback forces the English catalogue. A console that cannot draw a
+  box character cannot draw Hangul either, so a Korean screen there is
+  unreadable in a way the glyph fallback cannot fix.
+
+### Fixed
+
+- The Korean catalogue carried `·` in a dozen entries, which the ASCII fallback
+  could not strip — the existing test only checked English. Glyphs now come
+  from the character set at render time, and a test bars them from the
+  catalogue.
+
 ## [0.18.0] - 2026-08-04
 
 ### Added

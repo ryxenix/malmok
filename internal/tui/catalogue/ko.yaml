@@ -64,7 +64,14 @@ done:
   heading: 완료
   ok: 설치가 끝났습니다
   failed: 설치가 중단되었습니다
-  artifacts: run 디렉터리
+  cluster: 무엇이 구축되었나
+  artifacts: 어디에 남았나
+  rundir: run 디렉터리
+  nodes: 노드
+  elapsed: 소요 시간
+  pki_none: 발급 안 함, 인증서는 나중에
+  problems: 무엇이 실패했나
+  next: 이 run 에 다시 붙으려면
   resume: 원인을 고친 뒤 같은 run id 로 이어서 실행하십시오. 끝난 단계는 다시 돌지 않습니다.
 status:
   pending: 대기
@@ -92,8 +99,11 @@ hint:
   registry: 모든 시스템 이미지를 여기서 받습니다
   sourceref: file:// · env:// · sops:// — 값이 아니라 참조
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
-  select: 위아래로 이동, Enter 로 선택, Tab 으로 버튼 이동
-  edit: Enter 로 편집, Tab 으로 버튼 이동
+  toggle_steps: s 단계목록
+  toggle_ascii: a ascii
+  toggle_lang: g English
+  select: 위아래로 이동, Space 로 선택, Enter 로 다음 단계
+  edit: 위아래로 이동, Enter 로 편집, Tab 으로 버튼 이동
   editing: 입력 중. Enter 또는 Esc 로 마침
   install: 계속하면 노드에 실제로 씁니다
   fix: 설치 전에 문제를 먼저 고치십시오

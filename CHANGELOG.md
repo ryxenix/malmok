@@ -5,6 +5,47 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.22.0] - 2026-08-06
+
+### Added
+
+- `internal/cert`: the certificate gates of `docs/20-cert.md` §4, PF-901
+  through PF-912. These are the preflight checks that need no node and no SSH,
+  so they are the part of preflight that can be built and proven now.
+- Classification that never reads a file name (§2). Encoding comes from the
+  leading bytes -- PEM or DER -- and leaf/intermediate/root from
+  BasicConstraints. A certificate with no BasicConstraints extension is an
+  end-entity certificate, not a CA.
+- Chain assembly by issuer link (§3), ignoring file, name and directory order.
+  Customers send fullchain files in the wrong order often enough that trusting
+  the order ships a chain some clients accept and others reject.
+- Key-to-leaf matching by SubjectPublicKeyInfo bytes (§2.4). A key from another
+  domain produces a handshake failure and no other symptom.
+- Encrypted key support with no new dependency: PBES2 with PBKDF2 and AES-CBC
+  is read directly from the ASN.1, using `crypto/pbkdf2`, which has been
+  standard library since Go 1.24. Legacy `Proc-Type` PEM encryption is read
+  too; customer files still arrive that way.
+- RFC 6125 hostname matching as a table-driven test. `*.acme.co.kr` covers
+  `api.acme.co.kr` but neither `acme.co.kr` nor `a.b.acme.co.kr`, and the
+  CommonName is not consulted at all.
+- Bundle output per §5: `tls.crt` without the root, `tls.key` normalised to
+  PKCS#8 whatever came in, `ca.crt` only for a private root, and the five audit
+  annotations.
+- Fixtures are generated in the test rather than checked in, as CLAUDE.md
+  requires. A checked-in certificate expires and teaches people to ignore a
+  failing suite.
+
+### Fixed
+
+- A chain that stops at an intermediate is complete when it verifies against
+  the host trust store. A public CA does not ship its root, so requiring one
+  would have refused every commercially issued certificate.
+- The wildcard matcher no longer refuses a wildcard on a single-label private
+  TLD. Separating `co.kr` from `acme.co.kr` needs the Public Suffix List, an
+  external dependency the certificate path does not take, and the label-count
+  substitute refused `*.internal` -- which is exactly what a homelab private CA
+  issues.
+
 ## [0.21.0] - 2026-08-05
 
 ### Added

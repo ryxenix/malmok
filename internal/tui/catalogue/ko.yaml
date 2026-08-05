@@ -99,9 +99,9 @@ hint:
   registry: 모든 시스템 이미지를 여기서 받습니다
   sourceref: file:// · env:// · sops:// — 값이 아니라 참조
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
-  toggle_steps: s 단계목록
-  toggle_ascii: a ascii
-  toggle_lang: g English
+  toggle_steps: 단계목록
+  toggle_ascii: ascii
+  toggle_lang: English
   select: 위아래로 이동, Space 로 선택, Enter 로 다음 단계
   edit: 위아래로 이동, Enter 로 편집, Tab 으로 버튼 이동
   editing: 입력 중. Enter 또는 Esc 로 마침
@@ -149,3 +149,19 @@ regmode:
   upstream: 인터넷에서 직접 받음
   external: "기존 레지스트리 (예: Harbor)"
   internal: 폐쇄망 번들에서 서빙
+cap:
+  move: 이동
+  select: 고르기
+  continue: 다음
+  edit: 편집
+  nextfield: 다음 항목
+  done: 마침
+  activate: 실행
+  buttons: 버튼
+  content: 본문으로
+topo:
+  server: server
+  agent: agent
+  lbpool: LB 풀
+  join: 조인
+  unresolved: 주소가 아님

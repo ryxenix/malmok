@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"platform.ryxen.dev/platformctl/internal/event"
 )
@@ -143,6 +144,8 @@ type Wizard struct {
 	install   Work
 	workCtx   context.Context
 	hideRail  bool
+	truecolor bool
+	tick      int
 	busy      bool
 	workErr   error
 	aborted   bool
@@ -250,12 +253,26 @@ func (w *Wizard) Aborted() bool { return w.aborted }
 // tea.Model
 // ---------------------------------------------------------------------------
 
-func (w *Wizard) Init() tea.Cmd { return nil }
+func (w *Wizard) Init() tea.Cmd { return spinEvery() }
+
+// spinMsg advances the spinner. A step that takes minutes is indistinguishable
+// from one that has hung unless something on screen keeps moving.
+type spinMsg struct{}
+
+func spinEvery() tea.Cmd {
+	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg { return spinMsg{} })
+}
 
 func (w *Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		w.width, w.height = msg.Width, msg.Height
+		return w, nil
+
+	case tea.ColorProfileMsg:
+		// The terminal says what it can do rather than the tool guessing. A
+		// gradient on a 16-colour console is a band of noise.
+		w.truecolor = msg.Profile == colorprofile.TrueColor
 		return w, nil
 
 	case resetMsg:
@@ -266,6 +283,13 @@ func (w *Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventMsg:
 		w.fold(msg.e)
 		return w, nil
+
+	case spinMsg:
+		// Always re-armed. The view only differs while something is spinning,
+		// and Bubble Tea writes nothing when the render is unchanged, so an
+		// idle screen costs no output -- which matters over a serial line.
+		w.tick++
+		return w, spinEvery()
 
 	case workDoneMsg:
 		w.busy = false

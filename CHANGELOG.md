@@ -5,6 +5,39 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.21.0] - 2026-08-05
+
+### Added
+
+- A topology panel on the node and summary screens. Which node sits on which
+  segment is a relationship, and a list makes the reader reconstruct it: the
+  diagram is the difference between an operator checking their own entry and
+  hoping they typed it right. Nodes are grouped by /24 because a site's
+  segments are a fact about its network, not something the operator should be
+  asked to restate. The load balancer range is drawn on the segment it
+  addresses, which is how a wrong one becomes visible.
+- The join address is drawn outside every box. It is a name all nodes resolve,
+  and putting it inside one would say the opposite (ADR-008).
+- Addresses that do not parse -- hostnames, typos -- collect in their own
+  group rather than being forced onto a segment they do not belong to.
+- Focus bars, a smooth progress bar, a spinner, status badges and drawn
+  keycaps. Colour and gradients are used only where the terminal reports it
+  can show them: `tea.ColorProfileMsg` decides, rather than the tool guessing
+  and painting a band of noise onto a sixteen-colour console.
+
+### Changed
+
+- The panel is drawn only when there is vertical room left after the form, so
+  an 80x24 console loses the diagram rather than the fields.
+
+### Fixed
+
+- ASCII mode renders the whole panel in plain characters instead of falling
+  through to glyphs a legacy console mangles. `TestTopologyPanelIsRectangular`
+  asserts every line of the box is the same width in both character sets, at
+  three terminal widths and in both languages -- a box that is not a box reads
+  as broken, and an operator stops trusting what it says.
+
 ## [0.20.0] - 2026-08-04
 
 ### Added

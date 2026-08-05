@@ -62,6 +62,16 @@ type Theme struct {
 
 	Bar     lipgloss.Style
 	BarFill lipgloss.Style
+
+	// FocusBar is the accent down the left of the selected row.
+	FocusBar lipgloss.Style
+	// Badge is a small inverse label. A status that reads as a chip is found
+	// faster on a busy screen than one that reads as another word.
+	Badge    lipgloss.Style
+	BadgeOK  lipgloss.Style
+	BadgeErr lipgloss.Style
+	// Key styles a keycap in the footer hint.
+	Key lipgloss.Style
 }
 
 // NewTheme builds the palette. mono drops every colour but keeps weight and
@@ -88,6 +98,11 @@ func NewTheme(mono bool) Theme {
 			BtnPrimary: plain.Bold(true), BtnSecondary: plain,
 			BtnFocus: plain.Reverse(true).Bold(true),
 			Bar:      plain.Faint(true), BarFill: plain,
+
+			FocusBar: plain.Bold(true),
+			Badge:    plain.Reverse(true), BadgeOK: plain.Reverse(true),
+			BadgeErr: plain.Reverse(true).Bold(true),
+			Key:      plain.Bold(true),
 		}
 	}
 
@@ -125,6 +140,12 @@ func NewTheme(mono bool) Theme {
 		BtnFocus:     lipgloss.NewStyle().Background(white).Foreground(lipgloss.Color("#101010")).Bold(true),
 		Bar:          lipgloss.NewStyle().Foreground(faint),
 		BarFill:      lipgloss.NewStyle().Foreground(accent),
+
+		FocusBar: lipgloss.NewStyle().Foreground(accent),
+		Badge:    lipgloss.NewStyle().Background(lipgloss.Color("#303030")).Foreground(ink),
+		BadgeOK:  lipgloss.NewStyle().Background(ok).Foreground(lipgloss.Color("#08120a")).Bold(true),
+		BadgeErr: lipgloss.NewStyle().Background(red).Foreground(lipgloss.Color("#180808")).Bold(true),
+		Key:      lipgloss.NewStyle().Background(lipgloss.Color("#2a2a2a")).Foreground(white),
 	}
 }
 
@@ -334,7 +355,7 @@ func (t Theme) Radio(labels, notes []string, chosen, cursor, w int, g Glyphs) st
 			line += "  " + t.Dim.Render(truncCells(notes[i], max(w-cells(line)-4, 6)))
 		}
 		if i == cursor {
-			b.WriteString(t.ChoiceSel.Render(g.Running+" ") + line)
+			b.WriteString(t.FocusBar.Render(g.Focus) + " " + t.ChoiceSel.Render(line))
 		} else {
 			b.WriteString("  " + t.Choice.Render(line))
 		}
@@ -361,7 +382,7 @@ func (t Theme) Fields(labels, values []string, cursor int, editing bool, w int, 
 
 		line := padCells(labels[i], labelW) + "  " + t.field(box, i == cursor, editing)
 		if i == cursor {
-			b.WriteString(t.ChoiceSel.Render(g.Running+" ") + line)
+			b.WriteString(t.FocusBar.Render(g.Focus) + " " + line)
 		} else {
 			b.WriteString("  " + line)
 		}
@@ -388,11 +409,20 @@ func (t Theme) Progress(done, total, w int, g Glyphs) string {
 		total = 1
 	}
 	inner := max(w-8, 10)
-	filled := min(done*inner/total, inner)
 	pct := done * 100 / total
 
-	return t.BarFill.Render(strings.Repeat(g.BarFull, filled)) +
-		t.Bar.Render(strings.Repeat(g.BarEmpty, inner-filled)) +
+	bar := g.SmoothBar(done, total, inner)
+	// The filled and empty halves are styled separately, so the bar reads as
+	// one object rather than as two runs of characters.
+	split := 0
+	for i, r := range bar {
+		if r == []rune(g.BarEmpty)[0] {
+			split = i
+			break
+		}
+		split = i + len(string(r))
+	}
+	return t.BarFill.Render(bar[:split]) + t.Bar.Render(bar[split:]) +
 		t.Body.Render(" "+itoa(pct)+"%")
 }
 
@@ -433,4 +463,26 @@ func itoa(n int) string {
 		return "-" + string(b)
 	}
 	return string(b)
+}
+
+// Badge renders a small inverse label. Statuses read as chips rather than as
+// more words, which is what makes a busy screen scannable.
+func (t Theme) Badge2(text string, kind string) string {
+	style := t.Badge
+	switch kind {
+	case "ok":
+		style = t.BadgeOK
+	case "err":
+		style = t.BadgeErr
+	}
+	return style.Render(" " + text + " ")
+}
+
+// Keys renders a footer hint as keycaps followed by what they do.
+func (t Theme) Keys(pairs [][2]string, g Glyphs) string {
+	parts := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		parts = append(parts, t.Key.Render(" "+p[0]+" ")+" "+t.Dim.Render(p[1]))
+	}
+	return strings.Join(parts, "   ")
 }

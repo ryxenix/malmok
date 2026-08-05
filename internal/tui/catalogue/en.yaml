@@ -100,9 +100,9 @@ hint:
   registry: Every system image is pulled from here
   sourceref: file://, env:// or sops:// -- a reference, not the value
   rootkey: This is the intermediate key. The root key stays offline
-  toggle_steps: s steps
-  toggle_ascii: a ascii
-  toggle_lang: g 한국어
+  toggle_steps: steps
+  toggle_ascii: ascii
+  toggle_lang: 한국어
   select: Up and down to move, Space to choose, Enter to continue
   edit: Up and down to move, Enter to edit, Tab for the buttons
   editing: Typing. Enter or Esc to finish
@@ -150,3 +150,19 @@ regmode:
   upstream: pull from the internet directly
   external: "an existing registry, e.g. Harbor"
   internal: served from an air-gap bundle
+cap:
+  move: move
+  select: choose
+  continue: continue
+  edit: edit
+  nextfield: next field
+  done: finish
+  activate: activate
+  buttons: buttons
+  content: back to content
+topo:
+  server: server
+  agent: agent
+  lbpool: lb pool
+  join: join
+  unresolved: not an address

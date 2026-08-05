@@ -101,6 +101,7 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.langScreen(body)
 	case StepNodes:
 		f.Heading, f.Body, f.Status = w.formScreen(StepNodes, "nodes.heading", "nodes.help", body)
+		f.Body = w.withTopology(f.Body, body)
 	case StepNetwork:
 		f.Heading, f.Body, f.Status = w.formScreen(StepNetwork, "net.heading", "net.help", body)
 	case StepRegistry:
@@ -115,6 +116,7 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.progressScreen(body, "preflight")
 	case StepSummary:
 		f.Heading, f.Body, f.Status = w.summaryScreen(body)
+		f.Body = w.withTopology(f.Body, body)
 	case StepInstall:
 		f.Heading, f.Body, f.Status = w.progressScreen(body, "install")
 	case StepDone:
@@ -125,15 +127,7 @@ func (w *Wizard) View() tea.View {
 	// are discoverable without a help screen nobody opens. The separator comes
 	// from the glyph set rather than the catalogue: a translator has no way to
 	// know whether the terminal can draw it.
-	sep := " " + w.glyphs.Dot + " "
-	toggles := strings.Join([]string{
-		w.cat.T("hint.toggle_steps"), w.cat.T("hint.toggle_ascii"), w.cat.T("hint.toggle_lang"),
-	}, sep)
-	if f.Status != "" {
-		f.Status += "   " + toggles
-	} else {
-		f.Status = toggles
-	}
+	f.Status = w.keyHints(f.Status)
 
 	v := tea.NewView(w.theme.Render(f, w.width, w.height, w.glyphs))
 	v.AltScreen = true
@@ -362,26 +356,40 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 
 	for _, id := range w.order {
 		p := w.phases[id]
-		line := w.glyphs.Marker(p.status) + " " + padCells(id, 18) +
-			w.cat.T("status."+string(p.status))
-		if p.progress != nil && p.status == event.StatusRunning {
-			line += fmt.Sprintf("  %d/%d", p.progress.Done, p.progress.Total)
+
+		// The marker still carries the verdict, so the screen survives a
+		// monochrome console; the badge is what makes it scannable when colour
+		// is there.
+		mark := w.glyphs.Marker(p.status)
+		if p.status == event.StatusRunning {
+			mark = w.glyphs.Spin(w.tick)
 		}
-		if p.attempt > 1 {
-			line += fmt.Sprintf("  %s %d/%d", w.cat.T("key.retry"), p.attempt, p.maxTries)
-		}
-		if p.code != "" && !p.status.Terminal() {
-			line += "  " + p.code
-		}
+
+		kind := ""
 		switch p.status {
 		case event.StatusOK, event.StatusSkipped:
-			b.WriteString(w.theme.Dim.Render(line))
+			kind = "ok"
 		case event.StatusFailed, event.StatusBlocked:
-			b.WriteString(w.theme.Err.Render(line + "  " + p.code))
-		case event.StatusRunning:
-			b.WriteString(w.theme.Body.Render(line))
-		default:
-			b.WriteString(w.theme.Dim.Render(line))
+			kind = "err"
+		}
+
+		name := w.theme.Dim.Render(padCells(id, 18))
+		if p.status == event.StatusRunning {
+			name = w.theme.Body.Render(padCells(id, 18))
+		}
+		b.WriteString(" " + mark + " " + name +
+			w.theme.Badge2(w.cat.T("status."+string(p.status)), kind))
+
+		if p.progress != nil && p.status == event.StatusRunning {
+			b.WriteString(w.theme.Dim.Render(
+				fmt.Sprintf("  %d/%d", p.progress.Done, p.progress.Total)))
+		}
+		if p.attempt > 1 {
+			b.WriteString(w.theme.Err.Render(
+				fmt.Sprintf("  %s %d/%d", w.cat.T("key.retry"), p.attempt, p.maxTries)))
+		}
+		if p.code != "" && (p.status == event.StatusFailed || p.status == event.StatusBlocked) {
+			b.WriteString(w.theme.Err.Render("  " + p.code))
 		}
 		b.WriteString("\n")
 	}
@@ -641,4 +649,92 @@ func (w *Wizard) exitButton() *Button {
 		label = w.cat.T("btn.abort")
 	}
 	return &Button{Label: label}
+}
+
+// keyHints renders the footer as keycaps rather than prose. A key drawn as a
+// cap is found without reading the sentence around it, which is the difference
+// between a hint somebody uses and one they skim past.
+func (w *Wizard) keyHints(context string) string {
+	var pairs [][2]string
+
+	switch {
+	case w.editing:
+		pairs = [][2]string{
+			{w.capEnter(), w.cat.T("cap.nextfield")},
+			{"esc", w.cat.T("cap.done")},
+		}
+	case w.focus == focusButtons:
+		pairs = [][2]string{
+			{w.capHoriz(), w.cat.T("cap.move")},
+			{w.capEnter(), w.cat.T("cap.activate")},
+			{"tab", w.cat.T("cap.content")},
+		}
+	case w.contentLen() == 0:
+		// Nothing to choose on this screen, so the only keys that mean
+		// anything are the ones on the buttons.
+		pairs = [][2]string{
+			{w.capHoriz(), w.cat.T("cap.move")},
+			{w.capEnter(), w.cat.T("cap.activate")},
+		}
+	case w.cursorIsField():
+		pairs = [][2]string{
+			{w.capVert(), w.cat.T("cap.move")},
+			{w.capEnter(), w.cat.T("cap.edit")},
+			{"tab", w.cat.T("cap.buttons")},
+		}
+	default:
+		pairs = [][2]string{
+			{w.capVert(), w.cat.T("cap.move")},
+			{"space", w.cat.T("cap.select")},
+			{w.capEnter(), w.cat.T("cap.continue")},
+		}
+	}
+	pairs = append(pairs, [2]string{"s", w.cat.T("hint.toggle_steps")})
+
+	hints := w.theme.Keys(pairs, w.glyphs)
+	if context != "" && w.editing {
+		return hints
+	}
+	return hints
+}
+
+// The keycap symbols are glyphs like any other: a terminal that cannot draw a
+// box character cannot draw an arrow either.
+func (w *Wizard) capEnter() string {
+	if w.ascii {
+		return "enter"
+	}
+	return "↵"
+}
+
+func (w *Wizard) capVert() string {
+	if w.ascii {
+		return "up/dn"
+	}
+	return "↑↓"
+}
+
+func (w *Wizard) capHoriz() string {
+	if w.ascii {
+		return "lt/rt"
+	}
+	return "←→"
+}
+
+// withTopology appends the diagram when there is room for it.
+//
+// It is an aid, not the content: on a short terminal the fields an operator is
+// filling in matter more than a picture of what they have filled in so far.
+func (w *Wizard) withTopology(body string, width int) string {
+	need := w.topologyLines()
+	if need == 0 {
+		return body
+	}
+	// Title, blank, footer rules and the button row, plus what the body
+	// already occupies.
+	used := 6 + lines(body)
+	if w.height-used < need {
+		return body
+	}
+	return body + "\n" + w.renderTopology(width)
 }

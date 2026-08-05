@@ -380,6 +380,9 @@ func TestWizardWalksToTheEnd(t *testing.T) {
 		// Whatever the primary button is on this screen, press it, then deliver
 		// the result of any work it started.
 		btns := m.buttons()
+		if len(btns) == 0 {
+			t.Fatalf("step %d offers no way forward", before)
+		}
 		msg := m.press(btns[len(btns)-1].Label)
 		seen[m.step] = true
 		if done, ok := msg.(workDoneMsg); ok {
@@ -991,5 +994,171 @@ func TestEnterWalksTheFormOntoTheButtons(t *testing.T) {
 	}
 	if btns := m.buttons(); m.btn < 0 || m.btn >= len(btns) || !btns[m.btn].Primary {
 		t.Error("the primary action is not preselected after leaving the form")
+	}
+}
+
+// The smooth bar moves between whole cells, so a ten-cell bar has eighty steps
+// instead of ten. On a long phase that is the difference between a bar that
+// looks stuck and one that is visibly working.
+func TestSmoothBarMovesBetweenCells(t *testing.T) {
+	g := GlyphsFor(false)
+	seen := map[string]bool{}
+	for done := 0; done <= 80; done++ {
+		bar := g.SmoothBar(done, 80, 10)
+		if got := cells(bar); got != 10 {
+			t.Fatalf("SmoothBar(%d/80) is %d cells wide, want 10: %q", done, got, bar)
+		}
+		seen[bar] = true
+	}
+	if len(seen) < 40 {
+		t.Errorf("only %d distinct bars over 80 steps; the partial cells are not being used", len(seen))
+	}
+
+	// ASCII has no partial cells and must still be exactly the right width.
+	a := GlyphsFor(true)
+	for done := 0; done <= 80; done++ {
+		if got := cells(a.SmoothBar(done, 80, 10)); got != 10 {
+			t.Fatalf("ASCII SmoothBar(%d/80) is %d cells wide", done, got)
+		}
+	}
+}
+
+// A step that takes minutes is indistinguishable from one that has hung unless
+// something keeps moving.
+func TestSpinnerAdvancesAndFallsBack(t *testing.T) {
+	g := GlyphsFor(false)
+	first := g.Spin(0)
+	var moved bool
+	for i := 1; i < len(g.Spinner); i++ {
+		if g.Spin(i) != first {
+			moved = true
+		}
+	}
+	if !moved {
+		t.Error("the spinner does not turn")
+	}
+	if got := GlyphsFor(true).Spin(0); got == "" || cells(got) != 1 {
+		t.Errorf("the ASCII spinner is %q; it has to be one cell", got)
+	}
+}
+
+// The footer says what the keys do here, not what they do somewhere else.
+// "space to choose" on a screen with nothing to choose is noise that teaches
+// the operator to stop reading the line.
+func TestKeyHintsFollowTheScreen(t *testing.T) {
+	choose := wizard(t, LangEN, false, 96, 24, StepProfile)
+	if got := choose.keyHints(""); !strings.Contains(got, "choose") {
+		t.Errorf("a choice screen does not offer Space: %q", got)
+	}
+
+	form := wizard(t, LangEN, false, 96, 24, StepNodes)
+	if got := form.keyHints(""); !strings.Contains(got, "edit") {
+		t.Errorf("a form screen does not offer edit: %q", got)
+	}
+
+	run := wizard(t, LangEN, false, 96, 24, StepInstall)
+	got := run.keyHints("")
+	if strings.Contains(got, "choose") {
+		t.Errorf("the progress screen offers Space with nothing to choose: %q", got)
+	}
+}
+
+// Keycaps are glyphs like any other: a terminal that cannot draw a box
+// character cannot draw an arrow either.
+func TestKeycapsFallBackToASCII(t *testing.T) {
+	m := wizard(t, LangEN, true, 96, 24, StepProfile)
+	got := m.keyHints("")
+	for _, bad := range []string{"↑", "↓", "←", "→", "↵"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("ASCII hints still contain %q: %q", bad, got)
+		}
+	}
+	if !strings.Contains(got, "enter") {
+		t.Errorf("the ASCII hints do not name Enter: %q", got)
+	}
+}
+
+// A box has to be a box. Every line of the topology panel is the same width,
+// or the diagram reads as broken and the operator stops trusting what it says.
+func TestTopologyPanelIsRectangular(t *testing.T) {
+	for _, lang := range []Lang{LangEN, LangKO} {
+		for _, ascii := range []bool{false, true} {
+			for _, width := range []int{60, 76, 96} {
+				m := wizard(t, lang, ascii, width+20, 40, StepNodes)
+				panel := plain(m.renderTopology(width))
+				if panel == "" {
+					t.Fatal("the panel is empty")
+				}
+
+				var boxWidth int
+				for _, line := range strings.Split(panel, "\n") {
+					l := strings.TrimRight(line, " ")
+					if l == "" || !strings.ContainsAny(l, "│|+╭╰") {
+						continue
+					}
+					if boxWidth == 0 {
+						boxWidth = cells(strings.TrimLeft(l, " "))
+						continue
+					}
+					if got := cells(strings.TrimLeft(l, " ")); got != boxWidth {
+						t.Errorf("lang=%s ascii=%v width=%d: box line is %d cells, others are %d\n%s",
+							lang, ascii, width, got, boxWidth, panel)
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
+// The diagram groups by segment because that is a fact about the customer's
+// network. Asking them to restate it is asking them to get it wrong.
+func TestTopologyGroupsNodesBySegment(t *testing.T) {
+	m := wizard(t, LangEN, false, 96, 40, StepNodes)
+	m.cfg.Server = "10.10.0.11"
+	m.cfg.Agents = []string{"10.10.20.21", "10.10.0.22"}
+	m.cfg.LBPool = []string{"10.10.20.240/29"}
+
+	segs := m.topology()
+	if len(segs) != 2 {
+		t.Fatalf("got %d segments, want 2", len(segs))
+	}
+	if got := segs[0].prefix.String(); got != "10.10.0.0/24" {
+		t.Errorf("first segment is %s", got)
+	}
+	if len(segs[0].rows) != 2 {
+		t.Errorf("the first segment holds %d rows, want the server and one agent", len(segs[0].rows))
+	}
+	// The pool sits on the segment it addresses, which is how an operator sees
+	// it is not on the wrong one.
+	var pooled bool
+	for _, r := range segs[1].rows {
+		if strings.Contains(r.addr, "/29") {
+			pooled = true
+		}
+	}
+	if !pooled {
+		t.Errorf("the load balancer range is not on its own segment: %+v", segs[1].rows)
+	}
+}
+
+// A hostname is not an address, and pretending otherwise would put it on a
+// segment it does not belong to.
+func TestTopologySeparatesNonAddresses(t *testing.T) {
+	m := wizard(t, LangEN, false, 96, 40, StepNodes)
+	m.cfg.Server = "node1.acme.internal"
+	m.cfg.Agents = []string{"10.10.0.22"}
+	m.cfg.LBPool = nil
+
+	segs := m.topology()
+	if len(segs) != 2 {
+		t.Fatalf("got %d segments, want an addressed one and an unresolved one", len(segs))
+	}
+	last := segs[len(segs)-1]
+	if last.label == "" {
+		t.Error("the unresolved group has no label")
+	}
+	if last.rows[0].addr != "node1.acme.internal" {
+		t.Errorf("the hostname landed as %q", last.rows[0].addr)
 	}
 }

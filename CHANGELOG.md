@@ -5,6 +5,51 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.26.0] - 2026-08-07
+
+### Added
+
+- `platformctl preflight -f cluster.yaml` runs every check the document calls
+  for and prints only what needs attention, or everything with `-v`. Measured
+  against a live Ubuntu 24.04 node: 64 checks in under five seconds.
+- `preflight.Session`, the orchestrator. It resolves nothing itself -- reading a
+  SourceRef needs the document's directory and its secret policy, both of which
+  belong to the loader -- so it takes a Resolve function, which also makes the
+  whole thing testable without a filesystem.
+- Nodes are probed concurrently. A serial run over twenty nodes spends its time
+  waiting on round trips, and preflight is what an operator is watching before
+  they can start.
+- `preflight.Emitter` turns probe results into `kind=probe` events. ADR-002: a
+  screen that read a Report directly would be reading engine state, and the run
+  would then look different depending on whether anybody was watching.
+- An SSH password field in the wizard. It is deliberately absent from
+  `Config.ToSpec` -- `cluster.yaml` is an audit artifact handed to customers,
+  and a plaintext credential in one is exactly what the schema's SourceRef
+  indirection exists to prevent -- so it reaches the preflight session directly
+  and is never serialised.
+
+### Changed
+
+- `plan` runs preflight instead of refusing. The plan is a pure function of the
+  document and what the nodes turned out to be, so there was nothing to plan
+  against until now; against the live node it keeps `cilium-gw`, because the
+  eBPF probes passed.
+- `apply -f cluster.yaml` runs the checks and then names precisely what is
+  missing, rather than refusing at the door. `apply --tui` without `--demo`
+  drives the wizard against real nodes and stops at the same place.
+- Probe events carry no `Level`. The schema reserves it for `kind=log`, and the
+  writer rejected every probe event until this was corrected.
+- A warning is emitted as `failed`, not `ok`. The schema already separates
+  "blocked" (no retry helps) from "failed" (did not pass), which is exactly the
+  distinction preflight needs; collapsing warnings into `ok` left a renderer
+  unable to tell one from a clean check.
+
+### Fixed
+
+- `--demo` contacts no node again. Wiring the real checks into the wizard's
+  preflight step broke the one promise that flag makes, and the addresses in a
+  freshly opened wizard are placeholders nobody owns.
+
 ## [0.25.0] - 2026-08-07
 
 ### Added

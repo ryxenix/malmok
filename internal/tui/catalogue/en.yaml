@@ -24,6 +24,7 @@ nodes:
   agents: Agent IPs
   user: SSH user
   port: SSH port
+  password: SSH password
   registration: Join address
   version: RKE2 version
   domain: Domain
@@ -94,6 +95,7 @@ btn:
 key:
   retry: retry
 hint:
+  password: Used for the checks only; it is never written to cluster.yaml. Leave empty to use a key or an agent
   registration: A VIP or DNS name, never a node's own address (ADR-008)
   lbpool: CIDRs the gateway takes its external address from
   noproxy: Include the pod and service CIDRs, or in-cluster traffic goes through the proxy

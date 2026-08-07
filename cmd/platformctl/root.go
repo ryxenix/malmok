@@ -23,6 +23,7 @@ ADR-002.`,
 	}
 
 	root.AddCommand(newApplyCmd())
+	root.AddCommand(newPreflightCmd())
 	root.AddCommand(newPlanCmd())
 	root.AddCommand(newAttachCmd())
 	return root

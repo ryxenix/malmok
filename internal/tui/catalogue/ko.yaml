@@ -23,6 +23,7 @@ nodes:
   agents: agent IP
   user: SSH 사용자
   port: SSH 포트
+  password: SSH 비밀번호
   registration: 조인 주소
   version: RKE2 버전
   domain: 도메인
@@ -93,6 +94,7 @@ btn:
 key:
   retry: 재시도
 hint:
+  password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 키나 에이전트를 씁니다
   registration: VIP 또는 DNS 이름. 노드 자신의 주소는 안 됩니다 (ADR-008)
   lbpool: 게이트웨이가 외부 주소를 받아갈 CIDR
   noproxy: pod·service CIDR 을 넣지 않으면 클러스터 내부 통신이 프록시를 탑니다

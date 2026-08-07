@@ -61,6 +61,11 @@ type Config struct {
 	Agents  []string
 	SSHUser string
 	SSHPort string
+	// SSHPassword is deliberately absent from ToSpec. cluster.yaml is an audit
+	// artifact that gets handed to customers, and a plaintext credential in it
+	// is a liability the schema exists to prevent -- so this is passed to the
+	// preflight session directly and never serialised.
+	SSHPassword string
 
 	// Registration is what every node joins through. A VIP or DNS name, never
 	// a node's own address (ADR-008).

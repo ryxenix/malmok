@@ -34,6 +34,12 @@ type ProbeResult struct {
 	Code     string         `json:"code,omitempty"`   // EBPF_LOAD_DENIED
 	Detail   string         `json:"detail,omitempty"` // English, fixed
 	Evidence string         `json:"evidence,omitempty"`
+
+	// Node is the machine the result is about, empty for a result about the
+	// document or about the set of nodes. It lives on the result rather than
+	// being carried alongside because nodes are probed concurrently, and a
+	// field shared between them would attribute one node's finding to another.
+	Node string `json:"node,omitempty"`
 }
 
 // Failed reports whether the probe found a problem.

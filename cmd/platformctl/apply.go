@@ -36,6 +36,10 @@ func newApplyCmd() *cobra.Command {
 		quiet    bool
 		verbose  bool
 		screen   tuiFlags
+
+		allowLiteral bool
+		insecureHost bool
+		timeout      time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -54,15 +58,16 @@ starting over. See docs/11-execute.md.`,
   platformctl apply --demo --resume 01JBQ8F2K3M5N7P9R1S3T5V7W9`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !isDemo {
-				if specFile == "" {
-					return errors.New("pass -f cluster.yaml, or --demo for a simulated run")
-				}
-				// Naming what is missing beats a command that appears to work.
-				return fmt.Errorf(
-					"reading %s is not implemented yet: the cluster.yaml loader, profile "+
-						"defaults and the plan generator are still to be written. "+
-						"Use --demo to exercise the engine in the meantime", specFile)
+			if !isDemo && specFile != "" {
+				// Preflight is real; the phases that build a cluster are not.
+				// Running the checks and then saying exactly what is missing
+				// beats a command that appears to work, and it is what an
+				// operator can act on today.
+				return runRealPreflight(cmd, specFile, allowLiteral, insecureHost, timeout, verbose)
+			}
+			if !isDemo && !screen.enabled {
+				return errors.New(
+					"pass -f cluster.yaml, --tui to build one interactively, or --demo for a simulated run")
 			}
 
 			opts := demo.Options{Speed: speed, FailAt: failAt, FlakyAt: flakyAt}
@@ -110,13 +115,32 @@ starting over. See docs/11-execute.md.`,
 					if err := snapshot(cfg); err != nil {
 						return err
 					}
-					return runner.Run(c, phases[:1])
+					if err := runner.Run(c, phases[:1]); err != nil {
+						return err
+					}
+					if isDemo {
+						// --demo contacts no node. Running the real checks here
+						// would break the one promise the flag makes, and the
+						// addresses in the wizard are placeholders nobody owns.
+						return nil
+					}
+					// Results reach the screen as events, never as a return
+					// value: ADR-002 keeps the renderer a consumer of the
+					// stream, so a run looks the same whether or not anybody
+					// was watching it.
+					return runWizardPreflight(c, cfg, events.Writer, insecureHost)
 				}
 				install := func(c context.Context, cfg tui.Config) error {
 					// Written again: the operator may have gone back and
 					// changed something after the checks ran.
 					if err := snapshot(cfg); err != nil {
 						return err
+					}
+					if !isDemo {
+						// The wizard reached the install step against real
+						// nodes, and there is nothing behind it yet. Saying so
+						// here beats a progress bar for work nobody is doing.
+						return errNoInstaller
 					}
 					return runner.Run(c, phases[1:])
 				}
@@ -174,6 +198,11 @@ starting over. See docs/11-execute.md.`,
 	fl.StringVar(&resume, "resume", "", "resume the run with this id")
 	fl.BoolVar(&quiet, "quiet", false, "emit events to the file only")
 	fl.BoolVarP(&verbose, "verbose", "v", false, "include log lines")
+	fl.BoolVar(&allowLiteral, "allow-literal-secrets", false,
+		"permit literal:// on secret fields (cluster.yaml is handed to customers)")
+	fl.BoolVar(&insecureHost, "insecure-host-key", false,
+		"accept any SSH host key; freshly installed nodes have no known_hosts entry yet")
+	fl.DurationVar(&timeout, "timeout", 5*time.Minute, "give up on preflight after this long")
 	screen.register(cmd)
 
 	return cmd

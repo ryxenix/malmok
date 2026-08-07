@@ -49,6 +49,13 @@ func (w *Wizard) fieldsFor(step Step) []field {
 			{labelKey: "nodes.port",
 				get: func(c *Config) string { return c.SSHPort },
 				set: func(c *Config, v string) { c.SSHPort = v }},
+			// The password never reaches the document. cluster.yaml is handed
+			// to customers and a plaintext secret in it is a liability, so this
+			// value is passed straight to the preflight session and is not
+			// written anywhere. Leave it empty to use an agent or a key.
+			{labelKey: "nodes.password", secret: true, hint: "hint.password",
+				get: func(c *Config) string { return c.SSHPassword },
+				set: func(c *Config, v string) { c.SSHPassword = v }},
 			{labelKey: "nodes.registration", hint: "hint.registration",
 				get: func(c *Config) string { return c.Registration },
 				set: func(c *Config, v string) { c.Registration = v }},

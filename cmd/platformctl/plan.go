@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,8 +16,7 @@ import (
 
 func newPlanCmd() *cobra.Command {
 	var (
-		specFile     string
-		allowLiteral bool
+		o            preflightOptions
 		approve      bool
 		validateOnly bool
 	)
@@ -34,42 +34,52 @@ trail can distinguish what the operator chose from what the tool did.`,
   platformctl plan -f cluster.yaml --validate-only`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if specFile == "" {
-				return errors.New("pass -f cluster.yaml")
-			}
-			doc, err := spec.Load(specFile)
+			doc, applied, err := o.load()
 			if err != nil {
 				return err
-			}
-
-			applied, err := doc.ApplyProfile()
-			if err != nil {
-				return err
-			}
-			if err := doc.Validate(allowLiteral); err != nil {
-				return fmt.Errorf("%s is not valid:\n%w", specFile, err)
 			}
 
 			out := cmd.OutOrStdout()
 			printResolved(out, doc, applied)
 			if validateOnly {
-				fmt.Fprintf(out, "\n%s is valid.\n", specFile)
+				fmt.Fprintf(out, "\n%s is valid.\n", o.specFile)
 				return nil
 			}
 
-			// Preflight has not been implemented yet, so there are no
-			// capabilities to plan against. Saying so beats printing a plan
-			// derived from assumptions about nodes nobody has looked at.
-			return errors.New(
-				"preflight is not implemented yet, so there is nothing to plan against: " +
-					"the probes need an SSH executor. Use --validate-only to check the document")
+			// The plan is a pure function of the document and what the nodes
+			// turned out to be, so preflight has to run first. Planning against
+			// assumptions about machines nobody looked at is how a cluster ends
+			// up installed with a dataplane its kernel refuses.
+			ctx, cancel := context.WithTimeout(cmd.Context(), o.timeout)
+			defer cancel()
+
+			rep := o.session(doc).Run(ctx)
+			printReport(out, rep, o.verbose)
+
+			if blocking := rep.Blocking(); len(blocking) > 0 {
+				return fmt.Errorf("%d checks block the install, so there is nothing to plan", len(blocking))
+			}
+			if len(rep.Nodes) == 0 {
+				return errors.New("no node was reached, so there is nothing to plan against")
+			}
+
+			p, err := plan.Generate(doc.Spec, rep.Nodes, plan.Options{})
+			if err != nil {
+				return err
+			}
+			printPlan(out, p)
+
+			if p.Downgraded() && !approve {
+				return errors.New(
+					"the plan downgrades the configuration the document asked for; " +
+						"re-run with --approve once the downgrades above are acceptable")
+			}
+			return nil
 		},
 	}
 
+	o.register(cmd)
 	fl := cmd.Flags()
-	fl.StringVarP(&specFile, "file", "f", "", "cluster.yaml to read")
-	fl.BoolVar(&allowLiteral, "allow-literal-secrets", false,
-		"permit literal:// on secret fields (cluster.yaml is handed to customers)")
 	fl.BoolVar(&approve, "approve", false, "accept any downgrade the plan requires")
 	fl.BoolVar(&validateOnly, "validate-only", false, "check the document and stop")
 

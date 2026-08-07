@@ -61,6 +61,11 @@ type NodeCapability struct {
 	OS   OSInfo `json:"os"`
 	Arch string `json:"arch"`
 
+	// Addresses are the global addresses this node carries. PF-606 compares the
+	// VIP against them: an address a node already holds belongs to this
+	// cluster, not to somebody else.
+	Addresses []string `json:"addresses,omitempty"`
+
 	// Probes is keyed by code, e.g. "PF-204".
 	Probes map[string]ProbeResult `json:"probes"`
 

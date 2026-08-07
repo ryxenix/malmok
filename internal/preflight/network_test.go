@@ -163,7 +163,7 @@ func TestCheckVIPFree(t *testing.T) {
 		s.Topology.VIP = &v1alpha1.VIPSpec{Address: "10.10.0.10"}
 		p := &Prober{Dialer: fakeDialer{}, Timeout: time.Second}
 
-		got := p.CheckVIPFree(context.Background(), s)
+		got := p.CheckVIPFree(context.Background(), s, nil)
 		if got.Failed() {
 			t.Fatalf("PF-606 failed on a free address: %s", got.Detail)
 		}
@@ -178,7 +178,7 @@ func TestCheckVIPFree(t *testing.T) {
 		s.Topology.VIP = &v1alpha1.VIPSpec{Address: "10.10.0.10"}
 		p := &Prober{Dialer: fakeDialer{open: map[string]bool{"10.10.0.10:6443": true}}, Timeout: time.Second}
 
-		got := p.CheckVIPFree(context.Background(), s)
+		got := p.CheckVIPFree(context.Background(), s, nil)
 		if !got.Failed() {
 			t.Fatalf("PF-606 passed on an address in use: %s", got.Detail)
 		}
@@ -189,7 +189,7 @@ func TestCheckVIPFree(t *testing.T) {
 
 	t.Run("no VIP configured", func(t *testing.T) {
 		p := &Prober{Dialer: fakeDialer{}, Timeout: time.Second}
-		if got := p.CheckVIPFree(context.Background(), baseSpec()); got.Status != StatusSkip {
+		if got := p.CheckVIPFree(context.Background(), baseSpec(), nil); got.Status != StatusSkip {
 			t.Errorf("status is %s, want skip", got.Status)
 		}
 	})
@@ -480,5 +480,33 @@ func hostAndCA(t *testing.T, srv *httptest.Server) (string, []byte) {
 	}
 	return u.Host, pem.EncodeToMemory(&pem.Block{
 		Type: "CERTIFICATE", Bytes: srv.Certificate().Raw,
+	})
+}
+
+// Once the cluster is built, the VIP answers because kube-vip is serving it.
+// Reporting that as "somebody else has your address" would block every run
+// after the first, the way PF-802 did.
+func TestVIPHeldByOurOwnNodeIsNotInUse(t *testing.T) {
+	s := baseSpec()
+	s.Topology.VIP = &v1alpha1.VIPSpec{Address: "10.10.0.10"}
+	p := &Prober{Dialer: fakeDialer{open: map[string]bool{"10.10.0.10:6443": true}}, Timeout: time.Second}
+
+	t.Run("held by a node in the document", func(t *testing.T) {
+		got := p.CheckVIPFree(context.Background(), s,
+			map[string][]string{"10.10.0.11": {"10.10.0.11", "10.10.0.10"}})
+		if got.Failed() {
+			t.Fatalf("PF-606 blocked on this cluster's own VIP: %s", got.Detail)
+		}
+		if !strings.Contains(got.Detail, "10.10.0.11") {
+			t.Errorf("the pass does not name which node carries it: %s", got.Detail)
+		}
+	})
+
+	t.Run("held by something else", func(t *testing.T) {
+		got := p.CheckVIPFree(context.Background(), s,
+			map[string][]string{"10.10.0.11": {"10.10.0.11"}})
+		if !got.Failed() || got.Code != "VIP_IN_USE" {
+			t.Fatalf("PF-606 is %s/%s: %s", got.Status, got.Code, got.Detail)
+		}
 	})
 }

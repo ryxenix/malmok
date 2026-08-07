@@ -197,6 +197,7 @@ func (n *Node) CheckVIPInterface(ctx context.Context) ProbeResult {
 	}
 
 	var candidates []string
+	seen := map[string]bool{}
 	for _, line := range strings.Split(r.Out(), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) != 2 {
@@ -206,7 +207,17 @@ func (n *Node) CheckVIPInterface(ctx context.Context) ProbeResult {
 		if err != nil {
 			continue
 		}
-		if p.Contains(addr) {
+		// The VIP already being assigned settles the question: this is the
+		// interface carrying it, and once kube-vip is running that is the
+		// normal state rather than an ambiguity to warn about.
+		if p.Addr() == addr {
+			return passf("PF-607", "the VIP %s is already carried by %s on this node", addr, fields[0])
+		}
+		// One interface with several addresses on the VIP's subnet is still one
+		// interface. Counting it twice would report a choice that does not
+		// exist.
+		if p.Contains(addr) && !seen[fields[0]] {
+			seen[fields[0]] = true
 			candidates = append(candidates, fields[0])
 		}
 	}
@@ -249,6 +260,12 @@ func (n *Node) CheckNodeIP(ctx context.Context) ProbeResult {
 		if isDataplaneInterface(fields[0]) {
 			continue
 		}
+		// Neither is a floating address the document declares. A VIP moves
+		// between nodes and is nobody's identity; the node holding it today is
+		// not multi-homed because of it.
+		if n.isFloating(fields[1]) {
+			continue
+		}
 		addrs = append(addrs, fields[0]+" "+fields[1])
 	}
 
@@ -271,6 +288,32 @@ func (n *Node) CheckNodeIP(ctx context.Context) ProbeResult {
 			"the default route uses; on a DMZ node that is often the external one, "+
 			"and internal traffic then leaves the network and comes back",
 		strings.Join(addrs, ", "))
+}
+
+// isFloating reports whether an address belongs to the document rather than to
+// the node -- a VIP or a pinned gateway address, either of which may be sitting
+// on this node right now and on another one tomorrow.
+func (n *Node) isFloating(cidr string) bool {
+	p, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+	if err != nil {
+		return false
+	}
+	if v := n.Cluster.Topology.VIP; v != nil {
+		if a, err := netip.ParseAddr(strings.TrimSpace(v.Address)); err == nil && a == p.Addr() {
+			return true
+		}
+	}
+	for _, gw := range n.Cluster.Gateway.Gateways {
+		if a, err := netip.ParseAddr(strings.TrimSpace(gw.Address)); err == nil && a == p.Addr() {
+			return true
+		}
+	}
+	for _, raw := range n.Cluster.Kubernetes.Dataplane.LoadBalancerPool {
+		if pool, err := netip.ParsePrefix(strings.TrimSpace(raw)); err == nil && pool.Contains(p.Addr()) {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckStubResolver implements PF-610.

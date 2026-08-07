@@ -5,6 +5,54 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.30.0] - 2026-08-08
+
+### Added
+
+- kube-vip, so the control plane has an address that is not any node's.
+  ADR-008 has required that since it was written, and until now nothing served
+  it. The DaemonSet is written into RKE2's auto-deploying manifest directory,
+  which means the cluster reapplies it on restart without this tool present.
+  The ordering only looks circular: the first server is the node being joined,
+  not one joining, so it comes up without the VIP and kube-vip claims the
+  address afterwards.
+- `ResolveVIPInterface` reads the interface from the node rather than assuming
+  it. A node with two NICs has exactly one that can answer ARP for the address,
+  and picking the other produces a VIP reachable from nowhere anybody cares
+  about.
+- The VIP step waits for a TLS listener on 6443, not for a DaemonSet to exist.
+  What the join needs is an address that answers.
+- `svc_enable` is off: handing addresses to Services is the dataplane's job
+  (ADR-004), and two components allocating from one pool is a conflict nobody
+  can debug from the symptom.
+
+### Fixed
+
+- The service step called a running unit satisfied while it ran with a
+  configuration older than the file on disk. RKE2 reads `config.yaml` once, at
+  startup, so the config step wrote a change, the service step saw a Ready node
+  and the change never took effect. Reproduced live: the cluster ended up with
+  an API certificate that did not cover the VIP the document asked for, while
+  every step reported success. The check now compares the file's mtime against
+  the unit's start time, and Apply restarts rather than starting.
+- PF-607 reported `enp6s18, enp6s18` as an ambiguous choice once the VIP was
+  assigned, because one interface with two addresses on the subnet was counted
+  twice. A VIP already assigned is the answer, not an ambiguity.
+- PF-609 counted the VIP itself as evidence of multi-homing. A floating address
+  the document declares -- a VIP, a pinned gateway address, anything in the load
+  balancer pool -- is nobody's identity: the node holding it today may not hold
+  it tomorrow.
+- PF-606 blocked on the VIP this tool had just brought up. It now compares the
+  address against what the nodes report carrying, which means it runs after the
+  node probes: whether a VIP is free cannot be answered from outside alone.
+
+### Verified
+
+A two-node cluster, built end to end and re-measured at 73 pass / 0 fail.
+The agent joined through the VIP, and the API certificate carries
+`IP Address:192.168.88.210` after the restart the service step forced. Both
+`l1-bootstrap` and `l1-join-agent` report every step satisfied on a second run.
+
 ## [0.29.0] - 2026-08-07
 
 ### Added

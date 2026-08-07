@@ -182,14 +182,21 @@ kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"="}{range .sta
 	return &engine.ShellStep{
 		Name: "service",
 		Check: fmt.Sprintf(`systemctl is-active --quiet %s || { echo "%s is not running"; exit 1; }
+%s
 [ -f %s ] || { echo "%s is running and has not written a kubeconfig yet"; exit 1; }
 out=$(%s)
 echo "$out" | grep -q '=True$' || { echo "%s is running but no node is Ready yet"; exit 1; }
 echo "$(echo "$out" | grep -c '=True$') node(s) Ready"`,
-			unit, unit, Kubeconfig, unit, ready, unit),
+			unit, unit, configIsOlderThanProcess(unit), Kubeconfig, unit, ready, unit),
 
 		Do: fmt.Sprintf(`set -e
-systemctl enable --now %s
+if systemctl is-active --quiet %s; then
+  # Already running: what is unsatisfied is the configuration it was started
+  # with, so restarting is the whole of the work.
+  systemctl restart %s
+else
+  systemctl enable --now %s
+fi
 deadline=$(( $(date +%%s) + %d ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   if [ -f %s ] && %s | grep -q '=True$'; then exit 0; fi
@@ -201,13 +208,33 @@ done
 echo "%s did not report a Ready node within %ds:"
 journalctl -u %s -n 40 --no-pager 2>&1 | tail -40
 exit 1`,
-			unit, int(o.readyTimeout().Seconds()),
+			unit, unit, unit, int(o.readyTimeout().Seconds()),
 			Kubeconfig, ready, unit, unit, unit, unit, int(o.readyTimeout().Seconds()), unit),
 
 		Satisfied: "%s",
 		Missing:   "%s",
 		DoTimeout: o.readyTimeout() + time.Minute,
 	}
+}
+
+// configIsOlderThanProcess refuses to call a service satisfied when it is
+// running with a configuration older than the file on disk.
+//
+// RKE2 reads config.yaml once, at startup. Without this the config step writes
+// a change, the service step sees a running unit and a Ready node, and the
+// change never takes effect -- which is how a cluster ends up with a
+// certificate that does not cover the VIP the document asked for, while every
+// step reports success.
+func configIsOlderThanProcess(unit string) string {
+	return fmt.Sprintf(`started=$(systemctl show %s -p ExecMainStartTimestamp --value)
+if [ -n "$started" ] && [ -f %s ]; then
+  s=$(date -d "$started" +%%s 2>/dev/null || echo 0)
+  c=$(stat -c %%Y %s 2>/dev/null || echo 0)
+  if [ "$s" -gt 0 ] && [ "$c" -gt "$s" ]; then
+    echo "%s is running with a configuration older than %s; it reads that file only at startup"
+    exit 1
+  fi
+fi`, unit, ConfigFile, ConfigFile, unit, ConfigFile)
 }
 
 // ---------------------------------------------------------------------------

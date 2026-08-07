@@ -127,6 +127,10 @@ type Facts struct {
 	FQDN      string
 	CPUs      int
 	MemBytes  int64
+	// Addresses are the node's global IPv4 addresses, without the netmask.
+	// PF-606 needs them: an address a node is already carrying is this
+	// cluster's own rather than somebody else's.
+	Addresses []string
 }
 
 // Collect gathers the identity every other probe and the plan generator need.
@@ -153,6 +157,11 @@ func (n *Node) Collect(ctx context.Context) Facts {
 	if r := n.run(ctx, "awk '/^MemTotal:/{print $2}' /proc/meminfo"); r.OK() {
 		kb, _ := strconv.ParseInt(r.Out(), 10, 64)
 		f.MemBytes = kb * 1024
+	}
+	if r := n.run(ctx, "ip -o -4 addr show scope global | awk '{print $4}'"); r.OK() {
+		for _, cidr := range strings.Fields(r.Out()) {
+			f.Addresses = append(f.Addresses, strings.SplitN(cidr, "/", 2)[0])
+		}
 	}
 	return f
 }

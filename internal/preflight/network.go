@@ -195,12 +195,29 @@ func pointsAtCluster(ips []netip.Addr, spec v1alpha1.ClusterSpec) bool {
 // A VIP that already answers belongs to something else. Assigning it anyway
 // produces two hosts claiming one address, and what breaks is whatever was
 // there first -- usually while the installer reports success.
-func (p *Prober) CheckVIPFree(ctx context.Context, spec v1alpha1.ClusterSpec) ProbeResult {
+// heldBy are the addresses the nodes reported carrying, keyed by host. A VIP
+// among them is held by this cluster rather than by somebody else.
+func (p *Prober) CheckVIPFree(ctx context.Context, spec v1alpha1.ClusterSpec, heldBy map[string][]string) ProbeResult {
 	v := spec.Topology.VIP
 	if v == nil || strings.TrimSpace(v.Address) == "" {
 		return skipped("PF-606", "no VIP is configured")
 	}
 	addr := strings.TrimSpace(v.Address)
+
+	// Once this tool has built the cluster, the VIP answers because kube-vip is
+	// serving it. Reporting that as "somebody else has your address" would
+	// block every run after the first, the same way PF-802 did.
+	for host, addrs := range heldBy {
+		for _, a := range addrs {
+			if a == addr {
+				return ProbeResult{
+					ID: "PF-606", Status: StatusPass, Severity: codes.SeverityInfo,
+					Detail: fmt.Sprintf("%s is carried by %s, which is a node in this document; "+
+						"the address is this cluster's own", addr, host),
+				}
+			}
+		}
+	}
 
 	// The ports something would answer on if the address were already a
 	// Kubernetes control plane, plus the two that say a host is simply there.

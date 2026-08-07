@@ -22,6 +22,7 @@ func (n *Node) Probe(ctx context.Context) NodeCapability {
 		Hostname:    f.Hostname,
 		Role:        n.Spec.Role,
 		Arch:        normaliseArch(f.Arch),
+		Addresses:   f.Addresses,
 		OS:          OSInfo{Family: f.Family(), Version: f.OSRelease["VERSION_ID"], Kernel: f.Kernel},
 		Probes:      map[string]ProbeResult{},
 		CollectedAt: time.Now().UTC(),

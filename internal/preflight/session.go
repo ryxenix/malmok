@@ -128,6 +128,12 @@ func (s *Session) Run(ctx context.Context) Report {
 
 	nodes := s.nodes()
 	if len(nodes) == 0 {
+		p := s.Prober
+		if p == nil {
+			p = NewProber()
+		}
+		rep.Document = append(rep.Document, p.CheckVIPFree(ctx, s.Spec, nil))
+		sort.Slice(rep.Document, func(i, j int) bool { return rep.Document[i].ID < rep.Document[j].ID })
 		rep.Duration = time.Since(started)
 		return rep
 	}
@@ -197,11 +203,25 @@ func (s *Session) Run(ctx context.Context) Report {
 	// now. Running them earlier would measure against machines nobody reached.
 	s.peerChecks(ctx, nodes, rep.Nodes)
 
+	// PF-606 waits for the node results. Whether a VIP is free cannot be
+	// answered from outside alone: an address that answers might be somebody
+	// else's, or it might be the one kube-vip is serving for this very cluster,
+	// and only the nodes can say which.
+	held := map[string][]string{}
+	for _, c := range rep.Nodes {
+		held[c.Host] = c.Addresses
+	}
+
+	prober := s.Prober
+	if prober == nil {
+		prober = NewProber()
+	}
 	for _, r := range []ProbeResult{
 		CheckHomogeneous(rep.Nodes),
 		CheckHostnames(hostnamesOf(rep.Nodes)),
 		CheckClockSkew(clocks, DefaultClockTolerance),
 		CheckTimezones(zones),
+		prober.CheckVIPFree(ctx, s.Spec, held),
 	} {
 		rep.Document = append(rep.Document, r)
 		s.emit(r)
@@ -262,7 +282,6 @@ func (s *Session) documentChecks(ctx context.Context) []ProbeResult {
 	}
 	out = append(out,
 		p.CheckRegistrationAddress(ctx, s.Spec),
-		p.CheckVIPFree(ctx, s.Spec),
 		p.CheckProxyConnect(ctx, s.Spec),
 	)
 

@@ -64,7 +64,7 @@ func producible(t *testing.T) map[string]bool {
 	ctx := context.Background()
 	for _, r := range []ProbeResult{
 		p.CheckRegistrationAddress(ctx, baseSpec()),
-		p.CheckVIPFree(ctx, baseSpec()),
+		p.CheckVIPFree(ctx, baseSpec(), nil),
 		p.CheckProxyConnect(ctx, baseSpec()),
 		p.CheckACME(ctx, baseSpec(), false),
 	} {

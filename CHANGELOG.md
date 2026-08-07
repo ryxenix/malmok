@@ -5,6 +5,42 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.23.0] - 2026-08-07
+
+### Added
+
+- `preflight.CheckCIDRs` (PF-611). The pod and service networks are invisible
+  to the customer's routing, so an overlap does not fail at install: it fails
+  later and intermittently, when a pod is given an address that also belongs to
+  something real. Node addresses, `nodeIP` overrides, the VIP, gateway
+  addresses and the load balancer pool are all checked, and the failure names
+  which of them collided.
+- `preflight.Prober` (PF-603, PF-606, PF-608, PF-701, PF-702, PF-703): the
+  probes that run from the machine executing the tool. Everything they touch
+  is behind an interface, so each failure path has a test rather than an
+  argument.
+- PF-701/702/703 are one request rather than three. Reachability, whether the
+  certificate verifies and whether the credentials are accepted are three
+  answers to the same connection, and a transport error is attributed to the
+  probe actually at fault -- an untrusted CA reported as unreachable is the
+  misdiagnosis that sends an operator to the firewall for a missing file.
+- `preflight.FromCert`, the adapter from the certificate gates. The cert
+  package keeps its own finding type so it does not import this one; the two
+  would otherwise be a cycle.
+- `preflight.ListenerHostnames`, which collects the names a bundle has to cover
+  for a given secret. Selection needs them and they live on the listeners, so
+  every caller would otherwise walk the gateway tree and get it subtly wrong.
+
+### Changed
+
+- Probes that measure from the wrong vantage point say so in their pass
+  message. A registry this machine can reach is not a registry the nodes can
+  reach, and silence on a VIP port is not proof the address is free -- a host
+  that drops unsolicited packets looks identical. Tests assert the wording,
+  because a pass that overstates what it measured is worse than no probe.
+- `registry.insecure` produces a warning rather than a silent pass. Nothing
+  authenticates the connection every node pulls images over.
+
 ## [0.22.0] - 2026-08-06
 
 ### Added

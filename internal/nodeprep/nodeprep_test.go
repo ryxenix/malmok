@@ -1,0 +1,305 @@
+package nodeprep
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/platformctl/internal/engine"
+	"platform.ryxen.dev/platformctl/internal/exec"
+)
+
+func embeddedSpec() v1alpha1.ClusterSpec {
+	return v1alpha1.ClusterSpec{
+		Network:  v1alpha1.NetworkSpec{Mode: v1alpha1.NetworkOnline},
+		Registry: v1alpha1.RegistrySpec{Mode: v1alpha1.RegistryEmbedded},
+	}
+}
+
+// Observe must not change anything. This is what resume depends on: a process
+// killed mid-step leaves a record saying "running", and the only way back is to
+// look at the world again (§4.2 rule 4).
+func TestObserveChangesNothing(t *testing.T) {
+	f := &exec.Fake{Default: exec.Result{ExitCode: 1}}
+	for _, s := range Steps(f, "10.0.0.11", embeddedSpec(), TrustMaterial{}) {
+		if _, err := s.Observe(context.Background()); err != nil {
+			t.Fatalf("%s: %v", s.ID(), err)
+		}
+	}
+
+	mutating := []string{
+		"modprobe ", "sysctl --system", "sysctl -w", "swapoff", "install -d",
+		"update-ca-", "> /etc/", "sed -i", "chmod ", "systemctl start",
+	}
+	for _, cmd := range f.Log {
+		for _, bad := range mutating {
+			if strings.Contains(cmd, bad) {
+				t.Errorf("an Observe would have changed the node: it contains %q\n%s", bad, cmd)
+			}
+		}
+	}
+}
+
+// The runner splits a step key on the first '@', so a step id may not contain
+// one -- the constraint is on the ids this package authors (§4.1).
+func TestStepIDsCarryOneAt(t *testing.T) {
+	for _, s := range Steps(&exec.Fake{}, "node@example.com", embeddedSpec(), TrustMaterial{}) {
+		id := s.ID()
+		name, host, ok := strings.Cut(id, "@")
+		if !ok {
+			t.Fatalf("%q has no node", id)
+		}
+		if strings.Contains(name, "@") {
+			t.Errorf("the step part of %q contains an '@'", id)
+		}
+		if host != "node@example.com" {
+			t.Errorf("the node part of %q is %q", id, host)
+		}
+		if !strings.HasPrefix(name, Phase+"/") {
+			t.Errorf("%q is not filed under %s", id, Phase)
+		}
+	}
+}
+
+// A non-zero Check is an answer, not a fault: it means the target state does
+// not hold yet. Only a transport failure is an error.
+func TestObserveDistinguishesUnsatisfiedFromUnreachable(t *testing.T) {
+	t.Run("unsatisfied", func(t *testing.T) {
+		f := &exec.Fake{Default: exec.Result{ExitCode: 1, Stdout: "net.ipv4.ip_forward is 0, want 1\n"}}
+		s := &Step{Name: "sysctl", Host: "10.0.0.11", Runner: f, Check: "check", Missing: "%s"}
+
+		obs, err := s.Observe(context.Background())
+		if err != nil {
+			t.Fatalf("an unsatisfied check was reported as an error: %v", err)
+		}
+		if obs.Satisfied {
+			t.Error("a failing check reported the state as satisfied")
+		}
+		if !strings.Contains(obs.Detail, "ip_forward is 0") {
+			t.Errorf("the node's own words were dropped: %q", obs.Detail)
+		}
+	})
+
+	t.Run("unreachable", func(t *testing.T) {
+		f := &exec.Fake{Err: exec.ErrNotConnected}
+		s := &Step{Name: "sysctl", Host: "10.0.0.11", Runner: f, Check: "check"}
+
+		if _, err := s.Observe(context.Background()); err == nil {
+			t.Fatal("a node that could not be reached reported an observation")
+		}
+	})
+}
+
+// A failing Apply has to carry the node's own words. A restatement of the step
+// name tells whoever is holding the pager nothing.
+func TestApplyCarriesTheNodesWords(t *testing.T) {
+	f := &exec.Fake{Default: exec.Result{ExitCode: 1, Stderr: "sysctl: permission denied\n"}}
+	s := &Step{Name: "sysctl", Host: "10.0.0.11", Runner: f, Do: "do"}
+
+	err := s.Apply(context.Background())
+	if err == nil {
+		t.Fatal("a failing command reported success")
+	}
+	if !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("the node's message was dropped: %v", err)
+	}
+	if !strings.Contains(err.Error(), "EX-002") {
+		t.Errorf("the failure carries no diagnostic code: %v", err)
+	}
+}
+
+// Evidence goes into the audit report, and event.Validate refuses control
+// sequences and newlines in it (§5.3).
+func TestEvidenceIsCleanedForTheEventSchema(t *testing.T) {
+	f := &exec.Fake{Default: exec.Result{Stdout: "line one\n\x1b[31mred\x1b[0m\tline two\r\n"}}
+	s := &Step{Name: "x", Host: "h", Runner: f, Check: "check", Satisfied: "%s"}
+
+	obs, err := s.Observe(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{obs.Detail, obs.Evidence} {
+		if strings.ContainsAny(field, "\n\r\t") {
+			t.Errorf("%q still holds whitespace the schema refuses", field)
+		}
+		if strings.ContainsRune(field, 0x1b) {
+			t.Errorf("%q still holds an ANSI escape", field)
+		}
+	}
+}
+
+// Both halves of the swap step matter, and for different reasons: the kubelet
+// refuses to start with swap active, and an fstab entry left behind brings it
+// back at the next reboot.
+func TestSwapChecksFstabAndNotOnlyTheRunningState(t *testing.T) {
+	check := swapStep().Check
+	if !strings.Contains(check, "/etc/fstab") {
+		t.Error("the swap check looks at the running state only; a reboot would undo it")
+	}
+
+	do := swapStep().Do
+	if !strings.Contains(do, "fstab.platformctl.bak") {
+		t.Error("fstab is edited without a backup")
+	}
+	// The line is commented rather than deleted, so an operator can see what
+	// was there and put it back.
+	if strings.Contains(do, "sed -i") && !strings.Contains(do, "# platformctl disabled swap") {
+		t.Error("the fstab entry is removed rather than commented out")
+	}
+}
+
+// Every file this phase writes has to say what put it there. Without it an
+// operator finds a sysctl they did not write and cannot tell whether removing
+// it breaks something.
+func TestWrittenFilesAreMarkedAsManaged(t *testing.T) {
+	for _, s := range Steps(&exec.Fake{}, "10.0.0.11", embeddedSpec(), TrustMaterial{}) {
+		st := s.(*Step)
+		if !strings.Contains(st.Do, ">") {
+			continue // writes no file
+		}
+		if st.Name == "swap" || st.Name == "datadir" {
+			continue // edits an existing file, or creates a directory
+		}
+		if !strings.Contains(st.Do, managedFileHeader) {
+			t.Errorf("%s writes a file with no marker saying what put it there", st.Name)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// registries.yaml
+// ---------------------------------------------------------------------------
+
+func TestRegistriesYAML(t *testing.T) {
+	t.Run("the embedded mirror needs no file", func(t *testing.T) {
+		if got := registriesYAML(embeddedSpec(), TrustMaterial{}); got != "" {
+			t.Errorf("a file was rendered for the embedded mirror:\n%s", got)
+		}
+		for _, s := range Steps(&exec.Fake{}, "h", embeddedSpec(), TrustMaterial{}) {
+			if s.(*Step).Name == "registries" {
+				t.Error("the registries step exists with no external registry")
+			}
+		}
+	})
+
+	t.Run("a system default registry mirrors everything", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "harbor.acme.internal",
+		}
+		got := registriesYAML(spec, TrustMaterial{
+			RegistryUser: "robot", RegistryPass: "s3cret", CABundle: []byte("pem"),
+		})
+		for _, want := range []string{
+			`"*":`, "https://harbor.acme.internal", "username: \"robot\"",
+			"password: \"s3cret\"", "ca_file:",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("the rendered file is missing %q:\n%s", want, got)
+			}
+		}
+	})
+
+	t.Run("a password with yaml punctuation stays one value", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "harbor.acme.internal",
+		}
+		got := registriesYAML(spec, TrustMaterial{RegistryUser: "robot", RegistryPass: `a: b #c"d`})
+		if !strings.Contains(got, `password: "a: b #c\"d"`) {
+			t.Errorf("the password was not quoted:\n%s", got)
+		}
+	})
+
+	t.Run("insecure skips verification instead of naming a CA", func(t *testing.T) {
+		spec := embeddedSpec()
+		yes := true
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "h", Insecure: &yes,
+		}
+		got := registriesYAML(spec, TrustMaterial{CABundle: []byte("pem")})
+		if !strings.Contains(got, "insecure_skip_verify: true") {
+			t.Errorf("insecure was ignored:\n%s", got)
+		}
+	})
+}
+
+// The registries file holds a registry password. Its evidence reaches the audit
+// report, and the report reaches the customer.
+func TestRegistriesStepNeverPrintsItsContents(t *testing.T) {
+	spec := embeddedSpec()
+	spec.Registry = v1alpha1.RegistrySpec{
+		Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "harbor.acme.internal",
+	}
+	steps := Steps(&exec.Fake{}, "h", spec, TrustMaterial{RegistryUser: "robot", RegistryPass: "s3cret"})
+
+	var found *Step
+	for _, s := range steps {
+		if s.(*Step).Name == "registries" {
+			found = s.(*Step)
+		}
+	}
+	if found == nil {
+		t.Fatal("no registries step was produced for an external registry")
+	}
+	if !strings.Contains(found.Do, "chmod 0600") {
+		t.Error("the file is written without restricting its mode")
+	}
+
+	f := &exec.Fake{Default: exec.Result{ExitCode: 1, Stdout: "/etc/rancher/rke2/registries.yaml differs from the document\n"}}
+	found.Runner = f
+	obs, err := found.Observe(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(obs.Detail+obs.Evidence, "s3cret") {
+		t.Errorf("the password reached the event stream: %q %q", obs.Detail, obs.Evidence)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CA trust
+// ---------------------------------------------------------------------------
+
+// docs/11-execute.md §2.1: the trust store belongs to l0 because L1 pulls
+// images before any of the cluster exists.
+func TestTrustStepOnlyExistsWithMaterial(t *testing.T) {
+	if hasStep(Steps(&exec.Fake{}, "h", embeddedSpec(), TrustMaterial{}), "ca-trust") {
+		t.Error("a trust step was produced with no CA to install")
+	}
+	with := Steps(&exec.Fake{}, "h", embeddedSpec(), TrustMaterial{CABundle: []byte("-----BEGIN CERTIFICATE-----\n")})
+	if !hasStep(with, "ca-trust") {
+		t.Error("no trust step was produced for a private CA")
+	}
+}
+
+// Both families rebuild a bundle from a directory, but from different
+// directories with different commands. That is the one place the family
+// actually matters, and getting it wrong installs the CA nowhere.
+func TestTrustStepHandlesBothFamilies(t *testing.T) {
+	s := trustStep(TrustMaterial{CABundle: []byte("pem")})
+	for _, want := range []string{caFileDebian, caFileRHEL, "update-ca-trust", "update-ca-certificates"} {
+		if !strings.Contains(s.Check+s.Do, want) {
+			t.Errorf("the trust step never mentions %q", want)
+		}
+	}
+}
+
+// A CA that differs from the document has to be replaced, not accepted: a node
+// carrying last year's CA fails every pull with an opaque x509 error.
+func TestTrustStepComparesContentNotPresence(t *testing.T) {
+	s := trustStep(TrustMaterial{CABundle: []byte("pem")})
+	if !strings.Contains(s.Check, "cmp -s") {
+		t.Error("the trust check only looks for the file, not at what is in it")
+	}
+}
+
+func hasStep(steps []engine.Step, name string) bool {
+	for _, s := range steps {
+		if s.(*Step).Name == name {
+			return true
+		}
+	}
+	return false
+}

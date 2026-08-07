@@ -5,6 +5,38 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.27.0] - 2026-08-07
+
+### Added
+
+- `internal/nodeprep`: the first real `l0-node-prep` steps, built as engine
+  steps rather than with a configuration management tool (ADR-012). Applied to
+  a live Ubuntu 24.04 node and re-run to confirm the second run changes
+  nothing.
+- Kernel modules, sysctls, swap, the data directory, the private CA trust store
+  and containerd's `registries.yaml`. The last two are conditional: they exist
+  only when the document supplies material for them.
+- Every file the phase writes carries a header saying what put it there. An
+  operator who finds a sysctl they did not write cannot otherwise tell whether
+  removing it breaks something.
+- The swap step looks at `/etc/fstab`, not only at the running state. Swap that
+  is off now and listed in fstab comes back at the next reboot, which turns a
+  working cluster into a broken one months later with nothing having visibly
+  changed. The entry is commented rather than deleted, and fstab is backed up
+  first.
+- The trust step compares the installed CA's content, not its presence. A node
+  carrying last year's CA fails every image pull with an opaque x509 error.
+- `registries.yaml` is written 0600 and its check never prints its contents: it
+  holds a registry password, and a step's evidence reaches the audit report.
+
+### Fixed
+
+Measured on the live node, `net.ipv4.ip_forward` was 0 and
+`fs.inotify.max_user_instances` was 128. Swap was off with `/swap.img` still in
+fstab -- somebody had run `swapoff` and left the entry. After the phase ran,
+preflight went from 34 pass / 3 warn to 35 pass / 2 warn: PF-605 was raised by
+the checks, fixed by the phase, and confirmed gone by re-measuring.
+
 ## [0.26.0] - 2026-08-07
 
 ### Added

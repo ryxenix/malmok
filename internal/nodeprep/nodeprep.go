@@ -13,7 +13,6 @@
 package nodeprep
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -24,113 +23,6 @@ import (
 
 // Phase is the phase name these steps belong to.
 const Phase = "l0-node-prep"
-
-// Step is one node-prep step.
-//
-// Check and Do are shell programs run on the node. Check must not change
-// anything; exiting zero means the target state already holds, which is what
-// makes the step safe to re-run and what resume depends on.
-type Step struct {
-	// Name is the step id after the phase, e.g. "sysctl". The runner joins it
-	// with the node.
-	Name string
-	Host string
-
-	Runner exec.Runner
-
-	// Check exits zero when the target state holds. Its stdout is kept as
-	// evidence for the audit report.
-	Check string
-	// Do moves the node to the target state.
-	Do string
-
-	// Satisfied describes the state when Check passes; Missing describes what
-	// Check found when it did not. Both are one English line for the stream.
-	Satisfied string
-	Missing   string
-}
-
-// ID is the step identity the state file records.
-//
-// The node is on the right of the '@' because the runner splits on the first
-// one, so a step id may not contain it (docs/11-execute.md §4.1).
-func (s *Step) ID() string { return Phase + "/" + s.Name + "@" + s.Host }
-
-// Observe runs Check.
-//
-// A non-zero exit is an answer, not a fault: it means the target state does not
-// hold yet. Only a transport failure is an error, because that is the case
-// where nothing was learned.
-func (s *Step) Observe(ctx context.Context) (engine.Observation, error) {
-	res, err := s.Runner.Run(ctx, s.Check)
-	if err != nil {
-		return engine.Observation{}, engine.Fail("EX-001",
-			fmt.Errorf("%s: could not be observed on %s: %w", s.Name, s.Host, err))
-	}
-	if res.OK() {
-		return engine.Observation{
-			Satisfied: true,
-			Detail:    s.describe(s.Satisfied, res),
-			Evidence:  clean(res.Out()),
-		}, nil
-	}
-	return engine.Observation{
-		Detail:   s.describe(s.Missing, res),
-		Evidence: clean(res.Out() + " " + res.Err()),
-	}, nil
-}
-
-// Apply runs Do.
-func (s *Step) Apply(ctx context.Context) error {
-	res, err := s.Runner.Run(ctx, s.Do)
-	if err != nil {
-		return engine.Fail("EX-002", fmt.Errorf("%s: could not be applied on %s: %w", s.Name, s.Host, err))
-	}
-	if !res.OK() {
-		// The node's own words are more use than a restatement of the step
-		// name, so they are carried into the failure rather than summarised.
-		return engine.Fail("EX-002", fmt.Errorf("%s failed on %s (exit %d): %s",
-			s.Name, s.Host, res.ExitCode, firstLine(clean(res.Err()+" "+res.Out()))))
-	}
-	return nil
-}
-
-// describe fills the observed value into the step's sentence.
-func (s *Step) describe(tmpl string, res exec.Result) string {
-	out := firstLine(clean(res.Out()))
-	if out == "" {
-		out = firstLine(clean(res.Err()))
-	}
-	if strings.Contains(tmpl, "%s") {
-		return fmt.Sprintf(tmpl, out)
-	}
-	return tmpl
-}
-
-// clean strips what the event schema refuses: control sequences and newlines.
-func clean(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		switch {
-		case r == 0x1b:
-			continue
-		case r == '\n' || r == '\r' || r == '\t':
-			b.WriteRune(' ')
-		case r < 0x20:
-			continue
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return strings.Join(strings.Fields(b.String()), " ")
-}
-
-func firstLine(s string) string {
-	if i := strings.IndexAny(s, "\n"); i >= 0 {
-		return s[:i]
-	}
-	return s
-}
 
 // ---------------------------------------------------------------------------
 // The catalogue
@@ -181,8 +73,8 @@ const modulesFile = "/etc/modules-load.d/90-platformctl.conf"
 func Steps(runner exec.Runner, host string, spec v1alpha1.ClusterSpec, trust TrustMaterial) []engine.Step {
 	var out []engine.Step
 
-	add := func(s *Step) {
-		s.Runner, s.Host = runner, host
+	add := func(s *engine.ShellStep) {
+		s.Phase, s.Runner, s.Host = Phase, runner, host
 		out = append(out, s)
 	}
 
@@ -201,13 +93,13 @@ func Steps(runner exec.Runner, host string, spec v1alpha1.ClusterSpec, trust Tru
 }
 
 // modulesStep loads the kernel modules and makes the choice survive a reboot.
-func modulesStep() *Step {
+func modulesStep() *engine.ShellStep {
 	var loaded, wanted []string
 	for _, m := range modules {
 		loaded = append(loaded, fmt.Sprintf(`[ -d /sys/module/%s ] || { echo "%s not loaded"; exit 1; }`, m, m))
 		wanted = append(wanted, m)
 	}
-	return &Step{
+	return &engine.ShellStep{
 		Name: "modules",
 		Check: fmt.Sprintf(`grep -qF %q %s 2>/dev/null || { echo "%s absent"; exit 1; }
 %s
@@ -224,7 +116,7 @@ for m in %s; do modprobe "$m"; done`,
 }
 
 // sysctlStep writes the values and applies them.
-func sysctlStep() *Step {
+func sysctlStep() *engine.ShellStep {
 	var checks []string
 	for _, k := range checkedSysctls {
 		var want string
@@ -243,7 +135,7 @@ func sysctlStep() *Step {
 		lines = append(lines, s.key+" = "+s.value)
 	}
 
-	return &Step{
+	return &engine.ShellStep{
 		Name: "sysctl",
 		Check: fmt.Sprintf(`grep -qF %q %s 2>/dev/null || { echo "%s absent"; exit 1; }
 %s
@@ -263,8 +155,8 @@ sysctl --system >/dev/null`,
 // with swap active, and an fstab entry left behind brings it back at the next
 // reboot -- which turns a working cluster into a broken one at the worst
 // possible moment, months later, with nothing having visibly changed.
-func swapStep() *Step {
-	return &Step{
+func swapStep() *engine.ShellStep {
+	return &engine.ShellStep{
 		Name: "swap",
 		Check: `active=$(swapon --show=NAME --noheadings 2>/dev/null | tr '\n' ' ')
 [ -z "$active" ] || { echo "swap is active: $active"; exit 1; }
@@ -284,8 +176,8 @@ fi`,
 }
 
 // dataDirStep creates the directory RKE2 grows into.
-func dataDirStep() *Step {
-	return &Step{
+func dataDirStep() *engine.ShellStep {
+	return &engine.ShellStep{
 		Name: "datadir",
 		Check: `[ -d /var/lib/rancher ] || { echo "/var/lib/rancher does not exist"; exit 1; }
 echo "/var/lib/rancher exists"`,
@@ -326,9 +218,9 @@ const (
 // docs/11-execute.md §2.1: this belongs to l0 rather than l2 because L1 pulls
 // images before any of the cluster exists. Without it every pull fails with an
 // opaque x509 error, which is the most common private-CA misinstall there is.
-func trustStep(t TrustMaterial) *Step {
+func trustStep(t TrustMaterial) *engine.ShellStep {
 	pem := string(t.CABundle)
-	return &Step{
+	return &engine.ShellStep{
 		Name: "ca-trust",
 		Check: fmt.Sprintf(`f=%s; [ -d /etc/pki/ca-trust/source/anchors ] && f=%s
 [ -f "$f" ] || { echo "the CA is not installed at $f"; exit 1; }
@@ -414,8 +306,8 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 // The file holds a registry password, so it is written 0600 and the check never
 // prints its contents: a step's evidence goes into the audit report, and the
 // report gets handed to the customer.
-func registriesStep(body string) *Step {
-	return &Step{
+func registriesStep(body string) *engine.ShellStep {
+	return &engine.ShellStep{
 		Name: "registries",
 		Check: fmt.Sprintf(`[ -f %s ] || { echo "%s does not exist"; exit 1; }
 printf '%%s' %q | cmp -s - %s || { echo "%s differs from the document"; exit 1; }

@@ -5,6 +5,46 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.28.0] - 2026-08-07
+
+### Added
+
+- ADR-013: RKE2 installs from the tarball. One artifact set an airgap bundle can
+  carry, the same path on both families, and the version pinned by one variable
+  rather than by whatever a repository happens to hold.
+- `internal/rke2`: `l1-bootstrap`. Verified end to end against 192.168.88.241 --
+  a real single-node RKE2 cluster came up in 2m08s and reported Ready, with
+  Cilium running and no ingress-nginx.
+- The install step observes `rke2 --version`, not the presence of a file. That
+  makes an install and an upgrade the same operation and stops a half-finished
+  extraction from counting as installed. It is also why `curl | sh` cannot be a
+  step (§3.1): the installer is called inside Apply, and the target on either
+  side is something somebody can look at.
+- The service step waits for a Ready node, not for a started unit. systemd calls
+  a unit active the moment the process is up, which on a first start is minutes
+  before the API server answers -- and a phase that moved on there would try to
+  join a second server to something that cannot accept it. A unit that dies
+  while starting is reported with its own journal.
+- `tls-san` covers every future server the document names. Adding a SAN later
+  regenerates the certificates on every existing server, which is what HA
+  promotion trips over.
+- `internal/engine/shell.go`: `ShellStep`, the check/do pair both L0 and L1 use.
+  Extracted from `nodeprep` when `rke2` needed the same thing rather than
+  duplicated.
+
+### Changed
+
+- `ShellStep` carries per-half timeouts and a retry budget. A file test and an
+  install that pulls a few hundred megabytes do not deserve the same patience.
+
+### Fixed
+
+- `config.yaml` rendered a repeated key per list item, which is a different
+  document: the last one wins and everything before it is silently dropped.
+  `kubelet-arg` and `kube-apiserver-arg` now emit one sequence, and the tests
+  parse the rendered file as YAML rather than comparing strings -- a file RKE2
+  cannot read is a cluster that does not start.
+
 ## [0.27.0] - 2026-08-07
 
 ### Added

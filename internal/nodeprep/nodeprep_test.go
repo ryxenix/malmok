@@ -67,7 +67,7 @@ func TestStepIDsCarryOneAt(t *testing.T) {
 func TestObserveDistinguishesUnsatisfiedFromUnreachable(t *testing.T) {
 	t.Run("unsatisfied", func(t *testing.T) {
 		f := &exec.Fake{Default: exec.Result{ExitCode: 1, Stdout: "net.ipv4.ip_forward is 0, want 1\n"}}
-		s := &Step{Name: "sysctl", Host: "10.0.0.11", Runner: f, Check: "check", Missing: "%s"}
+		s := &engine.ShellStep{Name: "sysctl", Host: "10.0.0.11", Runner: f, Check: "check", Missing: "%s"}
 
 		obs, err := s.Observe(context.Background())
 		if err != nil {
@@ -83,7 +83,7 @@ func TestObserveDistinguishesUnsatisfiedFromUnreachable(t *testing.T) {
 
 	t.Run("unreachable", func(t *testing.T) {
 		f := &exec.Fake{Err: exec.ErrNotConnected}
-		s := &Step{Name: "sysctl", Host: "10.0.0.11", Runner: f, Check: "check"}
+		s := &engine.ShellStep{Name: "sysctl", Host: "10.0.0.11", Runner: f, Check: "check"}
 
 		if _, err := s.Observe(context.Background()); err == nil {
 			t.Fatal("a node that could not be reached reported an observation")
@@ -95,7 +95,7 @@ func TestObserveDistinguishesUnsatisfiedFromUnreachable(t *testing.T) {
 // name tells whoever is holding the pager nothing.
 func TestApplyCarriesTheNodesWords(t *testing.T) {
 	f := &exec.Fake{Default: exec.Result{ExitCode: 1, Stderr: "sysctl: permission denied\n"}}
-	s := &Step{Name: "sysctl", Host: "10.0.0.11", Runner: f, Do: "do"}
+	s := &engine.ShellStep{Name: "sysctl", Host: "10.0.0.11", Runner: f, Do: "do"}
 
 	err := s.Apply(context.Background())
 	if err == nil {
@@ -113,7 +113,7 @@ func TestApplyCarriesTheNodesWords(t *testing.T) {
 // sequences and newlines in it (§5.3).
 func TestEvidenceIsCleanedForTheEventSchema(t *testing.T) {
 	f := &exec.Fake{Default: exec.Result{Stdout: "line one\n\x1b[31mred\x1b[0m\tline two\r\n"}}
-	s := &Step{Name: "x", Host: "h", Runner: f, Check: "check", Satisfied: "%s"}
+	s := &engine.ShellStep{Name: "x", Host: "h", Runner: f, Check: "check", Satisfied: "%s"}
 
 	obs, err := s.Observe(context.Background())
 	if err != nil {
@@ -154,7 +154,7 @@ func TestSwapChecksFstabAndNotOnlyTheRunningState(t *testing.T) {
 // it breaks something.
 func TestWrittenFilesAreMarkedAsManaged(t *testing.T) {
 	for _, s := range Steps(&exec.Fake{}, "10.0.0.11", embeddedSpec(), TrustMaterial{}) {
-		st := s.(*Step)
+		st := s.(*engine.ShellStep)
 		if !strings.Contains(st.Do, ">") {
 			continue // writes no file
 		}
@@ -177,7 +177,7 @@ func TestRegistriesYAML(t *testing.T) {
 			t.Errorf("a file was rendered for the embedded mirror:\n%s", got)
 		}
 		for _, s := range Steps(&exec.Fake{}, "h", embeddedSpec(), TrustMaterial{}) {
-			if s.(*Step).Name == "registries" {
+			if s.(*engine.ShellStep).Name == "registries" {
 				t.Error("the registries step exists with no external registry")
 			}
 		}
@@ -234,10 +234,10 @@ func TestRegistriesStepNeverPrintsItsContents(t *testing.T) {
 	}
 	steps := Steps(&exec.Fake{}, "h", spec, TrustMaterial{RegistryUser: "robot", RegistryPass: "s3cret"})
 
-	var found *Step
+	var found *engine.ShellStep
 	for _, s := range steps {
-		if s.(*Step).Name == "registries" {
-			found = s.(*Step)
+		if s.(*engine.ShellStep).Name == "registries" {
+			found = s.(*engine.ShellStep)
 		}
 	}
 	if found == nil {
@@ -297,7 +297,7 @@ func TestTrustStepComparesContentNotPresence(t *testing.T) {
 
 func hasStep(steps []engine.Step, name string) bool {
 	for _, s := range steps {
-		if s.(*Step).Name == name {
+		if s.(*engine.ShellStep).Name == name {
 			return true
 		}
 	}

@@ -1,0 +1,157 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"platform.ryxen.dev/platformctl/internal/exec"
+)
+
+// ShellStep implements Step as a pair of shell programs run on a node.
+//
+// ADR-012 settled that there is no configuration management tool underneath
+// the L0/L1 phases, and this is the one shape those phases take. It is not a
+// module layer: there is no package manager abstraction, no template engine and
+// no file-editing primitive here, because the boundary is the concrete steps
+// the catalogue asks for.
+//
+// Check must not change anything. Exiting zero means the target state already
+// holds, which is what makes the step safe to re-run and what resume depends
+// on: a process killed mid-step leaves a record saying "running", and the only
+// way back is to look at the world again (docs/11-execute.md §4.2 rule 4).
+type ShellStep struct {
+	// Phase and Name form the step id; Host is the node it runs on.
+	//
+	// The runner splits a step key on the first '@', so neither Phase nor Name
+	// may contain one -- the constraint is on the ids we author (§4.1).
+	Phase string
+	Name  string
+	Host  string
+
+	Runner exec.Runner
+
+	// Check exits zero when the target state holds.
+	Check string
+	// Do moves the node to the target state.
+	Do string
+
+	// Satisfied and Missing are the sentences for the event stream. A single
+	// %s in either is filled with what the command printed, so the node's own
+	// words reach the operator rather than a restatement of the step name.
+	Satisfied string
+	Missing   string
+
+	// CheckTimeout and DoTimeout bound each half. Zero means the caller's
+	// context decides, which is right for a quick file test and wrong for an
+	// install that pulls images.
+	CheckTimeout time.Duration
+	DoTimeout    time.Duration
+
+	// Attempts overrides the runner's retry budget. An install that fetches
+	// from the internet deserves more than a file test does.
+	Attempts int
+
+	// Once marks work that cannot honestly claim idempotency (§3.3).
+	Once bool
+}
+
+// ID is the step identity the state file records.
+func (s *ShellStep) ID() string { return s.Phase + "/" + s.Name + "@" + s.Host }
+
+// MaxAttempts implements RetryableStep.
+func (s *ShellStep) MaxAttempts() int { return s.Attempts }
+
+// OneShot implements OneShotStep.
+func (s *ShellStep) OneShot() bool { return s.Once }
+
+// Observe runs Check.
+//
+// A non-zero exit is an answer, not a fault: it means the target state does not
+// hold yet. Only a transport failure is an error, because that is the case
+// where nothing was learned.
+func (s *ShellStep) Observe(ctx context.Context) (Observation, error) {
+	res, err := s.run(ctx, s.Check, s.CheckTimeout)
+	if err != nil {
+		return Observation{}, Fail("EX-001",
+			fmt.Errorf("%s: could not be observed on %s: %w", s.Name, s.Host, err))
+	}
+	if res.OK() {
+		return Observation{
+			Satisfied: true,
+			Detail:    fill(s.Satisfied, res),
+			Evidence:  CleanForEvent(res.Out()),
+		}, nil
+	}
+	return Observation{
+		Detail:   fill(s.Missing, res),
+		Evidence: CleanForEvent(res.Out() + " " + res.Err()),
+	}, nil
+}
+
+// Apply runs Do.
+func (s *ShellStep) Apply(ctx context.Context) error {
+	res, err := s.run(ctx, s.Do, s.DoTimeout)
+	if err != nil {
+		return Fail("EX-002", fmt.Errorf("%s: could not be applied on %s: %w", s.Name, s.Host, err))
+	}
+	if !res.OK() {
+		// The node's own words are more use than a restatement of the step
+		// name, so they are carried into the failure rather than summarised.
+		return Fail("EX-002", fmt.Errorf("%s failed on %s (exit %d): %s",
+			s.Name, s.Host, res.ExitCode, tail(CleanForEvent(res.Err()+" "+res.Out()))))
+	}
+	return nil
+}
+
+func (s *ShellStep) run(ctx context.Context, cmd string, timeout time.Duration) (exec.Result, error) {
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return s.Runner.Run(ctx, cmd)
+}
+
+// fill puts what the command printed into the step's sentence.
+func fill(tmpl string, res exec.Result) string {
+	if !strings.Contains(tmpl, "%s") {
+		return tmpl
+	}
+	out := CleanForEvent(res.Out())
+	if out == "" {
+		out = CleanForEvent(res.Err())
+	}
+	return fmt.Sprintf(tmpl, out)
+}
+
+// CleanForEvent strips what the event schema refuses: control sequences,
+// newlines and tabs (§5.3). Exported because every step that captures remote
+// output has to do it at capture time.
+func CleanForEvent(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == 0x1b:
+			continue
+		case r == '\n' || r == '\r' || r == '\t':
+			b.WriteRune(' ')
+		case r < 0x20:
+			continue
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// tail keeps the end of a long message, which is where a command's actual
+// complaint lives once it has printed its progress.
+func tail(s string) string {
+	const max = 400
+	if len(s) <= max {
+		return s
+	}
+	return "..." + s[len(s)-max:]
+}

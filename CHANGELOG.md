@@ -5,6 +5,38 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.25.0] - 2026-08-07
+
+### Added
+
+- PF-704, PF-705 and PF-706: the cluster's own PKI material, as distinct from
+  the gateway bundles PF-9xx covers. One pass over one set of files, because
+  three passes could disagree with each other.
+- PF-704 refuses a root with no intermediate (cert-manager signs with the
+  intermediate and the root key must stay offline, so such material can issue
+  nothing) and warns when the intermediate expires within ninety days -- every
+  certificate it signs is capped at its date, so the failure arrives months
+  later during a routine renewal.
+- PF-707 verifies the airgap bundle against a `.sha256` sidecar. A truncated
+  transfer does not announce itself: the install proceeds until the first
+  missing layer, by which point half the cluster is up. With no sidecar the
+  probe says so rather than computing a digest nobody can compare against.
+- PF-708 checks the ACME prerequisites, starting with the one that is free to
+  find and expensive to discover during an install window: an airgapped site
+  cannot reach a certificate authority. HTTP-01 additionally requires a pinned
+  gateway address, because the challenge is delivered to whatever the DNS
+  record points at.
+- `TestEveryPreflightCodeIsImplemented` walks the code registry and fails on
+  any preflight code nothing produces, with an explicit table naming where the
+  eleven codes implemented in other packages live.
+  `TestNoProbeEmitsAnUnregisteredCode` closes the other direction: an
+  unregistered code reaches a customer's audit report as an identifier with
+  nothing behind it.
+- `TestFailuresExplainThemselves` asserts every failing probe carries a reason
+  code and enough detail to act on.
+
+All 68 preflight codes now have an implementation.
+
 ## [0.24.0] - 2026-08-07
 
 ### Added

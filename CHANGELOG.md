@@ -5,6 +5,63 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.24.0] - 2026-08-07
+
+### Added
+
+- `internal/exec`: a Runner interface with an SSH implementation and a fake.
+  One connection is held for the life of a preflight rather than dialled per
+  command -- a run asks a node forty questions, and a handshake each time turns
+  a four-second probe into a minute of key exchange. `golang.org/x/crypto/ssh`
+  is the dependency; the standard library has no SSH, and shelling out to the
+  `ssh` binary would break the single-static-binary requirement an airgap
+  imposes.
+- `Sudo`, which feeds the password on stdin with `-p ''` so a probe reading
+  stderr does not find a prompt in it. Measured on a real node: `sudo -n` fails
+  there, and reading the packet filter ruleset needs root.
+- 39 node probes: PF-101..107, PF-201..209, PF-301..305, PF-401..407,
+  PF-501/503, PF-605/607/609/610, PF-801..805. Plus the cross-node ones
+  (PF-108, PF-502, PF-504, PF-604) and the peer ones (PF-601, PF-602).
+- PF-204 attempts a real program load through `bpftool`, falling back to a
+  direct `bpf()` syscall through python3's ctypes. Everything the other eBPF
+  probes read can be true on a node that still refuses the load, and inferring
+  from symbols is what this code exists not to do.
+- Every fixture in the tests is output recorded from a live Ubuntu 24.04 node,
+  not output written from memory.
+
+### Changed
+
+- The Longhorn prerequisites (PF-404, PF-405, PF-406) are explicit stubs by
+  decision: probing external block storage properly is a larger scope than is
+  worth carrying before the storage layer exists. They report skip rather than
+  pass, so nothing claims Longhorn works, and `FailedAt` does not see them, so
+  nothing downgrades storage on evidence that was never collected.
+- `exec.Fake` resolves the longest matching pattern. Map order is random and a
+  command often contains two patterns -- the shell that reads the kernel
+  configuration also contains `uname -r` -- so first-match made a test depend
+  on how Go walked the map that run.
+
+### Fixed
+
+Four probe designs, corrected against the real node rather than assumption:
+
+- `systemctl is-active ufw` is not the firewall. The measured node answers
+  "active" while `ufw status` answers "Status: inactive": the unit is running
+  and the policy allows everything. PF-304 asks each firewall about itself.
+- PF-208 and PF-605 cannot read what does not exist. `nf_conntrack_max` and
+  `bridge-nf-call-iptables` only appear once their modules are loaded, and
+  loading one is a change preflight must not make. They report that the value
+  could not be measured rather than inventing a kernel default.
+- `/var/lib/rancher` being absent is the normal state before an install, so
+  `findmnt` exiting non-zero is an answer rather than an error. PF-402 and
+  PF-403 measure the parent, and `df -i` cannot be combined with `--output`.
+- PF-601 distinguishes refused from dropped. Before an install nothing is
+  listening, so a refused connection is the expected result and a timeout is
+  the finding.
+
+`TestProbesNeverModifyTheNode` walks every command a full run issues and fails
+on anything that would change the node.
+
 ## [0.23.0] - 2026-08-07
 
 ### Added

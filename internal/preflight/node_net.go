@@ -238,9 +238,18 @@ func (n *Node) CheckNodeIP(ctx context.Context) ProbeResult {
 
 	var addrs []string
 	for _, line := range strings.Split(r.Out(), "\n") {
-		if fields := strings.Fields(line); len(fields) == 2 {
-			addrs = append(addrs, fields[0]+" "+fields[1])
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
 		}
+		// A dataplane's own interface is not a second network. Once Cilium is
+		// running the node carries cilium_host with a /32 out of the pod CIDR,
+		// and counting it as multi-homing would warn about every node the tool
+		// has already built.
+		if isDataplaneInterface(fields[0]) {
+			continue
+		}
+		addrs = append(addrs, fields[0]+" "+fields[1])
 	}
 
 	if len(addrs) <= 1 {
@@ -311,6 +320,24 @@ func (n *Node) CheckExistingRuntime(ctx context.Context) ProbeResult {
 			"keep two image stores on the same disk", strings.Join(found, " and "))
 }
 
+// ManagedMarker is the header this tool writes into every file it owns.
+//
+// It is what separates "a previous installation somebody else left" from "the
+// installation this document built". Without that distinction PF-802 blocks
+// every run after the first, which would make resume (§4) and adding a node
+// impossible -- and the tool would be refusing its own work.
+const ManagedMarker = "Managed by platformctl"
+
+// ours reports whether the RKE2 on this node was put there by this tool.
+//
+// The evidence is the config file's marker rather than a flag the caller
+// passes, because a mode flag can be wrong and a file on the node cannot: what
+// is being asked is who wrote this, and the file says.
+func (n *Node) ours(ctx context.Context) bool {
+	r := n.run(ctx, "grep -qF '"+ManagedMarker+"' /etc/rancher/rke2/config.yaml 2>/dev/null; echo rc=$?")
+	return strings.Contains(r.Out(), "rc=0")
+}
+
 // CheckExistingKubernetes implements PF-802.
 func (n *Node) CheckExistingKubernetes(ctx context.Context) ProbeResult {
 	r := n.run(ctx, "for p in /etc/rancher/rke2 /etc/rancher/k3s /var/lib/rancher/rke2 /var/lib/rancher/k3s; "+
@@ -322,9 +349,13 @@ func (n *Node) CheckExistingKubernetes(ctx context.Context) ProbeResult {
 	if len(found) == 0 {
 		return passf("PF-802", "no previous RKE2 or k3s installation is present")
 	}
+	if n.ours(ctx) {
+		return passf("PF-802", "the RKE2 installation on this node was written by platformctl; "+
+			"the install phases re-observe it rather than treating it as a leftover")
+	}
 	return failf("PF-802", "KUBERNETES_PRESENT",
-		"a previous installation is still on this node (%s); installing over it produces a cluster "+
-			"that inherits the old certificates and the old etcd, which is not what anybody wants "+
+		"an installation this tool did not write is still on this node (%s); installing over it produces "+
+			"a cluster that inherits the old certificates and the old etcd, which is not what anybody wants "+
 			"and is not what an uninstall leaves behind",
 		strings.Join(found, ", "))
 }
@@ -354,13 +385,30 @@ func (n *Node) portsFree(ctx context.Context, ports []int) ProbeResult {
 	if r.Out() == "" {
 		return passf("PF-803", "%s are free", strings.Join(list, ", "))
 	}
+	if n.ours(ctx) {
+		return passf("PF-803", "%s are held by the cluster this document already built", strings.Join(list, ", "))
+	}
 	return failf("PF-803", "PORT_IN_USE",
-		"something is already listening on a port the control plane needs: %s",
+		"something this tool did not start is already listening on a port the control plane needs: %s",
 		strings.Join(strings.Fields(r.Out()), " "))
 }
 
-// cniInterfacePrefixes are what the dataplanes leave behind.
+// cniInterfacePrefixes are what the dataplanes create.
+//
+// They mean two different things depending on who created them: leftovers from
+// a previous installation (PF-804), or the running dataplane of the cluster
+// this tool built, which is why PF-609 has to ignore them rather than count
+// them as a second network.
 var cniInterfacePrefixes = []string{"cni0", "flannel.", "cilium_", "vxlan.calico", "kube-ipvs0", "cali", "lxc"}
+
+func isDataplaneInterface(name string) bool {
+	for _, prefix := range cniInterfacePrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 // CheckCNILeftovers implements PF-804.
 //
@@ -375,21 +423,21 @@ func (n *Node) CheckCNILeftovers(ctx context.Context) ProbeResult {
 
 	var found []string
 	for _, name := range strings.Fields(r.Out()) {
-		clean := strings.SplitN(name, "@", 2)[0]
-		for _, prefix := range cniInterfacePrefixes {
-			if strings.HasPrefix(clean, prefix) {
-				found = append(found, clean)
-				break
-			}
+		if clean := strings.SplitN(name, "@", 2)[0]; isDataplaneInterface(clean) {
+			found = append(found, clean)
 		}
 	}
 	if len(found) == 0 {
 		return passf("PF-804", "no dataplane interfaces are left over")
 	}
 	sortStrings(found)
+	if n.ours(ctx) {
+		return passf("PF-804", "the dataplane interfaces belong to the cluster this document built (%s)",
+			strings.Join(found, ", "))
+	}
 	return failf("PF-804", "CNI_LEFTOVER",
-		"interfaces from a previous dataplane are still present (%s); a new dataplane comes up beside them "+
-			"and traffic splits between the two, which presents as intermittent loss between pods",
+		"interfaces from a dataplane this tool did not install are still present (%s); a new dataplane comes "+
+			"up beside them and traffic splits between the two, which presents as intermittent loss between pods",
 		strings.Join(found, ", "))
 }
 
@@ -415,7 +463,10 @@ func (n *Node) CheckPacketFilterLeftovers(ctx context.Context) ProbeResult {
 	if count == 0 {
 		return passf("PF-805", "no Kubernetes or dataplane rules are left in the packet filter")
 	}
+	if n.ours(ctx) {
+		return passf("PF-805", "%d packet filter rules belong to the cluster this document built", count)
+	}
 	return failf("PF-805", "PACKET_FILTER_LEFTOVER",
-		"%d rules from a previous Kubernetes installation are still loaded; they outlive the packages "+
+		"%d rules from an installation this tool did not write are still loaded; they outlive the packages "+
 			"and they redirect traffic to services that no longer exist", count)
 }

@@ -7,9 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/cert"
 	"platform.ryxen.dev/platformctl/internal/codes"
+	"platform.ryxen.dev/platformctl/internal/engine"
 	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/platformctl/internal/nodeprep"
+	"platform.ryxen.dev/platformctl/internal/rke2"
 )
 
 // implementedElsewhere are the PF codes this package does not produce, with the
@@ -167,6 +171,43 @@ func TestFailuresExplainThemselves(t *testing.T) {
 		}
 		if r.Code == "" {
 			t.Errorf("%s fails with no reason code", id)
+		}
+	}
+}
+
+// The marker PF-8xx looks for has to be the one the install phases write.
+//
+// If the two drift, nothing fails loudly: preflight simply stops recognising
+// its own work and starts refusing every run after the first, which is how
+// resume and adding a node would break with no error pointing at the cause.
+func TestManagedMarkerMatchesWhatTheInstallPhasesWrite(t *testing.T) {
+	written := []struct {
+		what string
+		body string
+	}{
+		{"rke2 config.yaml", rke2.ServerConfig(
+			v1alpha1.NodeSpec{Host: "10.0.0.11"},
+			v1alpha1.ClusterSpec{Topology: v1alpha1.TopologySpec{RegistrationAddress: "k8s.acme.internal"}},
+			"")},
+	}
+	for _, w := range written {
+		if !strings.Contains(w.body, ManagedMarker) {
+			t.Errorf("%s does not carry %q, so PF-802 will not recognise it:\n%s",
+				w.what, ManagedMarker, w.body)
+		}
+	}
+
+	// And the same for every file l0-node-prep writes.
+	for _, s := range nodeprep.Steps(&exec.Fake{}, "10.0.0.11",
+		v1alpha1.ClusterSpec{Registry: v1alpha1.RegistrySpec{Mode: v1alpha1.RegistryEmbedded}},
+		nodeprep.TrustMaterial{}) {
+
+		st := s.(*engine.ShellStep)
+		if !strings.Contains(st.Do, ">") || st.Name == "swap" || st.Name == "datadir" {
+			continue
+		}
+		if !strings.Contains(st.Do, ManagedMarker) {
+			t.Errorf("l0-node-prep/%s writes a file without %q", st.Name, ManagedMarker)
 		}
 	}
 }

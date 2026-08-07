@@ -5,6 +5,37 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.28.1] - 2026-08-07
+
+### Fixed
+
+Two defects a second node and a built cluster exposed, neither of which could
+have been found without both.
+
+- PF-802, PF-803, PF-804 and PF-805 blocked every run after the first. They
+  fired on the cluster this tool had just built, correctly identifying an
+  installation and wrongly calling it a leftover -- which made resume (§4) and
+  adding a node impossible, with the tool refusing its own work. They now ask
+  who wrote it: a `config.yaml` carrying the managed marker is ours, and a
+  marker is evidence on the node rather than a mode flag the caller can get
+  wrong. `TestManagedMarkerMatchesWhatTheInstallPhasesWrite` ties the string
+  PF-8xx looks for to the string the install phases write, because drift there
+  fails silently.
+- PF-609 called every built node multi-homed. Cilium gives the node a
+  `cilium_host` address out of the pod CIDR, and counting a dataplane's own
+  interface as a second network warns about every cluster the tool has
+  installed. The interface list PF-804 already maintained is now shared, so the
+  two cannot disagree about what a dataplane interface is.
+
+### Verified
+
+Both nodes, 107 checks in 6s. The peer probes ran for the first time against
+real hardware in both directions: PF-601 found connections refused rather than
+dropped on all five control-plane ports, PF-602 carried a 1500-byte frame
+unfragmented, PF-502 measured the clocks agreeing within a second. PF-208's
+"could not be measured" path was confirmed on the second node, where nothing
+had loaded nf_conntrack.
+
 ## [0.28.0] - 2026-08-07
 
 ### Added

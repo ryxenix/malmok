@@ -114,11 +114,80 @@ func (p *Prober) CheckRegistrationAddress(ctx context.Context, spec v1alpha1.Clu
 		strs = append(strs, ip.String())
 	}
 	sort.Strings(strs)
+
+	// Resolving is not the same as resolving to this cluster. A name that
+	// answers with somebody else's address passes every DNS check and then
+	// fails every join, because the joining node dials the supervisor at
+	// whatever came back. It is the same class of mistake as a stale record
+	// left from a previous build.
+	if !pointsAtCluster(ips, spec) {
+		return ProbeResult{
+			ID: "PF-603", Status: StatusFail, Severity: codes.SeverityBlock,
+			Code: "DNS_ELSEWHERE",
+			Detail: fmt.Sprintf(
+				"the registration address %s resolves to %s, which is none of this cluster's nodes, "+
+					"its VIP or its load balancer pool; every node joins through this name, so the join "+
+					"would be attempted against something else entirely",
+				addr, strings.Join(strs, ", ")),
+			Evidence: strings.Join(strs, ","),
+		}
+	}
+
 	return ProbeResult{
 		ID: "PF-603", Status: StatusPass, Severity: codes.SeverityInfo,
 		Detail:   fmt.Sprintf("the registration address %s resolves to %s", addr, strings.Join(strs, ", ")),
 		Evidence: strings.Join(strs, ","),
 	}
+}
+
+// pointsAtCluster reports whether any resolved address belongs to this cluster.
+//
+// The VIP and the load balancer pool count because neither exists yet at
+// preflight time: a record pointing at an address the document has reserved is
+// correct and simply early, which is the whole reason PF-612 asks for the
+// gateway address to be pinned before the install.
+func pointsAtCluster(ips []netip.Addr, spec v1alpha1.ClusterSpec) bool {
+	claimed := map[netip.Addr]bool{}
+	add := func(s string) {
+		if a, err := netip.ParseAddr(strings.TrimSpace(s)); err == nil {
+			claimed[a] = true
+		}
+	}
+	for _, n := range append(append([]v1alpha1.NodeSpec{}, spec.Topology.Servers...), spec.Topology.Agents...) {
+		add(n.Host)
+		add(n.NodeIP)
+	}
+	if v := spec.Topology.VIP; v != nil {
+		add(v.Address)
+	}
+	for _, gw := range spec.Gateway.Gateways {
+		add(gw.Address)
+	}
+
+	var pools []netip.Prefix
+	for _, raw := range spec.Kubernetes.Dataplane.LoadBalancerPool {
+		if p, err := netip.ParsePrefix(strings.TrimSpace(raw)); err == nil {
+			pools = append(pools, p)
+		}
+	}
+
+	// Nothing to compare against means nothing can be said. A document with no
+	// addressed node is not a document this check can judge.
+	if len(claimed) == 0 && len(pools) == 0 {
+		return true
+	}
+
+	for _, ip := range ips {
+		if claimed[ip] {
+			return true
+		}
+		for _, p := range pools {
+			if p.Contains(ip) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // CheckVIPFree implements PF-606.

@@ -5,6 +5,37 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.29.0] - 2026-08-07
+
+### Added
+
+- `l1-join-server` and `l1-join-agent`. The cluster token is read from the first
+  server's `node-token` rather than carried in the document: `cluster.yaml` is
+  an audit artifact handed to customers, and a plaintext credential in one is
+  what the SourceRef indirection exists to prevent. No schema field was added --
+  pinning a token has no demonstrated need yet, and adding it later as a
+  SourceRef would not break this default.
+- The readiness step runs on a node already in the cluster, not on the one
+  joining. An agent has no kubeconfig; asking it whether its own kubelet is
+  running answers a much weaker question than whether the control plane
+  accepted it.
+- Starting the unit and registering with the cluster are separate steps. A unit
+  that will not start is a different problem from a node the control plane has
+  not accepted, and reporting them as one sends people to the wrong logs.
+- The joining node is matched by address, not hostname. A hostname depends on
+  what the node calls itself and on whether `node-name` was set; the address is
+  what the document says.
+
+### Fixed
+
+- PF-603 checked that the registration address resolves, not that it resolves
+  to this cluster. The homelab document used for testing pointed at a public
+  address: it passed every DNS check and would have failed every join, because
+  a joining node dials the supervisor at whatever came back. It now compares
+  against the document's nodes, VIP, gateway addresses and load balancer pool --
+  the pool counts because it does not exist yet at preflight time, so a record
+  pointing into it is correct and simply early.
+
 ## [0.28.1] - 2026-08-07
 
 ### Fixed

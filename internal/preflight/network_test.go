@@ -66,10 +66,29 @@ func TestCheckRegistrationAddress(t *testing.T) {
 		wantIn   string
 	}{
 		{
-			name:     "resolves",
+			// The load balancer pool counts: it does not exist yet at preflight
+			// time, and a record pointing into it is correct and simply early.
+			name:     "resolves into the load balancer pool",
 			address:  "k8s-api.acme.internal",
-			resolver: fakeResolver{addrs: addrs(t, "10.10.0.10")},
-			wantIn:   "10.10.0.10",
+			resolver: fakeResolver{addrs: addrs(t, "10.10.0.241")},
+			wantIn:   "10.10.0.241",
+		},
+		{
+			name:     "resolves to a node in the document",
+			address:  "k8s-api.acme.internal",
+			resolver: fakeResolver{addrs: addrs(t, "10.10.0.11")},
+			wantIn:   "10.10.0.11",
+		},
+		{
+			// Resolving is not the same as resolving to this cluster. A stale
+			// record from a previous build passes every DNS check and then
+			// fails every join.
+			name:     "resolves to somebody else",
+			address:  "k8s-api.acme.internal",
+			resolver: fakeResolver{addrs: addrs(t, "203.0.113.9")},
+			wantFail: true,
+			wantCode: "DNS_ELSEWHERE",
+			wantIn:   "none of this cluster",
 		},
 		{
 			// A round-robin HA record is normal. It is reported rather than
@@ -106,8 +125,8 @@ func TestCheckRegistrationAddress(t *testing.T) {
 		{
 			name:     "a name carrying a port",
 			address:  "k8s-api.acme.internal:9345",
-			resolver: fakeResolver{addrs: addrs(t, "10.10.0.10")},
-			wantIn:   "10.10.0.10",
+			resolver: fakeResolver{addrs: addrs(t, "10.10.0.11")},
+			wantIn:   "10.10.0.11",
 		},
 		{
 			name:     "empty",

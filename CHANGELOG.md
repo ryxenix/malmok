@@ -5,6 +5,49 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.31.0] - 2026-08-08
+
+### Added
+
+- `l2-dataplane`. ADR-004 binds the CNI, the Gateway controller and the source
+  of load balancer addresses into one choice; this is where that becomes true
+  on a cluster. Verified end to end: a Gateway created against the finished
+  cluster took `192.168.88.216` from the pool, reported `Programmed=True`, and
+  answered ARP from the other node with the control-plane's MAC.
+- Gateway API CRDs pinned to `v1.4.1` -- what Cilium 1.19 documents, not the
+  newest release. A newer bundle means CRDs whose fields the controller ignores,
+  which presents as a Gateway that accepts a configuration and never implements
+  it. The observable is the bundle-version annotation, so a cluster carrying an
+  older bundle is detected rather than assumed correct.
+- The experimental channel is installed only when a listener asks for TLS
+  passthrough, which is the one thing needing TLSRoute. Otherwise alpha types
+  end up in a customer's cluster for no reason.
+- `k8sServiceHost: 127.0.0.1`. RKE2 runs a load balancer on every node, so this
+  bakes in no peer -- and it avoids the circle the VIP would create, where
+  Cilium needs the API to start and kube-vip needs Cilium to route to it.
+  Confirmed on both a server and an agent before relying on it.
+- `disable-kube-proxy` follows the preset, in the L1 configuration rather than
+  here: RKE2 reads it at startup, which is before any of L2 exists. Setting it
+  on servers and agents both, because one node still running kube-proxy
+  programs service rules the others do not have.
+
+### Fixed
+
+Two defects the live run exposed, both of the same shape -- a step that
+finished before its work had taken effect.
+
+- Writing a manifest is not installing it. RKE2 applies its manifest directory
+  on its own schedule, so every step here now waits for the cluster to hold the
+  object rather than for the file to exist. Without it the Gateway API step
+  reported `STUCK` on a cluster that was seconds from being correct, and a load
+  balancer pool could have been written and never created -- which leaves
+  Services Pending forever with nothing saying why.
+- The join phase's service step had no stale-configuration check, so the agent
+  kept running with kube-proxy enabled after its `config.yaml` had been
+  rewritten, while every step reported success. It is the same check the first
+  server already had, and one node running kube-proxy while the rest replaced
+  it is exactly the intermittent fault that check exists to prevent.
+
 ## [0.30.0] - 2026-08-08
 
 ### Added

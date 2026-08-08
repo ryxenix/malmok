@@ -96,16 +96,26 @@ func JoinSteps(node exec.Runner, control exec.Runner, spec v1alpha1.ClusterSpec,
 func unitStep(unit string) *engine.ShellStep {
 	return &engine.ShellStep{
 		Name: "service",
+		// The same stale-configuration test the first server gets. A joining
+		// node whose config.yaml changed and whose unit was never restarted
+		// keeps running the old settings, and every step still reports success
+		// -- which is how one node ends up running kube-proxy while the rest
+		// have replaced it.
 		Check: fmt.Sprintf(`systemctl is-active --quiet %s || { echo "%s is not running"; exit 1; }
-echo "%s is running"`, unit, unit, unit),
+%s
+echo "%s is running"`, unit, unit, configIsOlderThanProcess(unit), unit),
 		Do: fmt.Sprintf(`set -e
-systemctl enable --now %s
+if systemctl is-active --quiet %s; then
+  systemctl restart %s
+else
+  systemctl enable --now %s
+fi
 for i in $(seq 1 30); do
   systemctl is-active --quiet %s && exit 0
   sleep 2
 done
 echo "%s did not start:"; journalctl -u %s -n 30 --no-pager 2>&1 | tail -30
-exit 1`, unit, unit, unit, unit),
+exit 1`, unit, unit, unit, unit, unit, unit),
 		Satisfied: "%s",
 		Missing:   "%s",
 	}
@@ -171,6 +181,12 @@ func AgentConfig(node v1alpha1.NodeSpec, spec v1alpha1.ClusterSpec, token string
 	}
 	if h := strings.TrimSpace(node.Hostname); h != "" {
 		b.WriteString("node-name: " + yamlString(h) + "\n")
+	}
+	// kube-proxy runs on workers too, so the replacement has to be consistent
+	// across the cluster: one node still running it programs service rules the
+	// others do not have.
+	if DisablesKubeProxy(spec) {
+		b.WriteString("disable-kube-proxy: true\n")
 	}
 	if r := strings.TrimSpace(spec.Registry.SystemDefaultRegistry); r != "" &&
 		spec.Registry.Mode != v1alpha1.RegistryEmbedded {

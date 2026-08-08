@@ -274,6 +274,9 @@ func ServerConfig(node v1alpha1.NodeSpec, spec v1alpha1.ClusterSpec, token strin
 	if cni := cniFor(spec.Kubernetes.Dataplane.Preset); cni != "" {
 		b.WriteString("cni: " + yamlString(cni) + "\n")
 	}
+	if DisablesKubeProxy(spec) {
+		b.WriteString("disable-kube-proxy: true\n")
+	}
 
 	// ADR-005: rke2-ingress-nginx is always disabled. It reached EOL in March
 	// 2026 and receives no security patches; the document may list more.
@@ -302,6 +305,20 @@ func writeList(b *strings.Builder, key string, values []string) {
 	for _, v := range values {
 		b.WriteString("  - " + yamlString(v) + "\n")
 	}
+}
+
+// DisablesKubeProxy reports whether the dataplane replaces kube-proxy.
+//
+// ADR-004 binds the CNI, the Gateway controller and the load balancer into one
+// choice, and this is one of the places that binding is not optional: Cilium's
+// Gateway API support requires kube-proxy replacement, and leaving RKE2's own
+// kube-proxy running alongside it means two things programming the same service
+// rules. The symptom is intermittent and looks like a network fault.
+//
+// It belongs to the L1 configuration rather than to l2-dataplane because RKE2
+// reads it at startup, which is before any of L2 exists.
+func DisablesKubeProxy(spec v1alpha1.ClusterSpec) bool {
+	return strings.HasPrefix(string(spec.Kubernetes.Dataplane.Preset), "cilium")
 }
 
 // tlsSANs is every name the API certificate has to cover.

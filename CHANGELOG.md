@@ -5,6 +5,38 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.32.0] - 2026-08-09
+
+### Added
+
+- `l2-gateway`: Gateways, their listeners, the TLS Secrets those listeners
+  serve, and the contract ConfigMap application charts read to find them.
+  Verified end to end -- a Gateway Programmed at `192.168.88.216` with both
+  listeners `ResolvedRefs/Accepted/Programmed=True`, and `openssl s_client`
+  against `:443` returning the certificate `internal/cert` assembled.
+- The TLS Secret is applied from a temporary file under `umask 077` with a
+  trap, never written into RKE2's manifest directory. A manifest there holds
+  the private key on the node's disk for the life of the cluster; applying it
+  once puts the key in etcd, where it was going anyway, and leaves nothing
+  behind. The cost is that RKE2 does not reconcile it, which is the right
+  trade: a Secret does not drift, and re-running the phase reinstates it.
+- The Secret's check compares a fingerprint annotation, so a renewed
+  certificate is detected without the key ever being read back and the step's
+  evidence stays safe to put in an audit report.
+- The contract ConfigMap (ADR-006). This tool creates no routes, so a chart has
+  to be told the gateway's name, namespace, address and domain -- otherwise
+  every chart hardcodes them and moving a gateway means editing every chart.
+- `allowedRoutes` follows `routeNamespaces`, and a document that says nothing
+  gets `Same` rather than `All`. Which namespaces may attach a route is the
+  multi-tenant boundary, and the closed answer is the one to default to.
+- Secrets are installed before Gateways. A listener referencing a Secret that
+  does not exist reports `Programmed=False` with a reason naming the reference
+  rather than the missing material.
+- The phase waits for `Programmed`, not `Accepted`. Accepted means the
+  controller agreed to implement the Gateway; Programmed means it has an
+  address and a bound listener, and the gap between them is where a missing
+  load balancer pool or an unusable certificate shows up.
+
 ## [0.31.0] - 2026-08-08
 
 ### Added

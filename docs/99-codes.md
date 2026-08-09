@@ -171,7 +171,7 @@ Source: docs/20-cert.md §6.5
 
 | ID | Reasons |
 |---|---|
-| `PV-002` | `CHAIN_NOT_SELF_SUFFICIENT` |
+| `PV-002` | `CHAIN_NOT_SELF_SUFFICIENT`, `ROOT_NOT_TRUSTED` |
 
 ---
 

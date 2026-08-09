@@ -5,6 +5,53 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.33.0] - 2026-08-09
+
+### Added
+
+- `internal/verify`: the wire checks of `docs/20-cert.md` §6.5, PV-001 through
+  PV-008. All eight were defined and none implemented; the structural test that
+  catches that drift for the preflight codes did not cover the verification
+  family, so it had already happened.
+- The verifier is the strictest client by construction. Go's `crypto/x509`
+  never fetches an issuer over AIA, which is exactly the profile Java, curl,
+  Go and Python present -- so passing PV-002 here means passing for all of
+  them. Nothing shells out to `openssl`; the handshakes are native.
+- PV-002 additionally retries with AIA supplementation and says so when that is
+  what makes the difference. That is the incident the document records: a
+  bundle browsers accept and a Spring application rejects. The message names it
+  rather than leaving somebody to discover it in production. It is reported as
+  context only -- ADR-010 forbids browser behaviour as evidence.
+- PV-003 checks the whole served chain, not the leaf. A cross-signed
+  intermediate left behind after its own expiry has a current leaf and only
+  strict clients notice.
+- PV-004 treats unreachable revocation points as a warning with a note, because
+  a disconnected site cannot reach an OCSP responder and that is expected --
+  what matters is that the handover says a client configured to hard-fail will
+  refuse the connection.
+- PV-007 probes each listener hostname separately. A gateway can serve the
+  right certificate for one listener and the default for the rest, and nothing
+  in its status says so. A wildcard listener is probed with a concrete label,
+  since `*.acme.internal` as SNI matches nothing.
+
+### Fixed
+
+- PV-002 reported every correctly assembled chain as missing a certificate. The
+  root is deliberately not served (§3.1), so counting the anchor above the
+  topmost certificate as a gap made a complete chain look broken. It now
+  separates a gap *inside* what the server sent -- fix by adding the
+  intermediate -- from an anchor nothing trusts -- fix by distributing the root.
+  The two wear the same x509 error and have opposite fixes, and sending an
+  operator after an intermediate they already have is worse than saying nothing.
+
+### Verified
+
+Against the live gateway at `192.168.88.216:443`: without the private CA,
+`ROOT_NOT_TRUSTED` naming the root and how to distribute it; with it supplied,
+PV-002 passes. PV-005 found the gateway refuses a handshake with no SNI, which
+is real and worth knowing before a health checker meets it. PV-008 recorded
+TLS 1.2 and 1.3 accepted, 1.0 and 1.1 refused.
+
 ## [0.32.0] - 2026-08-09
 
 ### Added

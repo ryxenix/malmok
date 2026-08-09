@@ -30,7 +30,12 @@ var verificationCodes = []Code{
 		// Python all pass. Fail it and only the browser passes, which is how
 		// the defect reaches production unnoticed.
 		Severity: SeverityBlock,
-		Reasons:  []string{"CHAIN_NOT_SELF_SUFFICIENT"},
+		// Two failures wear the same x509 error and have opposite fixes. A
+		// chain missing an intermediate is fixed by adding the intermediate; a
+		// chain complete in itself that ends at an untrusted root is fixed by
+		// distributing the root. Sending an operator to look for something they
+		// already have is worse than saying nothing.
+		Reasons: []string{"CHAIN_NOT_SELF_SUFFICIENT", "ROOT_NOT_TRUSTED"},
 	},
 	{
 		ID: "PV-003", Family: FamilyVerification, Category: catWire,

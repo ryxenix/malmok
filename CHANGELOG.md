@@ -5,6 +5,42 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.35.0] - 2026-08-10
+
+### Added
+
+- `internal/report` and `platformctl report`: the audit report of
+  `docs/00-architecture.md` §7 and the DNS record sheet, written into the run's
+  `artifacts/` directory and produced automatically at the end of `apply`.
+- Built from the run directory and nothing else. A report generated from live
+  cluster state would say something different every time it ran, and what a
+  customer receives has to be the record of what happened -- which is also why
+  it can be produced again from an old run, on a machine that never touched the
+  cluster.
+- The plan is now saved as `plan.json` beside the document. The downgrade
+  history is the section §7 singles out, and it cannot be reported from a plan
+  that only ever existed in memory.
+- Every section is rendered whether or not there is data for it, and the
+  security section names what it did not produce. A reader who cannot tell
+  "scanned and clean" from "never scanned" has been misled by the report rather
+  than informed by it.
+- The certificate section leads with PV-002 rather than burying it in a table:
+  it is the strict profile, and passing it is what says Java, Go, curl and
+  Python accept the chain.
+- The DNS record sheet derives what the customer's DNS team has to create --
+  the join address pointing at the VIP, each listener hostname, a wildcard for
+  the domain suffix, and whatever the document adds. A literal registration
+  address produces no record, and a gateway with no pinned address produces no
+  sheet: asking for a record that points nowhere is worse than asking for none.
+
+### Fixed
+
+- Every agent was reported as a server. A node's entry usually leaves the role
+  empty and says what it is by which list it appears in, so flattening the two
+  lists without filling it in mislabelled the whole worker pool.
+- The security section repeated one row per node with no way to tell which node
+  it was about.
+
 ## [0.34.0] - 2026-08-10
 
 ### Added

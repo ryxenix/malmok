@@ -20,6 +20,7 @@ import (
 	"platform.ryxen.dev/platformctl/internal/gateway"
 	"platform.ryxen.dev/platformctl/internal/plan"
 	"platform.ryxen.dev/platformctl/internal/preflight"
+	"platform.ryxen.dev/platformctl/internal/report"
 	"platform.ryxen.dev/platformctl/internal/rke2"
 	"platform.ryxen.dev/platformctl/internal/spec"
 	"platform.ryxen.dev/platformctl/internal/state"
@@ -127,6 +128,12 @@ func runBuild(cmd *cobra.Command, f buildFlags) error {
 	if err := spec.Snapshot(runDir, doc.Spec); err != nil {
 		return err
 	}
+	// The plan is kept beside the document because the audit report's downgrade
+	// section is built from it, and six months later nobody remembers which
+	// settings were chosen and which the tool decided.
+	if err := report.SavePlan(runDir, p); err != nil {
+		return err
+	}
 
 	eventPath := filepath.Join(runDir, "events.jsonl")
 	events, err := event.OpenFile(eventPath, st.Run)
@@ -195,8 +202,30 @@ func runBuild(cmd *cobra.Command, f buildFlags) error {
 		}
 	}
 
+	// --- 5. report ---------------------------------------------------------
+	//
+	// Built from the run directory rather than from the cluster: what a customer
+	// receives has to be the record of what happened, not a view of what is
+	// true at the moment somebody asks.
+	artifacts, err := writeArtifacts(runDir)
+	if err != nil {
+		return err
+	}
+
 	fmt.Fprintf(out, "\n%s is built. The run is in %s\n", doc.Spec.Metadata.Name, runDir)
+	for _, a := range artifacts {
+		fmt.Fprintf(out, "  %s\n", a)
+	}
 	return nil
+}
+
+// writeArtifacts produces the audit report and the DNS record sheet.
+func writeArtifacts(runDir string) ([]string, error) {
+	run, err := report.Load(runDir)
+	if err != nil {
+		return nil, err
+	}
+	return report.Write(run)
 }
 
 // preflightRun measures every node using the connections the build already

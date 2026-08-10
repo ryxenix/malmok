@@ -5,6 +5,44 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.34.0] - 2026-08-10
+
+### Added
+
+- `platformctl apply -f cluster.yaml` builds a cluster. Every phase existed and
+  none was reachable from the command line; a document now runs measure →
+  decide → build → verify end to end. Confirmed against the live two-node
+  cluster: 107 checks, five phases, every step satisfied on a re-run.
+- `internal/catalogue`, which owns order and nothing else. The phase packages
+  each know one thing and nothing about sequence, and order is most of the
+  correctness here -- the trust store before L1 pulls an image, the first
+  server Ready before anything joins it, the dataplane reconfigured before a
+  Gateway is created against it.
+- kube-vip belongs to `l1-bootstrap` rather than a phase of its own: the
+  address it serves is what every later join uses, so the phase that brings up
+  the first server has to finish with it answering.
+- Connections are opened for every node before anything runs and shared with
+  preflight. A build that discovers on its third phase that it cannot reach a
+  node has already changed the first two, and preflight passing on a connection
+  the build then fails to make is worse than either.
+- The phase grades are printed before anything runs, and a `disruptive` phase
+  needs `--approve`. That a dataplane change replaces kube-proxy and rolls
+  every pod is not something to discover during a maintenance window.
+- Preflight findings and the wire checks are written into the run's event file,
+  not only to the terminal. The audit report is built from that file, and a
+  finding that scrolled past is one nobody can produce six months later.
+- A step that cannot be built -- an unreadable token, a VIP interface that will
+  not resolve -- becomes a step that fails rather than a phase that quietly has
+  no work. A run that reports success for work nobody did is the worst
+  available outcome.
+
+### Fixed
+
+- A completed run reported "4 failure(s)" for four advisories. A probe that did
+  not pass and did not block is worth reading; a step that failed stopped its
+  phase. The summary now counts them separately, and the split is on what the
+  event is rather than on its status alone -- a failed step is not an advisory.
+
 ## [0.33.0] - 2026-08-09
 
 ### Added

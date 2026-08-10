@@ -91,7 +91,29 @@ func (r *TextRenderer) Summary() string {
 	if len(r.failed) == 0 {
 		return b.String()
 	}
-	fmt.Fprintf(&b, "\n%d failure(s)\n", len(r.failed))
+
+	// A probe that did not pass and did not block is an advisory, and printing
+	// it under "failure" is how a completed run comes to say "4 failure(s)".
+	// A step that failed is not an advisory: it stopped its phase. The split is
+	// on what the event is, not only on its status.
+	var stopped, advisory []event.Event
+	for _, e := range r.failed {
+		if e.Kind == event.KindProbe && e.Status == event.StatusFailed {
+			advisory = append(advisory, e)
+			continue
+		}
+		stopped = append(stopped, e)
+	}
+
+	switch {
+	case len(stopped) > 0 && len(advisory) > 0:
+		fmt.Fprintf(&b, "\n%d failure(s), %d worth reading\n", len(stopped), len(advisory))
+	case len(stopped) > 0:
+		fmt.Fprintf(&b, "\n%d failure(s)\n", len(stopped))
+	default:
+		fmt.Fprintf(&b, "\n%d worth reading; nothing failed\n", len(advisory))
+	}
+	r.failed = append(append([]event.Event{}, stopped...), advisory...)
 	for _, e := range r.failed {
 		where := e.Phase
 		if e.Node != "" {

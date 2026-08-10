@@ -348,8 +348,13 @@ func TestTextRendererOutput(t *testing.T) {
 
 	events := []event.Event{
 		phase("preflight", event.StatusRunning),
+		// PF-204 is a blocking code, so this is what the emitter actually
+		// writes for it. A probe reported as failed rather than blocked is an
+		// advisory, and the summary counts the two separately.
 		{Kind: event.KindProbe, Phase: "preflight", Node: "10.10.0.12", Code: "PF-204",
-			Status: event.StatusFailed, Detail: "eBPF program load denied"},
+			Status: event.StatusBlocked, Detail: "eBPF program load denied"},
+		{Kind: event.KindProbe, Phase: "preflight", Node: "10.10.0.12", Code: "PF-401",
+			Status: event.StatusFailed, Detail: "the data directory shares the root filesystem"},
 		{Kind: event.KindLog, Phase: "preflight", Node: "10.10.0.12", Level: event.LevelInfo,
 			Detail: "this is noise"},
 		phase("preflight", event.StatusOK),
@@ -371,8 +376,14 @@ func TestTextRendererOutput(t *testing.T) {
 	}
 
 	summary := r.Summary()
-	if !strings.Contains(summary, "1 failure(s)") {
-		t.Errorf("summary does not report the failure:\n%s", summary)
+	// A completed run that found one blocking probe and one advisory has to say
+	// so as two numbers: reporting "2 failure(s)" makes an operator look for a
+	// failure that did not happen.
+	if !strings.Contains(summary, "1 failure(s), 1 worth reading") {
+		t.Errorf("summary does not separate blocking from advisory:\n%s", summary)
+	}
+	if !strings.Contains(summary, "PF-401") {
+		t.Errorf("summary drops the advisory finding:\n%s", summary)
 	}
 	if !strings.Contains(summary, "10.10.0.12") {
 		t.Errorf("summary does not name the failing node:\n%s", summary)
@@ -414,7 +425,7 @@ func TestTextRendererResetClearsState(t *testing.T) {
 	r := NewTextRenderer(&buf)
 
 	e := event.Event{Kind: event.KindProbe, Phase: "preflight", Node: "10.10.0.12",
-		Status: event.StatusFailed, Detail: "eBPF load denied"}
+		Status: event.StatusBlocked, Detail: "eBPF load denied"}
 	e.TS, e.Run, e.Seq, e.Code = event.NewTimestamp(clock()()), runA, 1, "PF-204"
 	if err := r.Handle(e); err != nil {
 		t.Fatal(err)

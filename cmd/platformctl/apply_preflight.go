@@ -43,16 +43,18 @@ func runRealPreflight(cmd *cobra.Command, specFile string, allowLiteral, insecur
 	if blocking := rep.Blocking(); len(blocking) > 0 {
 		return fmt.Errorf("%d checks block the install; nothing has been changed", len(blocking))
 	}
-	return errNoInstaller
+	return nil
 }
 
-// errNoInstaller is the same sentence wherever the tool runs out of road, so an
-// operator who meets it twice is not left wondering whether the two are
-// different problems.
+// errNoInstaller is what the wizard reports when it reaches the install step
+// against real nodes with no document behind it.
+//
+// The phases exist and run from a cluster.yaml; what the wizard has is a
+// configuration it built in memory, and pointing it at the same pipeline is
+// wiring that has not been done.
 var errNoInstaller = errors.New(
-	"the checks pass, and installing is not implemented yet: the phase catalogue in " +
-		"docs/11-execute.md needs the L0/L1 Ansible roles and the L2 Helm and ArgoCD steps. " +
-		"Use --demo to exercise the engine, or `platformctl preflight` to re-run the checks alone")
+	"the checks pass. Installing from the wizard is not wired up yet -- write the " +
+		"configuration out and run `platformctl apply -f cluster.yaml`, which does run the phases")
 
 // runWizardPreflight runs the checks against the nodes the operator typed in.
 //

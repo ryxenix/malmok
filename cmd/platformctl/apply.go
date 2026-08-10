@@ -39,6 +39,7 @@ func newApplyCmd() *cobra.Command {
 
 		allowLiteral bool
 		insecureHost bool
+		approve      bool
 		timeout      time.Duration
 	)
 
@@ -59,11 +60,12 @@ starting over. See docs/11-execute.md.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !isDemo && specFile != "" {
-				// Preflight is real; the phases that build a cluster are not.
-				// Running the checks and then saying exactly what is missing
-				// beats a command that appears to work, and it is what an
-				// operator can act on today.
-				return runRealPreflight(cmd, specFile, allowLiteral, insecureHost, timeout, verbose)
+				return runBuild(cmd, buildFlags{
+					specFile: specFile, bundle: bundle, resume: resume, recheck: recheck,
+					allowLiteral: allowLiteral, insecureHost: insecureHost,
+					timeout: timeout, quiet: quiet, verbose: verbose,
+					approve: approve, screen: &screen,
+				})
 			}
 			if !isDemo && !screen.enabled {
 				return errors.New(
@@ -202,7 +204,9 @@ starting over. See docs/11-execute.md.`,
 		"permit literal:// on secret fields (cluster.yaml is handed to customers)")
 	fl.BoolVar(&insecureHost, "insecure-host-key", false,
 		"accept any SSH host key; freshly installed nodes have no known_hosts entry yet")
-	fl.DurationVar(&timeout, "timeout", 5*time.Minute, "give up on preflight after this long")
+	fl.DurationVar(&timeout, "timeout", 60*time.Minute, "give up on the whole build after this long")
+	fl.BoolVar(&approve, "approve", false,
+		"proceed without asking, even where a phase reconfigures a running cluster")
 	screen.register(cmd)
 
 	return cmd

@@ -5,6 +5,47 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.36.0] - 2026-08-11
+
+### Added
+
+- A start menu. The installer used to be the whole program: opening the tool
+  put an operator on the first question of a new build with no way to reach
+  anything else, which is wrong for a tool whose work is mostly not first
+  installs -- a cluster is built once and then upgraded, reconfigured and
+  looked at for years.
+- Entries for install, upgrade, settings, runs and quit. Upgrade and settings
+  are listed and say they are not built yet, with a line naming what each still
+  needs. Hiding them would make the tool look finished; letting them open an
+  empty screen would send an operator hunting for something that is not there.
+- The run list reads what previous builds recorded and replays one into the
+  install screen. That screen is already a renderer of the event stream, so
+  replaying is the same code path as watching a run live -- ADR-002 showing up
+  as a feature rather than as a diagram. Reaching it from the menu means
+  somebody who opened the tool to find out what happened last week does not
+  have to know `attach` exists.
+- A finished run is folded in one go rather than paced: an animation of
+  something that already happened is not progress.
+
+### Changed
+
+- The title bar says `platformctl` rather than `platformctl installer`, which
+  stopped being true the moment the menu offered anything else. The rail, the
+  step counter and the rail toggle appear only inside the install flow --
+  numbering the menu would make arriving at the tool look like step one of a
+  build, and a footer that advertises a key doing nothing stops being read.
+- Back from the first install step or from the run list returns to the menu
+  rather than walking backwards into it. An operator who chose the wrong entry
+  wants the menu, not the previous question of a flow they are leaving.
+
+### Fixed
+
+- The menu's Open button rendered, took focus and did nothing: `activate` did
+  not know its label. `TestEveryButtonIsWired` now asserts that every button any
+  screen draws maps to an action. A button that looks live and is not is worse
+  than a missing one -- the operator concludes the tool is stuck rather than
+  that the feature is absent.
+
 ## [0.35.0] - 2026-08-10
 
 ### Added

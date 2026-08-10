@@ -1,7 +1,7 @@
 # TUI string catalogue. English is the default (ADR-009).
 # Diagnostic codes such as PF-204 are identifiers and never appear here.
 app:
-  title: platformctl installer
+  title: platformctl
 step:
   lang: Language
   nodes: Nodes
@@ -17,6 +17,28 @@ step:
 lang:
   heading: Language
   help: Choose the language for this installer. It does not change log output, which is always English.
+menu:
+  heading: Start
+  help: "What would you like to do?"
+  install: Install a cluster
+  install.help: Build a new RKE2 cluster from scratch, or re-run against one this tool already built.
+  upgrade: Upgrade
+  upgrade.help: Move a cluster to a newer version, one node at a time.
+  settings: Settings
+  settings.help: Edit an existing cluster.yaml without starting a build.
+  logs: Runs and logs
+  logs.help: Look at what a previous run did, including one that failed.
+  quit: Quit
+  quit.help: Close platformctl. Nothing running on a node is stopped.
+  unavailable: "  (not built yet)"
+  unavailable.status: This is not implemented. Nothing here will change if you choose it.
+  missing.upgrade: Not implemented. The upgrade phase needs a version skew check, a per-node drain and the same resume model the install has.
+  missing.settings: Not implemented. Editing a document outside a build means the wizard has to load one, which it cannot do yet.
+runs:
+  heading: Runs
+  help: "Every run this tool recorded, newest first. Opening one replays what happened."
+  none: No run has been recorded here yet. A run appears once `platformctl apply` has written one.
+  count: run(s)
 nodes:
   heading: Node details
   help: "Enter the nodes to install on. Separate agents with commas."
@@ -84,6 +106,7 @@ status:
   blocked: blocked
 btn:
   next: Continue
+  open: Open
   back: Back
   quit: Quit
   abort: Abort
@@ -153,6 +176,7 @@ regmode:
   external: "an existing registry, e.g. Harbor"
   internal: served from an air-gap bundle
 cap:
+  menu: menu
   move: move
   select: choose
   continue: continue

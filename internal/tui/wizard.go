@@ -23,7 +23,15 @@ import (
 type Step int
 
 const (
-	StepLang Step = iota
+	// StepMenu is where the tool opens. The installer used to be the whole
+	// program, which put an operator on the first question of a new build with
+	// no way to reach anything else -- wrong for a tool whose work is mostly
+	// not first installs.
+	StepMenu Step = iota
+	// StepRuns lists what has been run on this machine, so the record of a
+	// build is reachable without knowing `attach` exists.
+	StepRuns
+	StepLang
 	// Profile comes before everything it decides: the network mode, the PKI
 	// mode and the storage driver all follow from it, and a screen that asks
 	// about a proxy before knowing whether there is one wastes a question.
@@ -39,11 +47,25 @@ const (
 	StepDone
 )
 
+// stepKeys names the steps of the install flow, which is what the rail shows.
+//
+// The menu and the run list are not in it: they are where an operator arrives
+// from and returns to, not stages of a build, and numbering them would make a
+// two-screen detour look like part of the work.
 var stepKeys = []string{
 	"step.lang", "step.profile", "step.nodes", "step.network", "step.options",
 	"step.registry", "step.pki", "step.preflight", "step.summary",
 	"step.install", "step.done",
 }
+
+// installFlow is the first step of a build, and the offset the rail counts from.
+const installFlow = StepLang
+
+// inInstallFlow reports whether the rail and the step counter apply.
+func (w *Wizard) inInstallFlow() bool { return w.step >= installFlow }
+
+// railIndex is the position of the current step within the install flow.
+func (w *Wizard) railIndex() int { return int(w.step) - int(installFlow) }
 
 // focus is which half of the screen the keyboard is driving.
 type focus int
@@ -149,6 +171,17 @@ type Wizard struct {
 	install   Work
 	workCtx   context.Context
 	hideRail  bool
+
+	// menu is the selected start-menu entry; runs is what was found on this
+	// machine and runSel is the highlighted one.
+	menu   int
+	runs   []RunEntry
+	runSel int
+
+	// bundle is where runs are looked for; replaying marks a screen showing a
+	// run that is over rather than one in progress.
+	bundle    string
+	replaying bool
 	truecolor bool
 	tick      int
 	busy      bool
@@ -289,6 +322,14 @@ func (w *Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		w.fold(msg.e)
 		return w, nil
 
+	case replayMsg:
+		// A finished run is folded in one go. Pacing it to look live would be
+		// an animation of something that already happened.
+		for _, e := range msg.events {
+			w.fold(e)
+		}
+		return w, nil
+
 	case spinMsg:
 		// Always re-armed. The view only differs while something is spinning,
 		// and Bubble Tea writes nothing when the render is unchanged, so an
@@ -391,9 +432,23 @@ func (w *Wizard) contentKey(s string) (tea.Model, tea.Cmd) {
 
 	switch s {
 	case "up", "k":
-		w.cursor[w.step] = max(cur-1, 0)
+		switch w.step {
+		case StepMenu:
+			w.menu = max(w.menu-1, 0)
+		case StepRuns:
+			w.runSel = max(w.runSel-1, 0)
+		default:
+			w.cursor[w.step] = max(cur-1, 0)
+		}
 	case "down", "j":
-		w.cursor[w.step] = min(cur+1, max(n-1, 0))
+		switch w.step {
+		case StepMenu:
+			w.menu = min(w.menu+1, len(menuItems)-1)
+		case StepRuns:
+			w.runSel = min(w.runSel+1, max(len(w.runs)-1, 0))
+		default:
+			w.cursor[w.step] = min(cur+1, max(n-1, 0))
+		}
 	case "space":
 		// Space selects. Enter is reserved for moving on, so the operator is
 		// not made to Tab to the buttons on every screen.
@@ -515,14 +570,22 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 			w.enter()
 		}
 		return w, nil
-	case w.cat.T("btn.next"), w.cat.T("btn.install"):
+	case w.cat.T("btn.next"), w.cat.T("btn.install"), w.cat.T("btn.open"):
 		return w.next()
 	}
 	return w, nil
 }
 
 func (w *Wizard) back() (tea.Model, tea.Cmd) {
-	if w.busy || w.step == StepLang || w.step >= StepInstall {
+	if w.busy || w.step == StepMenu || w.step >= StepInstall {
+		return w, nil
+	}
+	// The install flow and the run list both return to the menu rather than
+	// walking backwards into it: an operator who chose the wrong entry wants
+	// the menu, not the previous question of a flow they are leaving.
+	if w.step == StepLang || w.step == StepRuns {
+		w.step = StepMenu
+		w.enter()
 		return w, nil
 	}
 	w.step--
@@ -553,6 +616,31 @@ func primaryIndex(btns []Button) int {
 
 func (w *Wizard) next() (tea.Model, tea.Cmd) {
 	switch w.step {
+	case StepMenu:
+		item := menuItems[w.menu]
+		if item.TitleKey == "menu.quit" {
+			w.aborted = false
+			return w, tea.Quit
+		}
+		// An entry with nothing behind it stays put. The screen already says
+		// why, and moving to an empty page would be the tool pretending.
+		if item.Missing != "" || item.Enter == StepMenu {
+			return w, nil
+		}
+		if item.Enter == StepRuns {
+			w.runs = w.loadRuns()
+			w.runSel = 0
+		}
+		w.step = item.Enter
+		w.enter()
+		return w, nil
+
+	case StepRuns:
+		if len(w.runs) == 0 {
+			return w, nil
+		}
+		return w, w.openRun(w.runs[w.runSel])
+
 	case StepPreflight:
 		if w.busy {
 			return w, nil
@@ -696,11 +784,17 @@ func (w *Wizard) contentLen() int {
 // closing the screen cancels the run rather than leaving it orphaned.
 func (w *Wizard) SetWorkContext(ctx context.Context) { w.workCtx = ctx }
 
+// startStep decides which screen the tool opens on.
+//
+// With no work to drive, this is `attach`: there is nothing to collect and the
+// only useful screen is the one showing somebody else's run. Otherwise it is
+// the menu, because a tool whose work is mostly not first installs should not
+// open on the first question of one.
 func startStep(preflight, install Work) Step {
 	if preflight == nil && install == nil {
 		return StepInstall
 	}
-	return StepLang
+	return StepMenu
 }
 
 // fieldIndex maps the content cursor onto the step's field list. On the options

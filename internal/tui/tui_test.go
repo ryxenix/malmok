@@ -1162,3 +1162,163 @@ func TestTopologySeparatesNonAddresses(t *testing.T) {
 		t.Errorf("the hostname landed as %q", last.rows[0].addr)
 	}
 }
+
+// The tool used to open on the first question of a new build. A start menu is
+// what makes upgrade, settings and the run log reachable at all, so the first
+// screen must not be an install step.
+func TestOpensOnTheMenu(t *testing.T) {
+	// Work functions are what separates a wizard from the observer `attach`
+	// puts up, and only the wizard has a menu to open on.
+	noop := func(context.Context, Config) error { return nil }
+	w, err := NewWizard("01JBQ8F2K3M5N7P9R1S3T5V7W9", false, false, LangEN, noop, noop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.step != StepMenu {
+		t.Errorf("the wizard opens on step %v, want the menu", w.step)
+	}
+}
+
+// The rail and the step counter belong to the install flow. Numbering the menu
+// would make arriving at the tool look like step one of a build.
+func TestMenuHasNoRailOrCounter(t *testing.T) {
+	for _, step := range []Step{StepMenu, StepRuns} {
+		m := wizard(t, LangEN, false, 96, 30, step)
+		if len(m.rail()) != 0 {
+			t.Errorf("%v shows a rail", step)
+		}
+		if got := plain(m.View().Content); strings.Contains(got, "/11") {
+			t.Errorf("%v shows a step counter", step)
+		}
+		// The rail toggle would do nothing here, and a footer that advertises
+		// keys that do nothing stops being read.
+		if got := plain(m.View().Content); strings.Contains(got, "steps") {
+			t.Errorf("%v offers the rail toggle:\n%s", step, got)
+		}
+	}
+
+	install := wizard(t, LangEN, false, 96, 30, StepNodes)
+	if len(install.rail()) == 0 {
+		t.Error("the install flow lost its rail")
+	}
+	if got := plain(install.View().Content); !strings.Contains(got, "3/11") {
+		t.Errorf("the install flow lost its counter:\n%s", got)
+	}
+}
+
+// An entry with nothing behind it says so on screen and goes nowhere. Hiding it
+// would make the tool look finished; letting it open an empty screen would make
+// an operator hunt for something that does not exist.
+func TestUnimplementedMenuEntriesSaySo(t *testing.T) {
+	for i, item := range menuItems {
+		if item.Missing == "" {
+			continue
+		}
+		m := wizard(t, LangEN, false, 96, 30, StepMenu)
+		m.menu = i
+
+		got := plain(m.View().Content)
+		if !strings.Contains(got, "not built yet") {
+			t.Errorf("%s is not marked as unavailable:\n%s", item.TitleKey, got)
+		}
+		// The help text has to say what is missing, not just that something is.
+		if !strings.Contains(got, "Not implemented") {
+			t.Errorf("%s does not say what is missing:\n%s", item.TitleKey, got)
+		}
+
+		before := m.step
+		m.next()
+		if m.step != before {
+			t.Errorf("%s moved to %v", item.TitleKey, m.step)
+		}
+	}
+}
+
+// Install is what somebody opening the tool for the first time wants, so it is
+// what the cursor starts on.
+func TestInstallIsTheDefaultEntry(t *testing.T) {
+	m := wizard(t, LangEN, false, 96, 30, StepMenu)
+	if menuItems[m.menu].TitleKey != "menu.install" {
+		t.Errorf("the menu opens on %s", menuItems[m.menu].TitleKey)
+	}
+	m.next()
+	if m.step != StepLang {
+		t.Errorf("choosing Install went to %v", m.step)
+	}
+}
+
+// An operator who chose the wrong entry has to be able to leave without
+// quitting, and leaving means the menu rather than the previous question of a
+// flow they are abandoning.
+func TestBackFromTheFlowReturnsToTheMenu(t *testing.T) {
+	m := wizard(t, LangEN, false, 96, 30, StepLang)
+	m.back()
+	if m.step != StepMenu {
+		t.Errorf("back from the first install step went to %v", m.step)
+	}
+
+	runs := wizard(t, LangEN, false, 96, 30, StepRuns)
+	runs.back()
+	if runs.step != StepMenu {
+		t.Errorf("back from the run list went to %v", runs.step)
+	}
+
+	// The menu is the root: there is nowhere further back.
+	menu := wizard(t, LangEN, false, 96, 30, StepMenu)
+	menu.back()
+	if menu.step != StepMenu {
+		t.Errorf("back from the menu went to %v", menu.step)
+	}
+}
+
+// A machine with no runs has to say so rather than show an empty list, and it
+// must not offer to open nothing.
+func TestEmptyRunListSaysSo(t *testing.T) {
+	m := wizard(t, LangEN, false, 96, 24, StepRuns)
+	got := plain(m.View().Content)
+	if !strings.Contains(got, "No run has been recorded") {
+		t.Errorf("an empty run list is blank:\n%s", got)
+	}
+	for _, b := range m.buttons() {
+		if b.Primary {
+			t.Error("an empty run list offers to open something")
+		}
+	}
+}
+
+// Every button a screen draws has to do something when it is pressed.
+//
+// The start menu shipped with an Open button that activate did not know about:
+// it rendered, it took focus, and pressing it did nothing at all. A button that
+// looks live and is not is worse than a missing one, because the operator
+// concludes the tool is stuck rather than that the feature is absent.
+func TestEveryButtonIsWired(t *testing.T) {
+	steps := []Step{
+		StepMenu, StepRuns, StepLang, StepProfile, StepNodes, StepNetwork,
+		StepOptions, StepRegistry, StepPKI, StepPreflight, StepSummary,
+		StepInstall, StepDone,
+	}
+
+	// The labels activate knows. Anything a screen draws must be among them.
+	known := map[string]bool{}
+	for _, key := range []string{
+		"btn.back", "btn.quit", "btn.abort", "btn.close", "btn.logs",
+		"btn.check", "btn.fix", "btn.next", "btn.install", "btn.open",
+	} {
+		m := wizard(t, LangEN, false, 96, 30, StepMenu)
+		known[m.cat.T(key)] = true
+	}
+
+	for _, step := range steps {
+		m := wizard(t, LangEN, false, 96, 30, step)
+		buttons := m.buttons()
+		if b := m.exitButton(); b != nil {
+			buttons = append(buttons, *b)
+		}
+		for _, b := range buttons {
+			if !known[b.Label] {
+				t.Errorf("step %v draws a button %q that activate does not handle", step, b.Label)
+			}
+		}
+	}
+}

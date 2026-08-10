@@ -80,9 +80,15 @@ var storages = []choice{
 
 // View renders the current step.
 func (w *Wizard) View() tea.View {
+	// The counter and the rail belong to the install flow. Numbering the menu
+	// would make arriving at the tool look like step one of a build.
+	context := ""
+	if w.inInstallFlow() {
+		context = fmt.Sprintf("%d/%d", w.railIndex()+1, len(stepKeys))
+	}
 	f := Frame{
 		Title:    w.cat.T("app.title"),
-		Context:  fmt.Sprintf("%d/%d", int(w.step)+1, len(stepKeys)),
+		Context:  context,
 		Rail:     w.rail(),
 		Buttons:  w.buttons(),
 		Focused:  w.btn,
@@ -97,6 +103,10 @@ func (w *Wizard) View() tea.View {
 
 	body := w.contentWidth()
 	switch w.step {
+	case StepMenu:
+		f.Heading, f.Body, f.Status = w.menuScreen(body)
+	case StepRuns:
+		f.Heading, f.Body, f.Status = w.runsScreen(body)
 	case StepLang:
 		f.Heading, f.Body, f.Status = w.langScreen(body)
 	case StepNodes:
@@ -128,6 +138,9 @@ func (w *Wizard) View() tea.View {
 	// from the glyph set rather than the catalogue: a translator has no way to
 	// know whether the terminal can draw it.
 	f.Status = w.keyHints(f.Status)
+	// The heading carries the context now, so the title stays the tool's name:
+	// calling every screen "installer" was wrong the moment the menu offered
+	// anything else.
 
 	v := tea.NewView(w.theme.Render(f, w.width, w.height, w.glyphs))
 	v.AltScreen = true
@@ -142,13 +155,21 @@ func (w *Wizard) contentWidth() int {
 }
 
 func (w *Wizard) rail() []RailItem {
+	// Nothing to show outside the install flow: the menu is not a stage of a
+	// build, and a rail listing eleven install steps beside it would say the
+	// operator is already committed to one.
+	if !w.inInstallFlow() {
+		return nil
+	}
+	here := w.railIndex()
+
 	out := make([]RailItem, len(stepKeys))
 	for i, key := range stepKeys {
 		st := RailFuture
 		switch {
-		case Step(i) < w.step:
+		case i < here:
 			st = RailDone
-		case Step(i) == w.step:
+		case i == here:
 			st = RailCurrent
 		}
 		out[i] = RailItem{Label: w.cat.T(key), State: st}
@@ -162,8 +183,17 @@ func (w *Wizard) buttons() []Button {
 	back := Button{Label: w.cat.T("btn.back")}
 
 	switch w.step {
+	case StepMenu:
+		return []Button{{Label: w.cat.T("btn.open"), Primary: true}}
+	case StepRuns:
+		if len(w.runs) == 0 {
+			return []Button{back}
+		}
+		return []Button{back, {Label: w.cat.T("btn.open"), Primary: true}}
 	case StepLang:
-		return []Button{{Label: w.cat.T("btn.next"), Primary: true}}
+		// Back goes to the menu rather than nowhere: an operator who chose
+		// Install by mistake has to be able to leave without quitting.
+		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepProfile, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepPreflight:
@@ -658,6 +688,18 @@ func (w *Wizard) keyHints(context string) string {
 	var pairs [][2]string
 
 	switch {
+	case w.step == StepMenu || w.step == StepRuns:
+		// A list is moved through vertically and has no step list behind it.
+		// Offering the install flow's keys here points at screens that are not
+		// there.
+		pairs = [][2]string{
+			{w.capVert(), w.cat.T("cap.move")},
+			{w.capEnter(), w.cat.T("cap.activate")},
+		}
+		if w.step == StepRuns {
+			pairs = append(pairs, [2]string{"esc", w.cat.T("cap.menu")})
+		}
+
 	case w.editing:
 		pairs = [][2]string{
 			{w.capEnter(), w.cat.T("cap.nextfield")},
@@ -689,13 +731,12 @@ func (w *Wizard) keyHints(context string) string {
 			{w.capEnter(), w.cat.T("cap.continue")},
 		}
 	}
-	pairs = append(pairs, [2]string{"s", w.cat.T("hint.toggle_steps")})
-
-	hints := w.theme.Keys(pairs, w.glyphs)
-	if context != "" && w.editing {
-		return hints
+	// The rail toggle is only offered where there is a rail. Advertising a key
+	// that does nothing is how a footer stops being read.
+	if w.inInstallFlow() {
+		pairs = append(pairs, [2]string{"s", w.cat.T("hint.toggle_steps")})
 	}
-	return hints
+	return w.theme.Keys(pairs, w.glyphs)
 }
 
 // The keycap symbols are glyphs like any other: a terminal that cannot draw a

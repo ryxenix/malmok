@@ -14,6 +14,8 @@ type Options struct {
 	// RunDir is where the run's artifacts landed. The final screen has to name
 	// it: a run id alone tells an operator nothing they can act on.
 	RunDir string
+	// Bundle is where past runs are looked for, so the menu can offer them.
+	Bundle string
 
 	// ASCII forces the fallback character set; leave false to auto-detect.
 	ASCII bool
@@ -56,6 +58,7 @@ func NewScreen(ctx context.Context, o Options) (*Screen, error) {
 	}
 	wz.hideRail = o.HideRail
 	wz.runDir = o.RunDir
+	wz.bundle = o.Bundle
 
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}
 	if o.Output != nil {

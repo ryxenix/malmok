@@ -5,6 +5,55 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.39.0] - 2026-08-12
+
+### Added
+
+- `l2-platform`, as GitOps only. The catalogue files four things under this
+  phase -- ArgoCD, observability, secrets and the upgrade controller -- and only
+  the first is implemented. That is a boundary rather than an unfinished list:
+  ArgoCD is what the other three should be installed *by*. A platform tool that
+  installs every add-on itself has to be re-run to change any of them, which is
+  the coupling ADR-002 and ADR-006 both exist to prevent. This tool builds the
+  cluster up to the point where GitOps can take over, and hands over there.
+- The phase ends by waiting for a bootstrap Application to reach Synced and
+  Healthy. A HelmChart that deployed proves nothing; an Application that
+  reconciled proves the API accepted it, the repository was reachable, the
+  credential worked, the manifests rendered and the cluster ran them.
+- Verified against the live cluster: ArgoCD pulled `guestbook` from a Git
+  repository it had never seen and deployed it, and reports it as Synced.
+- `fullnameOverride: argocd`. The chart names objects `<release>-<chart>-<part>`,
+  which would give `argocd-argo-cd-server` -- a name in no ArgoCD runbook. The
+  release name alone was enough for cert-manager and is not enough here.
+- The registry credential reaches a chart repository only when the repository is
+  on that registry. ADR-007 puts the charts and the images in the same Harbor,
+  so reusing the credential is right there and nowhere else -- sending Harbor's
+  password to github.com because both appear in one document is how a credential
+  leaves the place it was meant for.
+- An OCI bootstrap app must name its chart version. The version is not defaulted
+  to the newest, because an unpinned chart means the bundle that crossed the air
+  gap and the cluster disagree about what is installed.
+- Dex is not installed. This tool has no way to configure SSO, so it would be a
+  pod that can never do anything and an image an airgap bundle would carry for
+  it.
+
+### Changed
+
+- `platform.gitops.source` alone no longer installs anything. The profile
+  baselines set it for every profile, so treating it as the ask would put a
+  GitOps controller on every cluster this tool builds, including the ones whose
+  operator never wanted one. `enabled` decides; a configured repository is taken
+  as the ask when it is unset.
+
+### Notes
+
+- ArgoCD gets no HTTPRoute. ADR-006 keeps routes with the application that owns
+  them, and enabling the chart's own route would be the same act at one remove.
+  The UI is reachable by `kubectl port-forward` until somebody routes it.
+- Bootstrap Applications carry no `resources-finalizer`. Removing an entry from
+  the document says this tool should stop managing the app, which is not the
+  same sentence as "delete the workload".
+
 ## [0.38.0] - 2026-08-11
 
 ### Added

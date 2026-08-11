@@ -25,6 +25,7 @@ import (
 	"platform.ryxen.dev/platformctl/internal/gateway"
 	"platform.ryxen.dev/platformctl/internal/nodeprep"
 	"platform.ryxen.dev/platformctl/internal/pki"
+	"platform.ryxen.dev/platformctl/internal/platform"
 	"platform.ryxen.dev/platformctl/internal/rke2"
 )
 
@@ -61,6 +62,7 @@ type Options struct {
 	Dataplane dataplane.Options
 	Gateway   gateway.Options
 	PKI       pki.Options
+	Platform  platform.Options
 }
 
 // Build returns the phases for a document, in the order they must run.
@@ -157,6 +159,27 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 	}); len(steps) > 0 {
 		phases = append(phases, engine.Phase{
 			ID:        gateway.Phase,
+			Grade:     engine.GradeAdditive,
+			Traversal: engine.TraversalCluster,
+			Steps:     func(string) []engine.Step { return steps },
+		})
+	}
+
+	// GitOps is last, and it is last on purpose. Its final step waits for an
+	// Application to actually deploy, which needs the dataplane routing, the
+	// trust store the registry pull depends on and -- for anything with a
+	// certificate -- the issuer. Running it earlier would make every one of
+	// those failures arrive wearing ArgoCD's name.
+	//
+	// It is also the handover point. Everything after this belongs to what the
+	// operator's repository says, not to this tool.
+	if steps := platform.Steps(control, spec, platform.Material{
+		RegistryHost: m.Trust.RegistryHost,
+		RegistryUser: m.Trust.RegistryUser,
+		RegistryPass: m.Trust.RegistryPass,
+	}, o.Platform); len(steps) > 0 {
+		phases = append(phases, engine.Phase{
+			ID:        platform.Phase,
 			Grade:     engine.GradeAdditive,
 			Traversal: engine.TraversalCluster,
 			Steps:     func(string) []engine.Step { return steps },

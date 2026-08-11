@@ -89,17 +89,17 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 
 	steps := []engine.Step{
 		add(gatewayCRDStep(spec, o)),
-		add(manifestStep("cilium-values", ciliumCfgFile, CiliumHelmConfig(spec),
-			"helmchartconfig -n kube-system rke2-cilium")),
+		add(rke2.ManifestStep(Phase, "cilium-values", ciliumCfgFile, CiliumHelmConfig(spec),
+			"helmchartconfig -n kube-system rke2-cilium", o.timeout())),
 		add(ciliumAppliedStep(o)),
 	}
 	if body := LoadBalancerPool(spec); body != "" {
-		steps = append(steps, add(manifestStep("lb-pool", lbPoolFile, body,
-			"ciliumloadbalancerippool platformctl")))
+		steps = append(steps, add(rke2.ManifestStep(Phase, "lb-pool", lbPoolFile, body,
+			"ciliumloadbalancerippool platformctl", o.timeout())))
 	}
 	if body := L2AnnouncementPolicy(spec); body != "" {
-		steps = append(steps, add(manifestStep("l2-announcement", l2PolicyFile, body,
-			"ciliuml2announcementpolicy platformctl")))
+		steps = append(steps, add(rke2.ManifestStep(Phase, "l2-announcement", l2PolicyFile, body,
+			"ciliuml2announcementpolicy platformctl", o.timeout())))
 	}
 	return append(steps, add(gatewayClassStep(o)))
 }
@@ -188,45 +188,6 @@ exit 1`,
 		Missing:   "%s",
 		Attempts:  3,
 		DoTimeout: 5 * time.Minute,
-	}
-}
-
-// manifestStep writes one manifest, compares content, and waits for the cluster
-// to hold the object.
-//
-// resource is what to look for once RKE2 has applied the file, in kubectl's
-// own vocabulary. A file on disk that the cluster has not accepted is the
-// failure this exists to catch: a load balancer pool that was written and never
-// created leaves Services Pending forever with nothing saying why.
-func manifestStep(name, path, body, resource string) *engine.ShellStep {
-	present := ""
-	wait := ""
-	if resource != "" {
-		present = fmt.Sprintf(`
-kubectl get %s >/dev/null 2>&1 || { echo "%s is written and the cluster does not have %s yet"; exit 1; }`,
-			resource, path, resource)
-		wait = fmt.Sprintf(`
-deadline=$(( $(date +%%s) + 300 ))
-while [ "$(date +%%s)" -lt "$deadline" ]; do
-  kubectl get %s >/dev/null 2>&1 && exit 0
-  sleep 5
-done
-echo "the cluster never created %s from %s"
-kubectl get %s 2>&1 | tail -5
-exit 1`, resource, resource, path, resource)
-	}
-
-	return &engine.ShellStep{
-		Name: name,
-		Check: kubectl + fmt.Sprintf(`[ -f %s ] || { echo "%s does not exist"; exit 1; }
-printf '%%s' %s | cmp -s - %s || { echo "%s differs from the document"; exit 1; }%s
-echo "%s matches the document"`, path, path, shellQuote(body), path, path, present, path),
-		Do: kubectl + fmt.Sprintf(`set -e
-install -d -m 0755 %s
-printf '%%s' %s > %s%s`, rke2.ManifestDir, shellQuote(body), path, wait),
-		Satisfied: "%s",
-		Missing:   "%s",
-		DoTimeout: 6 * time.Minute,
 	}
 }
 

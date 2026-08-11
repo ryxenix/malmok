@@ -58,7 +58,8 @@ const (
 
 const managedFileHeader = "# Managed by platformctl. Changes here are overwritten on the next apply."
 
-var kubectl = fmt.Sprintf("export PATH=$PATH:%s\nexport KUBECONFIG=%s\n", rke2.BinDir, rke2.Kubeconfig)
+// kubectl is the prelude the cluster-scoped steps need.
+var kubectl = rke2.Kubectl
 
 // Material is what the caller resolved from the document's SourceRefs.
 //
@@ -118,8 +119,10 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, m Material, o Options)
 	}
 
 	steps := []engine.Step{
-		add(manifestStep("cert-manager", certManagerFile, CertManagerChart(spec, o), "")),
-		add(certManagerReadyStep(o)),
+		add(rke2.ManifestStep(Phase, "cert-manager", certManagerFile,
+			CertManagerChart(spec, o), "helmchart -n kube-system cert-manager", o.timeout())),
+		add(rke2.AcceptsStep(Phase, "cert-manager-ready", IssuerManifest(spec),
+			"cert-manager", o.timeout())),
 	}
 
 	// The CA secret comes before the issuer that references it: an Issuer
@@ -140,7 +143,8 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, m Material, o Options)
 	}
 
 	steps = append(steps,
-		add(manifestStep("issuer", issuerFile, IssuerManifest(spec), "clusterissuer "+IssuerName)),
+		add(rke2.ManifestStep(Phase, "issuer", issuerFile, IssuerManifest(spec),
+			"clusterissuer "+IssuerName, o.timeout())),
 		add(issuerReadyStep(o)),
 	)
 
@@ -149,9 +153,15 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, m Material, o Options)
 	// reject the CA and the failure is an opaque x509 error.
 	if wantsTrustBundle(spec) {
 		steps = append(steps,
-			add(manifestStep("trust-manager", trustManagerFile, TrustManagerChart(o), "")),
-			add(manifestStep("trust-bundle", trustBundleFile, TrustBundle(spec),
-				"bundle "+TrustBundleName)),
+			add(rke2.ManifestStep(Phase, "trust-manager", trustManagerFile, TrustManagerChart(o),
+				"helmchart -n kube-system trust-manager", o.timeout())),
+			// The same wait cert-manager needs, for the same reason: the chart
+			// is deployed before its CRD is registered, and a Bundle applied in
+			// between fails with "no matches for kind".
+			add(rke2.AcceptsStep(Phase, "trust-manager-ready", TrustBundle(spec),
+				"trust-manager", o.timeout())),
+			add(rke2.ManifestStep(Phase, "trust-bundle", trustBundleFile, TrustBundle(spec),
+				"bundle "+TrustBundleName, o.timeout())),
 		)
 	}
 	return steps
@@ -173,80 +183,6 @@ func wantsTrustBundle(spec v1alpha1.ClusterSpec) bool {
 // ---------------------------------------------------------------------------
 // Steps
 // ---------------------------------------------------------------------------
-
-// manifestStep writes a manifest and waits for the cluster to hold the object.
-func manifestStep(name, path, body, resource string) *engine.ShellStep {
-	present, wait := "", ""
-	if resource != "" {
-		present = fmt.Sprintf(`
-kubectl get %s >/dev/null 2>&1 || { echo "%s is written and the cluster does not have %s yet"; exit 1; }`,
-			resource, path, resource)
-		wait = fmt.Sprintf(`
-deadline=$(( $(date +%%s) + 300 ))
-while [ "$(date +%%s)" -lt "$deadline" ]; do
-  kubectl get %s >/dev/null 2>&1 && exit 0
-  sleep 5
-done
-echo "the cluster never created %s from %s"
-exit 1`, resource, resource, path)
-	}
-
-	return &engine.ShellStep{
-		Name: name,
-		Check: kubectl + fmt.Sprintf(`[ -f %s ] || { echo "%s does not exist"; exit 1; }
-printf '%%s' %s | cmp -s - %s || { echo "%s differs from the document"; exit 1; }%s
-echo "%s matches the document"`, path, path, shellQuote(body), path, path, present, path),
-		Do: kubectl + fmt.Sprintf(`set -e
-install -d -m 0755 %s
-printf '%%s' %s > %s%s`, rke2.ManifestDir, shellQuote(body), path, wait),
-		Satisfied: "%s",
-		Missing:   "%s",
-		DoTimeout: 6 * time.Minute,
-	}
-}
-
-// certManagerReadyStep waits for the controller and its webhook.
-//
-// The webhook is the part that matters: cert-manager's CRDs are validated
-// through it, so an Issuer applied before it is serving is rejected with an
-// error about a connection rather than about the issuer.
-func certManagerReadyStep(o Options) *engine.ShellStep {
-	ready := fmt.Sprintf(
-		`kubectl -n %s get deploy cert-manager cert-manager-webhook -o jsonpath='{range .items[*]}{.metadata.name}{"="}{.status.readyReplicas}{" "}{end}' 2>/dev/null`,
-		Namespace)
-
-	return &engine.ShellStep{
-		Name: "cert-manager-ready",
-		Check: kubectl + fmt.Sprintf(`out=$(%s)
-case "$out" in
-  *"cert-manager=" | "" ) echo "cert-manager is not running yet ($out)"; exit 1 ;;
-esac
-echo "$out" | grep -q 'cert-manager-webhook=[1-9]' || {
-  echo "the cert-manager webhook is not serving yet ($out)"; exit 1; }
-echo "cert-manager is running: $out"`, ready),
-
-		Do: kubectl + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
-while [ "$(date +%%s)" -lt "$deadline" ]; do
-  out=$(%s)
-  if echo "$out" | grep -q 'cert-manager=[1-9]' && echo "$out" | grep -q 'cert-manager-webhook=[1-9]'; then
-    exit 0
-  fi
-  sleep 10
-done
-echo "cert-manager did not become ready within %ds. The namespace reports:"
-kubectl -n %s get pods -o wide 2>&1 | tail -10
-kubectl -n %s get helmchart 2>&1 | tail -5
-exit 1`, int(o.timeout().Seconds()), ready, int(o.timeout().Seconds()), Namespace, "kube-system"),
-
-		Satisfied: "%s",
-		Missing:   "%s",
-		DoTimeout: o.timeout() + time.Minute,
-		// Apply is already a bounded wait. Retrying it waits again: the budget
-		// multiplies the timeout and hides the failure for three times as long,
-		// which is how a ten-minute step took thirty to say what was wrong.
-		Attempts: 1,
-	}
-}
 
 // caSecretStep installs the intermediate cert-manager signs with.
 //
@@ -371,6 +307,13 @@ exit 1`, int(o.timeout().Seconds()), read, IssuerName, IssuerName),
 // deployments names that appear in no cert-manager runbook, and an operator
 // following one would not find them. What marks the install as ours is the
 // header on the manifest file, which is what PF-802 reads.
+//
+// The name must not be changed after a cluster has been built with it. Helm
+// stamps its release name onto every object it owns, and cert-manager's CRDs
+// are cluster-scoped -- so a rename leaves CRDs owned by a release that no
+// longer exists, and every subsequent install fails with "cannot be imported
+// into the current release" until somebody deletes them by hand. Deleting the
+// namespace does not help; the CRDs are not in it.
 func CertManagerChart(spec v1alpha1.ClusterSpec, o Options) string {
 	var b strings.Builder
 	b.WriteString(managedFileHeader + "\n")

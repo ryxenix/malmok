@@ -232,21 +232,41 @@ func TestSecretComesBeforeTheIssuer(t *testing.T) {
 	}
 }
 
-// cert-manager's CRDs are validated through its webhook, so an Issuer applied
-// before it is serving is rejected with an error about a connection.
-func TestWaitsForTheWebhookNotJustTheController(t *testing.T) {
+// Ready replicas are not the target.
+//
+// cert-manager's CRDs are validated through a webhook whose serving certificate
+// is issued after the pods start and whose CA bundle cainjector writes into the
+// webhook configuration afterwards. Between those moments every pod reports
+// ready and the API server cannot call the webhook -- which is what happened on
+// a live cluster: the readiness step passed and the next step died on "x509:
+// certificate signed by unknown authority".
+func TestWaitsUntilCertManagerAcceptsAnObject(t *testing.T) {
 	steps := Steps(&exec.Fake{}, specWith(v1alpha1.PKIPrivateCA), material(), Options{})
 	var ready *engine.ShellStep
 	for _, s := range steps {
-		if st := s.(*engine.ShellStep); st.Name == "cert-manager-ready" {
+		if st, ok := s.(*engine.ShellStep); ok && st.Name == "cert-manager-ready" {
 			ready = st
 		}
 	}
 	if ready == nil {
 		t.Fatal("nothing waits for cert-manager")
 	}
-	if !strings.Contains(ready.Check, "cert-manager-webhook") {
-		t.Error("the check ignores the webhook")
+
+	// The observable is a dry run of the very object the next step creates: it
+	// goes through the API server, the webhook and cert-manager's validation,
+	// which is the whole path that has to work.
+	if !strings.Contains(ready.Check, "--dry-run=server") {
+		t.Error("the check does not exercise the admission path")
+	}
+	if !strings.Contains(ready.Check, "ClusterIssuer") {
+		t.Error("the check dry-runs something other than what is about to be created")
+	}
+	// The two failures that look alike and are not: a webhook that cannot be
+	// called is transient, a refusal is not.
+	for _, want := range []string{"failed calling webhook", "unknown authority", "no matches for kind"} {
+		if !strings.Contains(ready.Check, want) {
+			t.Errorf("the check does not recognise %q", want)
+		}
 	}
 }
 
@@ -349,9 +369,17 @@ func TestObserveChangesNothing(t *testing.T) {
 		for _, bad := range []string{
 			"kubectl apply", "kubectl create", "kubectl delete", "install -d", "mktemp", "> /var/lib",
 		} {
-			if strings.Contains(cmd, bad) {
-				t.Errorf("an Observe would have changed the cluster: it contains %q\n%s", bad, cmd)
+			if !strings.Contains(cmd, bad) {
+				continue
 			}
+			// A server-side dry run is the exception and the only one: the API
+			// server runs admission and validation and discards the result,
+			// which is exactly what makes it a measurement rather than a
+			// change. cert-manager's own `cmctl check api` does the same thing.
+			if bad == "kubectl apply" && strings.Contains(cmd, "--dry-run=server") {
+				continue
+			}
+			t.Errorf("an Observe would have changed the cluster: it contains %q\n%s", bad, cmd)
 		}
 	}
 }
@@ -378,4 +406,24 @@ func contains(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// The Helm release name is part of the cluster's identity, not a detail.
+//
+// Helm stamps it onto every object it owns and cert-manager's CRDs are
+// cluster-scoped, so changing it leaves CRDs owned by a release that no longer
+// exists and every later install fails until somebody deletes them by hand --
+// which deleting the namespace does not do. Verified the hard way on a live
+// cluster.
+func TestReleaseNamesAreTheUpstreamOnes(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{CertManagerChart(specWith(v1alpha1.PKIPrivateCA), Options{}), "cert-manager"},
+		{TrustManagerChart(Options{}), "trust-manager"},
+	} {
+		meta, _ := docs(t, tc.body)[0]["metadata"].(map[string]any)
+		if meta["name"] != tc.want {
+			t.Errorf("the release is named %v, want %q -- a prefix would give every object "+
+				"a name that appears in no upstream runbook", meta["name"], tc.want)
+		}
+	}
 }

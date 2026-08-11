@@ -5,6 +5,54 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.38.0] - 2026-08-11
+
+### Added
+
+- `l2-pki`: cert-manager, the issuer `pki.mode` implies, and the trust
+  distribution that makes a private CA usable. Verified end to end against the
+  live cluster -- a Certificate issued in three seconds, signed by
+  `CN=Ryxen Homelab Issuing CA`, and the CA bundle synced into seven
+  namespaces.
+- A ClusterIssuer rather than a namespaced one: applications live in namespaces
+  this tool does not know about, and an Issuer they cannot reference is one
+  nobody uses.
+- The issuing CA's key is applied from a temporary file under `umask 077`,
+  never written into the manifest directory, and the step compares the
+  certificate's fingerprint so a rotated CA is noticed without the key ever
+  being read back.
+- An unknown DNS-01 provider is rendered as a webhook solver rather than
+  guessed at. Inventing a configuration for a provider this tool has never seen
+  would produce an issuer that is Ready and cannot solve.
+- `rke2.AcceptsStep` and `rke2.ManifestStep`, extracted from three copies each.
+
+### Fixed
+
+Four defects the live run found, all of them the same shape -- an observable
+that was not the thing that had to be true.
+
+- Ready replicas are not a usable controller. cert-manager's webhook gets its
+  serving certificate after the pods start and its CA bundle is injected later
+  still; in between everything reports ready and the first object created fails
+  with `x509: certificate signed by unknown authority`. The wait is now a
+  server-side dry run of the very object about to be created, which goes
+  through the API server, the CRD registration and the webhook -- the whole
+  path that has to work -- and changes nothing.
+- Writing a manifest is not applying it. RKE2's deploy controller is
+  content-hash driven, so rewriting an identical file does not restore an
+  object somebody deleted: the record still says "applied". Every manifest step
+  now applies as well as writes -- the directory is what the cluster reconciles
+  from on restart, the apply is what makes this run true.
+- A step whose Apply is itself a bounded wait is no longer retried. Three
+  attempts at a ten-minute wait took thirty minutes to say what was wrong.
+- The Helm release name is the upstream one. RKE2 uses the resource name as the
+  release name and it prefixes every object the chart creates, so a
+  `platformctl-` prefix produced deployments whose names appear in no
+  cert-manager runbook. It also cannot be changed afterwards: Helm stamps the
+  release onto cluster-scoped CRDs, and a rename leaves them owned by a release
+  that no longer exists -- deleting the namespace does not help, because the
+  CRDs are not in it.
+
 ## [0.37.1] - 2026-08-11
 
 ### Fixed

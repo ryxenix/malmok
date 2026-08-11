@@ -80,9 +80,10 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 	}
 
 	steps = append(steps,
-		add(manifestStep("gateways", gatewayFile, GatewayManifest(spec), "")),
-		add(manifestStep("contract", contractFile, ContractManifest(spec),
-			fmt.Sprintf("configmap -n %s %s", namespaceOf(spec), contractName(spec)))),
+		add(rke2.ManifestStep(Phase, "gateways", gatewayFile, GatewayManifest(spec),
+			"gateway -n "+namespaceOf(spec)+" "+spec.Gateway.Gateways[0].Name, o.timeout())),
+		add(rke2.ManifestStep(Phase, "contract", contractFile, ContractManifest(spec),
+			fmt.Sprintf("configmap -n %s %s", namespaceOf(spec), contractName(spec)), o.timeout())),
 	)
 
 	// Programmed is the end state worth waiting for: it means the controller
@@ -160,37 +161,6 @@ kubectl apply -f "$t" >/dev/null`, namespace, shellQuote(manifest)),
 
 		Satisfied: "%s",
 		Missing:   "%s",
-	}
-}
-
-// manifestStep writes a manifest and waits for the cluster to hold it.
-func manifestStep(name, path, body, resource string) *engine.ShellStep {
-	present, wait := "", ""
-	if resource != "" {
-		present = fmt.Sprintf(`
-kubectl get %s >/dev/null 2>&1 || { echo "%s is written and the cluster does not have %s yet"; exit 1; }`,
-			resource, path, resource)
-		wait = fmt.Sprintf(`
-deadline=$(( $(date +%%s) + 300 ))
-while [ "$(date +%%s)" -lt "$deadline" ]; do
-  kubectl get %s >/dev/null 2>&1 && exit 0
-  sleep 5
-done
-echo "the cluster never created %s from %s"
-exit 1`, resource, resource, path)
-	}
-
-	return &engine.ShellStep{
-		Name: name,
-		Check: kubectl + fmt.Sprintf(`[ -f %s ] || { echo "%s does not exist"; exit 1; }
-printf '%%s' %s | cmp -s - %s || { echo "%s differs from the document"; exit 1; }%s
-echo "%s matches the document"`, path, path, shellQuote(body), path, path, present, path),
-		Do: kubectl + fmt.Sprintf(`set -e
-install -d -m 0755 %s
-printf '%%s' %s > %s%s`, rke2.ManifestDir, shellQuote(body), path, wait),
-		Satisfied: "%s",
-		Missing:   "%s",
-		DoTimeout: 6 * time.Minute,
 	}
 }
 

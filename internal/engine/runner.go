@@ -261,8 +261,13 @@ func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, inde
 	// A running step counts the ones already finished; a finished step counts
 	// itself. Without the distinction the last step of a phase reports n-1/n
 	// and the bar never fills.
+	// The event's step is the bare name. The id is not: it carries the phase
+	// and the host because state.json keys on it and a resume has to find the
+	// same step again, and the event has its own fields for both.
+	name := eventStep(s.ID(), p.ID, node)
+
 	base := event.Event{
-		Kind: event.KindStep, Phase: p.ID, Step: s.ID(), Node: node,
+		Kind: event.KindStep, Phase: p.ID, Step: name, Node: node,
 		Progress: &event.Progress{Done: index, Total: total},
 	}
 	settled := base
@@ -290,7 +295,7 @@ func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, inde
 
 	// Bind phase, step and node to every line this step logs, so a step never
 	// has to repeat its own coordinates.
-	ctx = WithLogger(ctx, r.stepLogger(p.ID, s.ID(), node))
+	ctx = WithLogger(ctx, r.stepLogger(p.ID, name, node))
 
 	budget := maxAttempts(s, r.MaxAttempts)
 	var last error

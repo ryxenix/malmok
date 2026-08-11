@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"platform.ryxen.dev/platformctl/internal/event"
 )
@@ -56,4 +57,28 @@ func (r *Runner) stepLogger(phase, step, node string) LogFunc {
 			Level: level, Detail: detail,
 		})
 	}
+}
+
+// eventStep reduces a step id to the name the event schema asks for.
+//
+// docs/11-execute.md §5.1 gives `phase`, `step` and `node` fields of their own,
+// and §5.5 writes the step as `rke2-server-ready` -- not as
+// `l1-bootstrap/rke2-server-ready@10.10.0.11`. The id has to carry all three
+// because state.json keys on it and a resume must find the same step again on
+// the same host; the event does not, and a renderer that joins the fields it
+// was given printed the phase twice and the node twice.
+//
+// The host is dropped rather than moved into `node`, because a cluster-scoped
+// phase deliberately names no node (§5.1) -- the node it happened to talk to is
+// not what the step is about. Where the host does matter, in a failure, the
+// step's own message already says which one it was.
+func eventStep(id, phase, node string) string {
+	name := strings.TrimPrefix(id, phase+"/")
+	if node != "" {
+		return strings.TrimSuffix(name, "@"+node)
+	}
+	if at := strings.LastIndex(name, "@"); at > 0 {
+		return name[:at]
+	}
+	return name
 }

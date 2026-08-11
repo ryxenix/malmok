@@ -5,6 +5,24 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.39.1] - 2026-08-12
+
+### Fixed
+
+- Every rendered step line repeated the phase, and node steps repeated the node
+  too: `l0-node-prep/l0-node-prep/modules@192.168.88.241/192.168.88.241`.
+
+  The engine emitted the step *id* into the event's `step` field. The id has to
+  carry the phase and the host, because state.json keys on it and a resume must
+  find the same step again on the same node -- but the event schema gives
+  `phase`, `step` and `node` fields of their own, and its own example writes the
+  step as `rke2-server-ready` (docs/11-execute.md §5.1, §5.5). A renderer that
+  joins the three fields it was given cannot know that one of them already
+  contains the other two.
+
+  Fixed where it was wrong, in the engine, rather than by teaching the renderer
+  to un-pick a string. The id is unchanged, so resume still matches.
+
 ## [0.39.0] - 2026-08-12
 
 ### Added

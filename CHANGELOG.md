@@ -5,6 +5,38 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.37.0] - 2026-08-11
+
+### Added
+
+- The wizard installs. Choosing Install and pressing through the screens now
+  runs the same pipeline `apply -f` runs, on the same engine, writing the same
+  events -- the wizard is a way of producing a document, not a second installer
+  (ADR-002). It used to reach the last screen and tell the operator to go and
+  use the command line.
+- `internal/build`, which owns that path. It lives outside `cmd/` so it can be
+  exercised against real nodes without a terminal: verified end to end against
+  the live two-node cluster, four phases and the artifacts written, using
+  exactly the two functions the wizard's screens call.
+- The checks and the install share one session. They are separate screens but
+  one visit to the same nodes, and opening a second set of connections would
+  let the checks pass on a connection the install then fails to make. The
+  measurements are kept for the same reason: measuring twice would let the two
+  disagree about one cluster.
+- A downgrade is decided by the document's own `downgradePolicy`. The wizard
+  cannot ask, so `auto` proceeds and `confirm` -- the default, and what the
+  airgapped profiles set -- stops and says what it would have done and how to
+  accept it. Deciding silently would be the tool choosing on the operator's
+  behalf at the one moment they are watching.
+- Downgrades are emitted as `kind=decision` events, so they reach the screen
+  and the audit report rather than only the return value.
+
+### Removed
+
+- `cmd/platformctl/apply_preflight.go`. Both of its functions were superseded:
+  `apply -f` runs the whole pipeline, and the wizard no longer stops before
+  installing.
+
 ## [0.36.0] - 2026-08-11
 
 ### Added

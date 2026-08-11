@@ -15,6 +15,7 @@ import (
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/attach"
+	"platform.ryxen.dev/platformctl/internal/build"
 	"platform.ryxen.dev/platformctl/internal/demo"
 	"platform.ryxen.dev/platformctl/internal/engine"
 	"platform.ryxen.dev/platformctl/internal/event"
@@ -113,24 +114,28 @@ starting over. See docs/11-execute.md.`,
 				snapshot := func(cfg tui.Config) error {
 					return spec.Snapshot(runDir, cfg.ToSpec())
 				}
+				// One session for both steps: the checks and the install are
+				// separate screens but one visit to the same nodes, and
+				// opening a second set of connections would let the checks
+				// pass on a connection the install then fails to make.
+				sess := &build.Session{InsecureHostKey: insecureHost}
+				defer sess.Close()
+
 				preflight := func(c context.Context, cfg tui.Config) error {
 					if err := snapshot(cfg); err != nil {
-						return err
-					}
-					if err := runner.Run(c, phases[:1]); err != nil {
 						return err
 					}
 					if isDemo {
 						// --demo contacts no node. Running the real checks here
 						// would break the one promise the flag makes, and the
 						// addresses in the wizard are placeholders nobody owns.
-						return nil
+						return runner.Run(c, phases[:1])
 					}
 					// Results reach the screen as events, never as a return
 					// value: ADR-002 keeps the renderer a consumer of the
 					// stream, so a run looks the same whether or not anybody
 					// was watching it.
-					return runWizardPreflight(c, cfg, events.Writer, insecureHost)
+					return sess.Preflight(c, cfg.ToSpec(), cfg.SSHPassword, events.Writer)
 				}
 				install := func(c context.Context, cfg tui.Config) error {
 					// Written again: the operator may have gone back and
@@ -139,10 +144,11 @@ starting over. See docs/11-execute.md.`,
 						return err
 					}
 					if !isDemo {
-						// The wizard reached the install step against real
-						// nodes, and there is nothing behind it yet. Saying so
-						// here beats a progress bar for work nobody is doing.
-						return errNoInstaller
+						// The same pipeline `apply -f` runs, on the same engine,
+						// writing the same events. The wizard is a way of
+						// producing the document, not a second installer.
+						return sess.Install(c, cfg.ToSpec(), cfg.SSHPassword,
+							events.Writer, runDir, st, recheck)
 					}
 					return runner.Run(c, phases[1:])
 				}

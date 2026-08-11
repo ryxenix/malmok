@@ -19,14 +19,14 @@ import (
 	"platform.ryxen.dev/platformctl/internal/verify"
 )
 
-// build is everything a real run needs that the engine does not own: the
+// nodeSession is everything a real run needs that the engine does not own: the
 // connections, the material read out of the document, and the phase list.
 //
 // It is separate from the engine because the engine must stay runnable from a
 // cluster.yaml alone. Resolving a SourceRef needs the document's directory and
 // its secret policy, and opening an SSH connection needs credentials -- neither
 // is the engine's business.
-type build struct {
+type nodeSession struct {
 	doc      *spec.Document
 	runners  catalogue.Runners
 	material catalogue.Material
@@ -34,7 +34,7 @@ type build struct {
 }
 
 // close releases every connection opened for the run.
-func (b *build) close() {
+func (b *nodeSession) close() {
 	for _, c := range b.closers {
 		_ = c()
 	}
@@ -45,8 +45,8 @@ func (b *build) close() {
 // All of them up front, and it fails if any is unreachable: a build that
 // discovers on its third phase that it cannot reach a node has already changed
 // the first two, and unwinding that is worse than not starting.
-func (o *preflightOptions) connect(ctx context.Context, doc *spec.Document) (*build, error) {
-	b := &build{doc: doc}
+func (o *preflightOptions) connect(ctx context.Context, doc *spec.Document) (*nodeSession, error) {
+	b := &nodeSession{doc: doc}
 
 	s := doc.Spec
 	nodes := append(append([]v1alpha1.NodeSpec{}, s.Topology.Servers...), s.Topology.Agents...)
@@ -78,7 +78,7 @@ func (o *preflightOptions) connect(ctx context.Context, doc *spec.Document) (*bu
 // Preflight would otherwise open a second connection to every node, which costs
 // a handshake each and, more to the point, means the checks could succeed on a
 // connection the build then fails to make.
-func (b *build) dialer() func(context.Context, exec.SSHConfig) (exec.Runner, error) {
+func (b *nodeSession) dialer() func(context.Context, exec.SSHConfig) (exec.Runner, error) {
 	return func(_ context.Context, cfg exec.SSHConfig) (exec.Runner, error) {
 		if r, ok := b.runners.ByHost[cfg.Host]; ok {
 			// Not closed by the caller: the build owns these for the whole run,

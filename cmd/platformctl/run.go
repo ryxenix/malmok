@@ -230,7 +230,7 @@ func writeArtifacts(runDir string) ([]string, error) {
 
 // preflightRun measures every node using the connections the build already
 // holds, rather than opening its own.
-func preflightRun(ctx context.Context, o preflightOptions, doc *spec.Document, b *build) preflight.Report {
+func preflightRun(ctx context.Context, o preflightOptions, doc *spec.Document, b *nodeSession) preflight.Report {
 	s := o.session(doc)
 	s.Dial = b.dialer()
 	return s.Run(ctx)

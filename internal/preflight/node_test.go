@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/codes"
@@ -416,17 +417,46 @@ func TestCrossNodeProbes(t *testing.T) {
 	})
 
 	t.Run("clock skew", func(t *testing.T) {
-		got := CheckClockSkew(map[string]int64{"a": 1000, "b": 1005}, DefaultClockTolerance)
+		// Well-measured readings five seconds apart: real drift.
+		got := CheckClockSkew(map[string]Offset{
+			"a": {Delta: 0, Uncertainty: 5 * time.Millisecond},
+			"b": {Delta: 5 * time.Second, Uncertainty: 5 * time.Millisecond},
+		}, DefaultClockTolerance)
 		if got.Code != "CLOCK_SKEW" {
 			t.Fatalf("PF-502 is %s/%s: %s", got.Status, got.Code, got.Detail)
 		}
-		if ok := CheckClockSkew(map[string]int64{"a": 1000, "b": 1000}, DefaultClockTolerance); ok.Failed() {
-			t.Errorf("PF-502 failed on agreeing clocks: %s", ok.Detail)
+
+		agree := CheckClockSkew(map[string]Offset{
+			"a": {Delta: 0, Uncertainty: 5 * time.Millisecond},
+			"b": {Delta: 10 * time.Millisecond, Uncertainty: 5 * time.Millisecond},
+		}, DefaultClockTolerance)
+		if agree.Failed() {
+			t.Errorf("PF-502 failed on agreeing clocks: %s", agree.Detail)
+		}
+	})
+
+	// The nodes are read one after another over SSH, and the gap between two
+	// reads is not skew. A pair of NTP-synchronised nodes looked two seconds
+	// apart because the tool was measuring its own round trip.
+	t.Run("a difference inside the measurement error is not drift", func(t *testing.T) {
+		got := CheckClockSkew(map[string]Offset{
+			"a": {Delta: 0, Uncertainty: 2 * time.Second},
+			"b": {Delta: 2 * time.Second, Uncertainty: 2 * time.Second},
+		}, DefaultClockTolerance)
+
+		if got.Failed() {
+			t.Fatalf("PF-502 blamed the cluster for the tool's latency: %s", got.Detail)
+		}
+		if got.Status != StatusSkip {
+			t.Errorf("PF-502 is %s, want a skip that says it could not be measured", got.Status)
+		}
+		if !strings.Contains(got.Detail, "round trip") {
+			t.Errorf("the result does not say why it could not tell: %s", got.Detail)
 		}
 	})
 
 	t.Run("one node cannot be skewed against itself", func(t *testing.T) {
-		if got := CheckClockSkew(map[string]int64{"a": 1000}, 1); got.Status != StatusSkip {
+		if got := CheckClockSkew(map[string]Offset{"a": {}}, time.Second); got.Status != StatusSkip {
 			t.Errorf("PF-502 is %s, want skip", got.Status)
 		}
 	})

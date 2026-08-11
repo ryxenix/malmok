@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -100,7 +101,7 @@ func (s *ShellStep) Apply(ctx context.Context) error {
 		// The node's own words are more use than a restatement of the step
 		// name, so they are carried into the failure rather than summarised.
 		return Fail("EX-002", fmt.Errorf("%s failed on %s (exit %d): %s",
-			s.Name, s.Host, res.ExitCode, tail(CleanForEvent(res.Err()+" "+res.Out()))))
+			s.Name, s.Host, res.ExitCode, clip(CleanForEvent(res.Out()+" "+res.Err()))))
 	}
 	return nil
 }
@@ -146,12 +147,43 @@ func CleanForEvent(s string) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
-// tail keeps the end of a long message, which is where a command's actual
-// complaint lives once it has printed its progress.
-func tail(s string) string {
+// clip shortens a long message from the end.
+//
+// The head is kept, not the tail: every step here prints what went wrong first
+// and dumps diagnostics after it, so truncating from the front removes the one
+// sentence that says what happened. A failure that opens mid-way through a pod
+// listing tells the reader nothing they can start from.
+func clip(s string) string {
 	const max = 400
 	if len(s) <= max {
 		return s
 	}
-	return "..." + s[len(s)-max:]
+	return s[:max] + " ... (truncated; the full output is in the run's event file)"
+}
+
+// FailedStep reports something that went wrong while deciding what work to do.
+//
+// A phase that returned no steps because it could not decide would be reported
+// as a phase that succeeded, which is the worst available outcome: a run that
+// says it installed something and did not. This is a step that cannot be
+// satisfied, so the failure is the phase's failure.
+//
+// Implemented in Go rather than as a shell command that exits non-zero: a step
+// whose contract is "never satisfied" must not depend on a shell, a fake, or
+// anything else that could answer differently.
+type FailedStep struct {
+	// StepID is the identity the state file records.
+	StepID string
+	// Why is one English line saying what is missing.
+	Why string
+}
+
+func (f FailedStep) ID() string { return f.StepID }
+
+func (f FailedStep) Observe(context.Context) (Observation, error) {
+	return Observation{Detail: f.Why}, nil
+}
+
+func (f FailedStep) Apply(context.Context) error {
+	return FailFatal("EX-002", errors.New(f.Why))
 }

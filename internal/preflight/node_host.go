@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 )
@@ -340,34 +341,66 @@ func (n *Node) CheckTimeSync(ctx context.Context) ProbeResult {
 	return passf("PF-501", "the clock is synchronised (%s)", strings.Join(lines, " "))
 }
 
+// Offset is how far one node's clock is from the machine running the tool, and
+// how precisely that could be measured.
+type Offset struct {
+	Delta time.Duration
+	// Uncertainty is half the round trip: the node's clock was read somewhere
+	// inside it, so the reading is good to within this much either way.
+	Uncertainty time.Duration
+}
+
 // CheckClockSkew implements PF-502 across nodes.
 //
-// Each node's clock is read against the machine running the tool, which is not
-// a time source; what matters is that the nodes agree with each other, so the
-// comparison is between the readings.
-func CheckClockSkew(readings map[string]int64, tolerance int64) ProbeResult {
+// Offsets are compared rather than raw times. The nodes are read one after
+// another over SSH, and the gap between two reads is not skew -- subtracting
+// raw times reports the tool's own round trip as drift, which is how a pair of
+// NTP-synchronised nodes came to look two seconds apart.
+//
+// A difference smaller than what the measurement could resolve is not evidence
+// of anything. Reporting it as skew would be the tool blaming the cluster for
+// its own latency.
+func CheckClockSkew(readings map[string]Offset, tolerance time.Duration) ProbeResult {
 	if len(readings) < 2 {
 		return skipped("PF-502", "skew needs at least two nodes to compare")
 	}
+
 	var lowHost, highHost string
-	var low, high int64
+	var low, high Offset
 	first := true
-	for host, t := range readings {
-		if first || t < low {
-			low, lowHost = t, host
+	for host, o := range readings {
+		if first || o.Delta < low.Delta {
+			low, lowHost = o, host
 		}
-		if first || t > high {
-			high, highHost = t, host
+		if first || o.Delta > high.Delta {
+			high, highHost = o, host
 		}
 		first = false
 	}
-	skew := high - low
-	if skew > tolerance {
-		return failf("PF-502", "CLOCK_SKEW",
-			"the node clocks differ by %ds (%s is behind %s); etcd tolerates far less than that",
-			skew, lowHost, highHost)
+
+	skew := high.Delta - low.Delta
+	margin := low.Uncertainty + high.Uncertainty
+
+	switch {
+	case skew <= tolerance:
+		return passf("PF-502", "the node clocks agree to within %s (measured to +/-%s)",
+			skew.Round(time.Millisecond), margin.Round(time.Millisecond))
+
+	case skew <= margin:
+		// Over the tolerance but inside what the measurement can resolve. The
+		// honest answer is that this could not be measured well enough, not
+		// that the clocks are wrong.
+		return unmeasured("PF-502", fmt.Sprintf(
+			"the readings differ by %s and could only be measured to +/-%s, which is not "+
+				"enough to tell drift from the round trip. Both nodes report their clock "+
+				"synchronised (PF-501); measure again on a quieter link if this matters",
+			skew.Round(time.Millisecond), margin.Round(time.Millisecond)))
 	}
-	return passf("PF-502", "the node clocks agree to within %ds", skew)
+
+	return failf("PF-502", "CLOCK_SKEW",
+		"the node clocks differ by %s, more than the %s etcd tolerates (%s is behind %s); "+
+			"the reading is good to +/-%s, so this is drift rather than measurement noise",
+		skew.Round(time.Millisecond), tolerance, lowHost, highHost, margin.Round(time.Millisecond))
 }
 
 // CheckNTPServers implements PF-503.

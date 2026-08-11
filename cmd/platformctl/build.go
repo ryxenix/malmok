@@ -146,6 +146,7 @@ func (s sudoRunner) Close() error { return s.closer.Close() }
 // resolveMaterial reads what the phases need out of the document.
 func (o *preflightOptions) resolveMaterial(doc *spec.Document, m *catalogue.Material) error {
 	s := doc.Spec
+	var err error
 
 	if ca := s.PKI.PrivateCA; ca != nil {
 		root, err := doc.Resolve("pki.privateCA.rootCert", ca.RootCert, false, o.allowLiteral)
@@ -162,6 +163,29 @@ func (o *preflightOptions) resolveMaterial(doc *spec.Document, m *catalogue.Mate
 			return err
 		}
 		m.Trust.CABundle = ca
+	}
+
+	// l2-pki signs with the intermediate. The root private key is never read:
+	// PF-706 refuses material that contains one, and the offline root must stay
+	// in its custody.
+	if ca := s.PKI.PrivateCA; ca != nil {
+		if m.PKI.RootCert, err = doc.Resolve("pki.privateCA.rootCert", ca.RootCert, false, o.allowLiteral); err != nil {
+			return err
+		}
+		if m.PKI.IntermediateCert, err = doc.Resolve(
+			"pki.privateCA.intermediateCert", ca.IntermediateCert, false, o.allowLiteral); err != nil {
+			return err
+		}
+		if m.PKI.IntermediateKey, err = doc.Resolve(
+			"pki.privateCA.intermediateKey", ca.IntermediateKey, true, o.allowLiteral); err != nil {
+			return err
+		}
+	}
+	if s.PKI.ACME != nil {
+		if m.PKI.ACMEToken, err = doc.Resolve(
+			"pki.acme.apiToken", s.PKI.ACME.APIToken, true, o.allowLiteral); err != nil {
+			return err
+		}
 	}
 
 	user, err := doc.Resolve("registry.username", s.Registry.Username, true, o.allowLiteral)

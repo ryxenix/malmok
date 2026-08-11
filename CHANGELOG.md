@@ -5,6 +5,28 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.37.1] - 2026-08-11
+
+### Fixed
+
+- PF-502 reported the tool's own latency as clock drift. The nodes are read one
+  after another over SSH, and subtracting raw times counts the gap between two
+  reads as skew -- which blocked a build on a live cluster whose two nodes were
+  both NTP-synchronised and 1ms apart. It now measures each node's offset from
+  this machine at the midpoint of the round trip, and refuses to call a
+  difference drift when it is smaller than what the measurement could resolve.
+  Blaming the cluster for the measurement is worse than saying it could not be
+  measured.
+- A failing step's message was truncated from the front, so a failure opened
+  mid-way through a pod listing with the sentence saying what happened cut off.
+  Every step here prints the explanation first and the diagnostics after it, so
+  the head is what has to survive.
+- `engine.FailedStep` replaces two copies of the same idea and one that did not
+  work: a step meaning "this cannot be satisfied" was written as a shell command
+  exiting non-zero, which a fake runner answered `0` to. A contract of "never
+  satisfied" must not depend on a shell, a fake, or anything else that could
+  answer differently.
+
 ## [0.37.0] - 2026-08-11
 
 ### Added

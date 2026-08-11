@@ -51,7 +51,7 @@ func producible(t *testing.T) map[string]bool {
 	for _, r := range []ProbeResult{
 		CheckHomogeneous(nil),
 		CheckHostnames(nil),
-		CheckClockSkew(nil, 1),
+		CheckClockSkew(nil, time.Second),
 		CheckTimezones(nil),
 		CheckCIDRs(baseSpec()),
 		CheckAirgapBundle(baseSpec(), ""),

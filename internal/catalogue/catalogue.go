@@ -24,6 +24,7 @@ import (
 	"platform.ryxen.dev/platformctl/internal/exec"
 	"platform.ryxen.dev/platformctl/internal/gateway"
 	"platform.ryxen.dev/platformctl/internal/nodeprep"
+	"platform.ryxen.dev/platformctl/internal/pki"
 	"platform.ryxen.dev/platformctl/internal/rke2"
 )
 
@@ -50,6 +51,8 @@ type Material struct {
 	// Token is the cluster token joining nodes use. Empty means read it from
 	// the first server at build time, which is the normal path.
 	Token string
+	// PKI is what l2-pki installs: the issuing CA and any ACME credential.
+	PKI pki.Material
 }
 
 // Options carry the timeouts and the airgap artifact locations.
@@ -57,6 +60,7 @@ type Options struct {
 	RKE2      rke2.Options
 	Dataplane dataplane.Options
 	Gateway   gateway.Options
+	PKI       pki.Options
 }
 
 // Build returns the phases for a document, in the order they must run.
@@ -131,6 +135,18 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 			// balancer together, and applying that to a running cluster
 			// replaces kube-proxy and rolls every dataplane pod.
 			Grade:     engine.GradeDisruptive,
+			Traversal: engine.TraversalCluster,
+			Steps:     func(string) []engine.Step { return steps },
+		})
+	}
+
+	// PKI before the gateway: a listener whose certificate is issued in-cluster
+	// needs an issuer that already exists, and one that is supplied does not
+	// care about the order -- so the order that works for both is this one.
+	if steps := pki.Steps(control, spec, m.PKI, o.PKI); len(steps) > 0 {
+		phases = append(phases, engine.Phase{
+			ID:        pki.Phase,
+			Grade:     engine.GradeAdditive,
 			Traversal: engine.TraversalCluster,
 			Steps:     func(string) []engine.Step { return steps },
 		})
@@ -220,33 +236,14 @@ func vipSteps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine
 // Failure steps
 // ---------------------------------------------------------------------------
 
-// failedStep reports something that went wrong while building the work, as a
-// step that cannot be satisfied.
-//
-// A phase that returned no steps because it could not decide what to do would
-// be reported as a phase that succeeded, which is the worst possible outcome:
-// a run that says it built a cluster and did not.
-type failedStep struct {
-	id  string
-	err error
-}
-
-func (f failedStep) ID() string { return f.id }
-
-func (f failedStep) Observe(context.Context) (engine.Observation, error) {
-	return engine.Observation{}, engine.FailFatal("EX-001", f.err)
-}
-
-func (f failedStep) Apply(context.Context) error {
-	return engine.FailFatal("EX-002", f.err)
-}
-
+// tokenFailure and vipFailure turn a decision that could not be made into a
+// step that fails, so the phase fails rather than quietly having no work.
 func tokenFailure(phase, node string, err error) engine.Step {
-	return failedStep{id: phase + "/token@" + node, err: err}
+	return engine.FailedStep{StepID: phase + "/token@" + node, Why: err.Error()}
 }
 
 func vipFailure(node string, err error) engine.Step {
-	return failedStep{id: rke2.PhaseBootstrap + "/vip-interface@" + node, err: err}
+	return engine.FailedStep{StepID: rke2.PhaseBootstrap + "/vip-interface@" + node, Why: err.Error()}
 }
 
 // ---------------------------------------------------------------------------

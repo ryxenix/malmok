@@ -144,7 +144,7 @@ func (s *Session) Run(ctx context.Context) Report {
 	type outcome struct {
 		cap  NodeCapability
 		zone string
-		clk  int64
+		clk  Offset
 		ok   bool
 		err  error
 		host string
@@ -171,7 +171,8 @@ func (s *Session) Run(ctx context.Context) Report {
 			out.cap = node.Probe(ctx)
 			out.cap.Host = n.Host // the document's address, not the transport's
 			out.zone = node.Timezone(ctx)
-			out.clk, out.ok = node.Clock(ctx)
+			delta, uncertainty, ok := node.Clock(ctx)
+			out.clk, out.ok = Offset{Delta: delta, Uncertainty: uncertainty}, ok
 			results[i] = out
 
 			mu.Lock()
@@ -184,7 +185,7 @@ func (s *Session) Run(ctx context.Context) Report {
 	}
 	wg.Wait()
 
-	clocks := map[string]int64{}
+	clocks := map[string]Offset{}
 	zones := map[string]string{}
 	for _, o := range results {
 		if o.err != nil {

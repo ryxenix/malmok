@@ -3,6 +3,7 @@ package preflight
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
@@ -103,14 +104,39 @@ func (n *Node) ProbePeers(ctx context.Context, peers []string, cap *NodeCapabili
 	}
 }
 
-// Clock reads the node's clock for the skew comparison.
-func (n *Node) Clock(ctx context.Context) (int64, bool) {
-	r := n.run(ctx, "date -u +%s")
-	if !r.OK() {
-		return 0, false
+// Clock measures how far a node's clock is from this machine's, and how
+// precisely that could be measured.
+//
+// The offset rather than the raw time, because the nodes are read one after
+// another over SSH and the gap between two reads is not skew. Measuring raw
+// times and subtracting them reports the tool's own round trip as drift, which
+// is how a pair of NTP-synchronised nodes came to look two seconds apart.
+//
+// The round trip bounds the error: the node's clock was read somewhere inside
+// it, so the reading is good to within half of it either way.
+func (n *Node) Clock(ctx context.Context) (offset, uncertainty time.Duration, ok bool) {
+	// Not cached: a clock read twice is two different answers, and the point
+	// here is when the answer was taken.
+	c, cancel := context.WithTimeout(ctx, n.timeout())
+	defer cancel()
+
+	before := time.Now()
+	res, err := n.Runner.Run(c, "date -u +%s.%N")
+	after := time.Now()
+	if err != nil || !res.OK() {
+		return 0, 0, false
 	}
-	v, err := strconv.ParseInt(r.Out(), 10, 64)
-	return v, err == nil
+
+	secs, err := strconv.ParseFloat(strings.TrimSpace(res.Out()), 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	nodeTime := time.Unix(0, int64(secs*float64(time.Second)))
+
+	// The local instant the node's clock corresponds to is somewhere in the
+	// round trip; its midpoint is the best estimate available.
+	mid := before.Add(after.Sub(before) / 2)
+	return nodeTime.Sub(mid), after.Sub(before) / 2, true
 }
 
 // Timezone reads the node's timezone for the consistency comparison.
@@ -134,7 +160,7 @@ func normaliseArch(a string) string {
 //
 // etcd tolerates far less than this in practice; a second is the point at which
 // something is clearly wrong rather than merely imprecise.
-const DefaultClockTolerance = 1
+const DefaultClockTolerance = time.Second
 
 // Cluster runs preflight across every node the document names.
 //
@@ -148,7 +174,7 @@ type ClusterRun struct {
 }
 
 // Finish computes the cross-node probes from what was collected.
-func Finish(caps []NodeCapability, clocks map[string]int64, zones map[string]string, spec v1alpha1.ClusterSpec) ClusterRun {
+func Finish(caps []NodeCapability, clocks map[string]Offset, zones map[string]string, spec v1alpha1.ClusterSpec) ClusterRun {
 	hostnames := map[string]string{}
 	for _, c := range caps {
 		hostnames[c.Host] = c.Hostname

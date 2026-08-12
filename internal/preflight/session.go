@@ -445,7 +445,7 @@ func (s *Session) connect(ctx context.Context, n v1alpha1.NodeSpec) (exec.Runner
 
 	dial := s.Dial
 	if dial == nil {
-		dial = func(ctx context.Context, c exec.SSHConfig) (exec.Runner, error) { return exec.Dial(ctx, c) }
+		dial = exec.Connect
 	}
 	runner, err := dial(ctx, cfg)
 	if err != nil {
@@ -464,7 +464,17 @@ func (s *Session) connect(ctx context.Context, n v1alpha1.NodeSpec) (exec.Runner
 		if len(become) == 0 {
 			become = pw
 		}
-		return exec.Sudo{Runner: runner, Password: string(become)}, nil
+		// Proved rather than assumed. `sudo -n` on an account that needs a
+		// password exits non-zero with the command never having run, and a
+		// non-zero exit is how every probe spells "no": the node would report
+		// no BTF, no bpf filesystem and no module support, all of which would
+		// be measurements of the account.
+		elevated, err := exec.Elevate(ctx, runner, string(become))
+		if err != nil {
+			runner.Close()
+			return nil, err
+		}
+		return elevated, nil
 	}
 	return runner, nil
 }

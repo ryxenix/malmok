@@ -1,0 +1,43 @@
+# A single node, installed on the machine platformctl is running on.
+#
+# There is no ssh block because nothing is dialled: the address belongs to an
+# interface on this machine, so the work runs here. Run it as root -- `sudo
+# platformctl apply -f cluster-local.yaml` -- or give the account a
+# becomePassword; an account that cannot elevate answers "no" to every
+# privileged question and the node reads as one that cannot run the dataplane.
+#
+# Set `local: false` on a node to force SSH even though the address is this
+# machine's. That is the way out of the one case the address cannot decide: a
+# container with host networking sees the host's addresses and is not the host.
+apiVersion: platform.ryxen.dev/v1alpha1
+kind: ClusterSpec
+
+metadata:
+  name: homelab
+  profile: homelab
+
+network:
+  mode: online
+
+topology:
+  # A VIP, not the node's own address: adding a second server later would
+  # otherwise mean re-joining every node (ADR-008).
+  registrationAddress: 192.168.88.210
+  vip:
+    provider: kube-vip
+    address: 192.168.88.210
+    mode: arp
+  servers:
+    - host: 192.168.88.241
+
+kubernetes:
+  version: v1.35.7+rke2r1
+  dataplane:
+    preset: cilium-gw
+    loadBalancerPool:
+      - 192.168.88.216/29
+
+pki:
+  # Decide the service domain later. Gateways come up on HTTP and certificates
+  # are added with the same command that renews them.
+  mode: none

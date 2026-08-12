@@ -193,6 +193,20 @@ type NodeSpec struct {
 
 	SSH SSHSpec `yaml:"ssh,omitempty" json:"ssh,omitempty"`
 
+	// Local runs this node's work on the machine platformctl is invoked on
+	// instead of opening an SSH connection to it.
+	//
+	// Unset means decide from the address, which is right almost always: an
+	// address either is or is not assigned to an interface here, and installing
+	// onto the machine you are sitting at should not require an sshd and a
+	// credential for your own box. It is a pointer because both overrides are
+	// real. Set it true where the address is not one this machine holds -- a
+	// node behind NAT, or one named by the VIP it will carry once the cluster
+	// is up. Set it false where it is: a tool running in a container with host
+	// networking sees the host's addresses and is not the host, and the address
+	// alone cannot tell the two apart.
+	Local *bool `yaml:"local,omitempty" json:"local,omitempty"`
+
 	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 	Taints []string          `yaml:"taints,omitempty" json:"taints,omitempty"`
 

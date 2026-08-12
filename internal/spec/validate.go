@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/platformctl/internal/exec"
 )
 
 // Validate reports every problem with the document at once.
@@ -104,6 +105,18 @@ func validateTopology(s *v1alpha1.ClusterSpec) []error {
 			errs = append(errs, fmt.Errorf("topology: host %s appears twice", n.Host))
 		}
 		seenHost[n.Host] = true
+
+		// A loopback address or the literal `local` says how to reach the node,
+		// not what the cluster calls it. Every node needs an address other
+		// nodes can use: the registration address, the certificate SANs and the
+		// address advertised at join all come from here, and 127.0.0.1 is a
+		// different machine from every one of them.
+		if isLoopbackHost(n.Host) && strings.TrimSpace(n.NodeIP) == "" {
+			errs = append(errs, fmt.Errorf(
+				"topology: node %s is named by an address that only means this machine, so it needs "+
+					"nodeIP as well -- that is what it registers with and what other nodes reach it on",
+				n.Host))
+		}
 
 		if n.Hostname != "" {
 			if seenName[n.Hostname] {
@@ -430,4 +443,22 @@ func validateListenerTLS(where string, l v1alpha1.ListenerSpec) []error {
 	}
 
 	return errs
+}
+
+// isLoopbackHost reports whether a host value can only ever mean "here".
+//
+// Kept beside the rule rather than imported from the runner, because the two
+// answer different questions: exec asks which machine to run a command on, and
+// this asks whether an address is one another node could use. A node's own
+// routable address is local to the tool and perfectly usable by the cluster;
+// 127.0.0.1 is local to everybody and usable by nobody.
+func isLoopbackHost(host string) bool {
+	h := strings.ToLower(strings.TrimSpace(host))
+	for _, name := range exec.LocalHostNames {
+		if h == name {
+			return true
+		}
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }

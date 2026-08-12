@@ -5,6 +5,49 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.42.0] - 2026-08-12
+
+### Added
+
+- A node can be the machine platformctl is running on. This is the ordinary
+  case, not the special one: an installer is normally run on the machine being
+  installed, and reaching another machine over SSH is the addition. Until now
+  installing onto the host you were sitting at needed an sshd, an account and a
+  credential for your own box -- a round trip through the network stack to reach
+  a filesystem that was already open.
+- The routing is by address, not by a flag: an address either is or is not
+  assigned to an interface on this machine, and that is a fact nothing has to be
+  told. `local` and `localhost` also work for a document written before anybody
+  knows the address.
+- `local` on a node overrides it in both directions, because both are real. True
+  where the address is not one this machine holds -- a node behind NAT, or one
+  named by the VIP it will carry once the cluster is up. False where it is: a
+  tool running in a container with host networking sees the host's addresses and
+  is not the host, and the address alone cannot tell the two apart.
+- `sudo platformctl` needs no second sudo. The local runner reports that it is
+  already root and the elevation wrapper leaves it alone, which matters on an
+  image that has no sudo binary and an account in no sudoers file.
+- `examples/cluster-local.yaml`.
+- A node named only by a loopback address is refused unless it also sets
+  `nodeIP`. That address says how to reach the node, not what the cluster calls
+  it, and the registration address, the certificate SANs and the address
+  advertised at join all come from the latter.
+
+### Fixed
+
+- An account that cannot elevate was reported as a machine that cannot run
+  Kubernetes. `sudo -n` without a password exits non-zero having never run the
+  command, and a non-zero exit is how every probe spells "no" -- so a host whose
+  sudo wanted a password reported no BTF, no bpf filesystem and no module
+  support. Verified on a machine where `/sys/kernel/btf/vmlinux` exists and
+  `bpf` is in `/proc/filesystems`: the tool said neither did. Those are
+  measurements of the account presented as measurements of the kernel, and
+  `PF-202` and `PF-203` both feed a downgrade decision.
+
+  Elevation is now proved once, at connect time, and a failure says so in one
+  sentence naming what to do about it instead of arriving as three dozen wrong
+  answers.
+
 ## [0.41.0] - 2026-08-12
 
 ### Added

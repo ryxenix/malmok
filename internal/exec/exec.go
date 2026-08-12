@@ -71,6 +71,13 @@ type Sudo struct {
 
 // Run prefixes the command with sudo.
 func (s Sudo) Run(ctx context.Context, cmd string) (Result, error) {
+	// A runner that is already root needs no sudo, and asking for it would
+	// require the binary to be installed and the account to be in the sudoers
+	// file for no gain. `sudo platformctl` on the machine being installed is
+	// the ordinary local invocation and a minimal image frequently has neither.
+	if r, ok := s.Runner.(Rooted); ok && r.IsRoot() {
+		return s.Runner.Run(ctx, cmd)
+	}
 	if s.Password == "" {
 		return s.Runner.Run(ctx, "sudo -n -- sh -c "+quote(cmd))
 	}
@@ -140,3 +147,51 @@ func (f *Fake) Host() string { return "fake" }
 
 // Close does nothing.
 func (f *Fake) Close() error { return nil }
+
+// Elevate wraps a runner so every command runs with the privileges the probes
+// need, and proves it works before anything depends on it.
+//
+// The proof is the point. `sudo -n` on an account that needs a password exits
+// non-zero with the command never having run -- and a non-zero exit is how
+// every probe spells "no". Without this, a machine whose sudo wants a password
+// reports that its kernel has no BTF and no bpf filesystem, because
+// `test -e /sys/kernel/btf/vmlinux` and `grep bpf /proc/filesystems` both came
+// back non-zero. That is a measurement of the account presented as a
+// measurement of the kernel, and a downgrade decision would be made on it.
+//
+// One check at the start, so the failure names the real cause once instead of
+// arriving as several dozen wrong answers.
+func Elevate(ctx context.Context, r Runner, password string) (Runner, error) {
+	// Already root: nothing to wrap. `sudo platformctl` on the machine being
+	// installed is the ordinary local invocation, and requiring sudo inside it
+	// would need the binary present and the account in the sudoers file for no
+	// gain.
+	if rooted, ok := r.(Rooted); ok && rooted.IsRoot() {
+		return r, nil
+	}
+
+	s := Sudo{Runner: r, Password: password}
+	res, err := s.Run(ctx, "id -u")
+	if err != nil {
+		return nil, fmt.Errorf("%s: could not be asked whether it can elevate: %w", r.Host(), err)
+	}
+	if res.Out() != "0" {
+		detail := res.Err()
+		if detail == "" {
+			detail = res.Out()
+		}
+		if password == "" {
+			return nil, fmt.Errorf(
+				"%s: this account cannot elevate without a password and none was given. "+
+					"Set ssh.becomePassword in the document, or run platformctl as root on a local node: %s",
+				r.Host(), CleanLine(detail))
+		}
+		return nil, fmt.Errorf("%s: this account cannot elevate: %s", r.Host(), CleanLine(detail))
+	}
+	return s, nil
+}
+
+// CleanLine folds a command's output into one line for an error message.
+func CleanLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}

@@ -76,7 +76,7 @@ func (s *Session) Connect(ctx context.Context, spec v1alpha1.ClusterSpec, passwo
 		cfg.Password = password
 		cfg.InsecureSkipHostKeyCheck = s.InsecureHostKey
 
-		runner, err := exec.Dial(ctx, cfg)
+		runner, err := exec.Connect(ctx, cfg)
 		if err != nil {
 			s.Close()
 			return fmt.Errorf("%s could not be reached: %w", n.Host, err)
@@ -84,11 +84,16 @@ func (s *Session) Connect(ctx context.Context, spec v1alpha1.ClusterSpec, passwo
 		s.closers = append(s.closers, runner.Close)
 
 		// Every phase reads files an unprivileged account cannot and writes
-		// files only root may write.
-		byHost[n.Host] = sudoRunner{
-			Sudo:   exec.Sudo{Runner: runner, Password: password},
-			closer: runner,
+		// files only root may write -- and the elevation is proved here rather
+		// than assumed, because an account that cannot elevate answers "no" to
+		// every privileged question and the node reads as one that cannot run
+		// the dataplane.
+		elevated, err := exec.Elevate(ctx, runner, password)
+		if err != nil {
+			s.Close()
+			return err
 		}
+		byHost[n.Host] = elevated
 	}
 
 	s.runners.ByHost = byHost
@@ -248,14 +253,6 @@ func mustLoadRun(dir string) *report.Run {
 	}
 	return r
 }
-
-// sudoRunner keeps the underlying connection closeable through the wrapper.
-type sudoRunner struct {
-	exec.Sudo
-	closer exec.Runner
-}
-
-func (s sudoRunner) Close() error { return s.closer.Close() }
 
 // noCloseRunner lends a connection without giving up ownership of it.
 //

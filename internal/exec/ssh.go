@@ -46,14 +46,25 @@ type SSHConfig struct {
 	InsecureSkipHostKeyCheck bool
 
 	Timeout time.Duration
+
+	// Local routes to this machine instead of opening a connection. Decided by
+	// FromSpec from the document; see NodeIsLocal for what decides it.
+	Local bool
 }
 
 // FromSpec builds a config from a node's document entry.
 func FromSpec(n v1alpha1.NodeSpec) SSHConfig {
 	c := SSHConfig{
-		Host: n.Host,
-		Port: n.SSH.Port,
-		User: n.SSH.User,
+		Host:  n.Host,
+		Port:  n.SSH.Port,
+		User:  n.SSH.User,
+		Local: NodeIsLocal(n),
+	}
+	if c.Local {
+		// Nothing is dialled, so the credential fields have no meaning. Filling
+		// them in with defaults would put "root" in a diagnostic about a machine
+		// nobody logged into.
+		return c
 	}
 	if c.Port == 0 {
 		c.Port = 22

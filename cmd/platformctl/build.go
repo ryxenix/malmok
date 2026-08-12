@@ -113,7 +113,7 @@ func (o *preflightOptions) dial(ctx context.Context, doc *spec.Document, n v1alp
 	}
 	cfg.Password = string(pw)
 
-	runner, err := exec.Dial(ctx, cfg)
+	runner, err := exec.Connect(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -130,18 +130,18 @@ func (o *preflightOptions) dial(ctx context.Context, doc *spec.Document, n v1alp
 		if len(become) == 0 {
 			become = pw
 		}
-		return sudoRunner{Sudo: exec.Sudo{Runner: runner, Password: string(become)}, closer: runner}, nil
+		// Proved rather than assumed: an account that cannot elevate produces a
+		// node that reports "no" to every privileged question, which reads as a
+		// machine that cannot run the dataplane.
+		elevated, err := exec.Elevate(ctx, runner, string(become))
+		if err != nil {
+			runner.Close()
+			return nil, err
+		}
+		return elevated, nil
 	}
 	return runner, nil
 }
-
-// sudoRunner keeps the underlying connection closeable through the wrapper.
-type sudoRunner struct {
-	exec.Sudo
-	closer exec.Runner
-}
-
-func (s sudoRunner) Close() error { return s.closer.Close() }
 
 // resolveMaterial reads what the phases need out of the document.
 func (o *preflightOptions) resolveMaterial(doc *spec.Document, m *catalogue.Material) error {

@@ -38,14 +38,14 @@ menu:
   unavailable.status: 아직 구현되지 않았습니다. 선택해도 아무것도 바뀌지 않습니다.
 open:
   heading: 문서 열기
-  help: "편집할 cluster.yaml 을 고르십시오. 읽은 그대로 두고, 이어지는 화면에서 고친 뒤 다시 씁니다. 이 마법사에 화면이 없는 항목은 손대지 않고 그대로 유지됩니다."
-  help.upgrade: "업그레이드할 클러스터를 가리키는 cluster.yaml 을 고르십시오. 읽기만 하고 쓰지 않습니다. 문서는 클러스터가 무엇인지를 적은 것이고, 마지막 노드가 새 버전을 보고할 때 그것이 사실이 됩니다."
+  help: "편집할 cluster.yaml 을 고르십시오. 읽은 그대로 두고, 이어지는 화면에서 고친 뒤 다시 씁니다. 이 설치기에 화면이 없는 항목은 손대지 않고 그대로 유지됩니다."
+  help.upgrade: "업그레이드할 클러스터의 cluster.yaml 을 고르십시오. 읽기만 하고 고치지 않습니다. 문서는 클러스터의 현재 상태를 적은 것이라, 마지막 노드가 새 버전을 보고해야 사실이 됩니다."
   path: 경로
   path.hint: cluster.yaml 경로입니다. 아래에서 고르면 여기에 채워집니다.
   found: "여기서 찾은 문서"
   none: 이 디렉터리에서 문서를 찾지 못했습니다. 위에 경로를 입력하십시오.
   hint: Space 로 아래 파일을 고르고, Enter 로 경로를 편집합니다
-  err.empty: 경로가 없어 열 것이 없습니다.
+  err.empty: 경로를 입력하지 않아 열 문서가 없습니다.
 save:
   heading: 저장
   help: "이대로 기록됩니다. 화면에 없는 항목은 읽어들인 문서에서 그대로 옮겨집니다."
@@ -57,34 +57,34 @@ target:
   heading: 대상 버전
   help: "옮겨갈 버전을 고르십시오. 사전 조건을 통과할 때까지 아무것도 건드리지 않습니다. 컨트롤 플레인은 마이너 버전을 한 단계씩만 올리고, 다운그레이드는 없으며, 첫 노드를 내리기 전에 모든 노드가 Ready 여야 합니다."
   document: 문서
-  from: 현재 실행 중
-  unknown: 문서에 기록되어 있지 않음
+  from: 현재 버전
+  unknown: 문서에 적혀 있지 않음
   version: 대상 버전
   version.hint: "RKE2 버전. 예: v1.35.7+rke2r1"
   note: "server 를 먼저, 그다음 agent 를, 노드 한 대씩 진행합니다. 각 노드는 kubelet 재시작 전에 drain 하고, 클러스터가 복귀를 확인하면 uncordon 합니다."
 upgrade:
   heading: 업그레이드 중
 doc:
-  snapshot: "  (실행 스냅샷 — 편집하면 그 실행은 재개할 수 없습니다)"
+  snapshot: "  (실행 기록의 스냅샷 — 고치면 그 실행은 재개할 수 없습니다)"
 runs:
   heading: 실행 기록
   help: "이 도구가 남긴 실행 기록입니다. 최신순이며, 열면 그때 일어난 일을 재생합니다."
   none: 아직 기록된 실행이 없습니다. `platformctl apply` 가 한 번 돌면 나타납니다.
   count: 건
 where:
-  heading: 어디에 구축할지
-  help: "이 클러스터를 어느 기계에 구축합니까? 첫 server 를 이 기계로 하면 아무 곳에도 접속하지 않고, 주소도 기계에서 직접 읽어옵니다."
-  here: 이 기계
-  remote: 다른 기계
-  remote.note: 주소를 입력하고 SSH 로 접속합니다
-  noaddress: 이 기계에 라우팅 가능한 IPv4 주소가 없어 클러스터가 광고할 주소가 없습니다
+  heading: 설치 위치
+  help: "이 클러스터를 어디에 설치할까요? 이 서버를 고르면 SSH 접속 없이 여기서 바로 설치하고, 주소도 서버에서 직접 읽어옵니다."
+  here: 이 서버
+  remote: 원격 서버
+  remote.note: 주소를 입력해 SSH 로 접속합니다
+  noaddress: 이 서버에 외부에서 닿을 수 있는 IPv4 주소가 없습니다. 클러스터가 쓸 주소가 없어 여기에는 설치할 수 없습니다
 nodes:
   heading: 노드 정보
   help: "설치할 노드를 입력하십시오. agent 는 쉼표로 구분합니다."
-  help.local: "설치할 노드를 입력하십시오. 여기 적힌 주소가 모두 이 기계의 것이라 작업은 여기서 돌고, 아무 곳에도 접속하지 않습니다."
+  help.local: "설치할 노드를 입력하십시오. 적힌 주소가 모두 이 서버의 것이라 SSH 접속 없이 여기서 바로 실행됩니다."
   server: server IP
-  thismachine: 이 기계
-  advertised: 클러스터의 나머지가 닿는 주소
+  thismachine: 이 서버
+  advertised: 다른 노드가 접속할 주소
   agents: agent IP
   user: SSH 사용자
   port: SSH 포트
@@ -131,7 +131,7 @@ done:
   heading: 완료
   ok: 설치가 끝났습니다
   failed: 설치가 중단되었습니다
-  upgraded: 클러스터가 새 버전으로 올라갔습니다
+  upgraded: 클러스터를 새 버전으로 올렸습니다
   upgrade_failed: 업그레이드가 중단되었습니다
   cluster: 무엇이 구축되었나
   artifacts: 어디에 남았나
@@ -173,7 +173,7 @@ hint:
   registry: 모든 시스템 이미지를 여기서 받습니다
   sourceref: file:// · env:// · sops:// — 값이 아니라 참조
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
-  sudopassword: 이 기계에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. platformctl 을 이미 root 로 돌리는 중이면 비워두십시오
+  sudopassword: 이 서버에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. platformctl 을 이미 root 로 실행 중이면 비워두십시오
   toggle_steps: 단계목록
   toggle_ascii: ascii
   toggle_lang: English
@@ -240,5 +240,5 @@ topo:
   agent: agent
   lbpool: LB 풀
   join: 조인
-  here: 이 기계
+  here: 이 서버
   unresolved: 주소가 아님

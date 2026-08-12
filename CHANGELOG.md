@@ -5,6 +5,18 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.43.1] - 2026-08-12
+
+### Fixed
+
+- The Korean screens called a server a "기계". Nobody working with servers says
+  that, and the catalogue already says 서버 and 노드 everywhere else -- the new
+  strings were translated word by word from the English instead of written in
+  Korean, which is how a line comes out grammatical and still not something
+  anybody would say. `이 기계` / `다른 기계` are now `이 서버` / `원격 서버`,
+  and the same pass corrected `마법사` back to `설치기`, which is what the rest
+  of the catalogue calls this tool.
+
 ## [0.43.0] - 2026-08-12
 
 ### Added

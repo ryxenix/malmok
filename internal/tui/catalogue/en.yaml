@@ -14,6 +14,8 @@ step:
   summary: Summary
   install: Install
   done: Finished
+  open: Document
+  save: Save
 lang:
   heading: Language
   help: Choose the language for this installer. It does not change log output, which is always English.
@@ -33,7 +35,24 @@ menu:
   unavailable: "  (not built yet)"
   unavailable.status: This is not implemented. Nothing here will change if you choose it.
   missing.upgrade: Not implemented. The upgrade phase needs a version skew check, a per-node drain and the same resume model the install has.
-  missing.settings: Not implemented. Editing a document outside a build means the wizard has to load one, which it cannot do yet.
+open:
+  heading: Open a document
+  help: "Choose the cluster.yaml to edit. It is read as it is, edited on the screens that follow, and written back — fields this wizard has no screen for are kept untouched."
+  path: Path
+  path.hint: A path to a cluster.yaml. Choosing one below fills this in.
+  found: "Found here"
+  none: No document was found in this directory. Type a path above.
+  hint: Space chooses one of the files below; Enter edits the path
+  err.empty: No path was given, so there is nothing to open.
+save:
+  heading: Save
+  help: "This is what will be written. Everything the screens do not show is carried over from the document as it was read."
+  path: Written to
+  written: The document has been written.
+  after: "Nothing on a cluster has changed. Run `platformctl apply -f` against this file to make it so."
+  hint: Enter writes the file; Esc goes back to change something
+doc:
+  snapshot: "  (a run's snapshot — editing it means that run can no longer be resumed)"
 runs:
   heading: Runs
   help: "Every run this tool recorded, newest first. Opening one replays what happened."
@@ -115,6 +134,8 @@ btn:
   fix: Go and fix
   logs: Logs
   close: Close
+  load: Load
+  save: Save
 key:
   retry: retry
 hint:

@@ -39,8 +39,7 @@ var menuItems = []MenuItem{
 	{TitleKey: "menu.install", HelpKey: "menu.install.help", Enter: StepLang},
 	{TitleKey: "menu.upgrade", HelpKey: "menu.upgrade.help", Enter: StepMenu,
 		Missing: "menu.missing.upgrade"},
-	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepMenu,
-		Missing: "menu.missing.settings"},
+	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepOpen},
 	{TitleKey: "menu.logs", HelpKey: "menu.logs.help", Enter: StepRuns},
 	{TitleKey: "menu.quit", HelpKey: "menu.quit.help", Enter: StepMenu},
 }

@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
 )
 
@@ -45,27 +46,80 @@ const (
 	StepSummary
 	StepInstall
 	StepDone
+
+	// StepOpen and StepSave are the settings flow's own ends: which document to
+	// edit, and writing it back. Appended rather than inserted so the numbers of
+	// the install steps do not move -- validation problems are ordered by Step,
+	// and the order of a build is what that ordering means.
+	StepOpen
+	StepSave
 )
 
-// stepKeys names the steps of the install flow, which is what the rail shows.
+// mode is which of the two flows the wizard is walking.
 //
-// The menu and the run list are not in it: they are where an operator arrives
-// from and returns to, not stages of a build, and numbering them would make a
+// The screens in the middle are the same ones. What differs is where they are
+// entered from and what happens at the end: a build measures nodes and installs;
+// an edit reads a document and writes it back.
+type mode int
+
+const (
+	modeInstall mode = iota
+	modeSettings
+)
+
+// The two flows, in the order their screens are walked.
+//
+// Order lives in a list rather than in the numbering, because the numbering has
+// to mean something else: problems are sorted by Step so the operator walks
+// forwards through a build. Two flows cannot both be expressed by one set of
+// consecutive numbers, and arithmetic over step values is how a screen inserted
+// in the middle silently renumbers the rail.
+//
+// The menu and the run list are in neither: they are where an operator arrives
+// from and returns to, not stages of anything, and numbering them would make a
 // two-screen detour look like part of the work.
-var stepKeys = []string{
-	"step.lang", "step.profile", "step.nodes", "step.network", "step.options",
-	"step.registry", "step.pki", "step.preflight", "step.summary",
-	"step.install", "step.done",
+var (
+	installSteps = []Step{
+		StepLang, StepProfile, StepNodes, StepNetwork, StepOptions,
+		StepRegistry, StepPKI, StepPreflight, StepSummary, StepInstall, StepDone,
+	}
+	settingsSteps = []Step{
+		StepOpen, StepProfile, StepNodes, StepNetwork, StepOptions,
+		StepRegistry, StepPKI, StepSave,
+	}
+)
+
+// stepKeys is the catalogue key for each screen that appears in a rail.
+var stepKeys = map[Step]string{
+	StepLang: "step.lang", StepProfile: "step.profile", StepNodes: "step.nodes",
+	StepNetwork: "step.network", StepOptions: "step.options",
+	StepRegistry: "step.registry", StepPKI: "step.pki",
+	StepPreflight: "step.preflight", StepSummary: "step.summary",
+	StepInstall: "step.install", StepDone: "step.done",
+	StepOpen: "step.open", StepSave: "step.save",
 }
 
-// installFlow is the first step of a build, and the offset the rail counts from.
-const installFlow = StepLang
+// flow is the sequence the current mode walks.
+func (w *Wizard) flow() []Step {
+	if w.mode == modeSettings {
+		return settingsSteps
+	}
+	return installSteps
+}
+
+// railIndex is the position of the current step within its flow, or -1 when the
+// current screen is not part of one.
+func (w *Wizard) railIndex() int {
+	for i, st := range w.flow() {
+		if st == w.step {
+			return i
+		}
+	}
+	return -1
+}
 
 // inInstallFlow reports whether the rail and the step counter apply.
-func (w *Wizard) inInstallFlow() bool { return w.step >= installFlow }
-
-// railIndex is the position of the current step within the install flow.
-func (w *Wizard) railIndex() int { return int(w.step) - int(installFlow) }
+func (w *Wizard) inInstallFlow() bool { return w.railIndex() >= 0 }
 
 // focus is which half of the screen the keyboard is driving.
 type focus int
@@ -128,6 +182,11 @@ type Config struct {
 	ACMEEmail    string
 	ACMEProvider string
 	ACMEToken    string
+
+	// DocPath is the file the settings flow reads and writes. It is a wizard
+	// value rather than a document one and is never serialised -- a document
+	// that recorded its own location would be wrong the moment it was copied.
+	DocPath string
 }
 
 // Work is a long operation the wizard drives, reported through the event
@@ -177,6 +236,17 @@ type Wizard struct {
 	menu   int
 	runs   []RunEntry
 	runSel int
+
+	// mode is which flow is being walked; doc is the loaded document the
+	// settings flow edits, kept whole so the fields no screen shows survive
+	// being written back.
+	mode      mode
+	doc       v1alpha1.ClusterSpec
+	openFiles []docEntry
+	openErr   string
+	saveErr   string
+	// saved is the path the document was written to, empty until it has been.
+	saved string
 
 	// bundle is where runs are looked for; replaying marks a screen showing a
 	// run that is over rather than one in progress.
@@ -514,6 +584,13 @@ func (w *Wizard) editKey(s string) (tea.Model, tea.Cmd) {
 func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 	cur := w.cursor[w.step]
 	switch w.step {
+	case StepOpen:
+		// The list fills the field rather than loading straight away. Choosing
+		// a file and reading it are two decisions, and one keystroke that did
+		// both would give no chance to look at the path first.
+		if i := cur - len(w.fieldsFor(StepOpen)); i >= 0 && i < len(w.openFiles) {
+			w.cfg.DocPath = w.openFiles[i].Path
+		}
 	case StepLang:
 		lang := []Lang{LangEN, LangKO}[cur]
 		if cat, err := LoadCatalogue(lang); err == nil {
@@ -570,25 +647,35 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 			w.enter()
 		}
 		return w, nil
-	case w.cat.T("btn.next"), w.cat.T("btn.install"), w.cat.T("btn.open"):
+	case w.cat.T("btn.next"), w.cat.T("btn.install"), w.cat.T("btn.open"),
+		w.cat.T("btn.load"), w.cat.T("btn.save"):
 		return w.next()
 	}
 	return w, nil
 }
 
 func (w *Wizard) back() (tea.Model, tea.Cmd) {
-	if w.busy || w.step == StepMenu || w.step >= StepInstall {
+	// Nothing goes back out of work already done on a node, and nothing goes
+	// back from a document already written.
+	if w.busy || w.step == StepMenu || w.step == StepInstall || w.step == StepDone {
 		return w, nil
 	}
-	// The install flow and the run list both return to the menu rather than
-	// walking backwards into it: an operator who chose the wrong entry wants
-	// the menu, not the previous question of a flow they are leaving.
-	if w.step == StepLang || w.step == StepRuns {
+	if w.step == StepSave && w.saved != "" {
+		return w, nil
+	}
+
+	i := w.railIndex()
+	// The first screen of either flow, and the run list, return to the menu
+	// rather than walking backwards into it: an operator who chose the wrong
+	// entry wants the menu, not the previous question of a flow they are
+	// leaving.
+	if i <= 0 || w.step == StepRuns {
 		w.step = StepMenu
+		w.mode = modeInstall
 		w.enter()
 		return w, nil
 	}
-	w.step--
+	w.step = w.flow()[i-1]
 	w.enter()
 	return w, nil
 }
@@ -631,6 +718,15 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 			w.runs = w.loadRuns()
 			w.runSel = 0
 		}
+		// The mode is chosen here and nowhere else. Every screen after this is
+		// shared, and a screen that had to ask which flow it was in would be a
+		// second place for the two to disagree.
+		w.mode = modeInstall
+		if item.Enter == StepOpen {
+			w.mode = modeSettings
+			w.openFiles = w.listDocuments()
+			w.openErr, w.saveErr, w.saved = "", "", ""
+		}
 		w.step = item.Enter
 		w.enter()
 		return w, nil
@@ -640,6 +736,32 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 			return w, nil
 		}
 		return w, w.openRun(w.runs[w.runSel])
+
+	case StepOpen:
+		if err := w.loadDocument(); err != nil {
+			w.openErr = err.Error()
+			return w, nil
+		}
+		w.openErr = ""
+		w.advance()
+		return w, nil
+
+	case StepSave:
+		// Written once. Pressing the button again on a screen that already says
+		// where the file went should not rewrite it.
+		if w.saved != "" {
+			return w, tea.Quit
+		}
+		if _, broken := w.firstProblemStep(); broken {
+			return w, nil
+		}
+		if err := w.writeDocument(); err != nil {
+			w.saveErr = err.Error()
+			return w, nil
+		}
+		w.saveErr = ""
+		w.enter()
+		return w, nil
 
 	case StepPreflight:
 		if w.busy {
@@ -661,14 +783,22 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 	case StepDone:
 		return w, tea.Quit
 	default:
-		w.step++
-		w.enter()
+		w.advance()
 		if w.step == StepPreflight {
 			w.focus = focusButtons
 			return w, w.start(w.preflight)
 		}
 	}
 	return w, nil
+}
+
+// advance moves to the next screen of the current flow.
+func (w *Wizard) advance() {
+	flow := w.flow()
+	if i := w.railIndex(); i >= 0 && i+1 < len(flow) {
+		w.step = flow[i+1]
+	}
+	w.enter()
 }
 
 // start runs long work off the update loop. The screen keeps redrawing from
@@ -775,6 +905,8 @@ func (w *Wizard) contentLen() int {
 		return len(profileChoices())
 	case StepOptions:
 		return len(dataplanes) + len(storages) + len(w.fieldsFor(StepOptions))
+	case StepOpen:
+		return len(w.fieldsFor(StepOpen)) + len(w.openFiles)
 	default:
 		return 0
 	}

@@ -84,7 +84,7 @@ func (w *Wizard) View() tea.View {
 	// would make arriving at the tool look like step one of a build.
 	context := ""
 	if w.inInstallFlow() {
-		context = fmt.Sprintf("%d/%d", w.railIndex()+1, len(stepKeys))
+		context = fmt.Sprintf("%d/%d", w.railIndex()+1, len(w.flow()))
 	}
 	f := Frame{
 		Title:    w.cat.T("app.title"),
@@ -131,6 +131,10 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.progressScreen(body, "install")
 	case StepDone:
 		f.Heading, f.Body, f.Status = w.doneScreen(body)
+	case StepOpen:
+		f.Heading, f.Body, f.Status = w.openScreen(body)
+	case StepSave:
+		f.Heading, f.Body, f.Status = w.saveScreen(body)
 	}
 
 	// The toggles are appended to whatever the screen wanted to say, so they
@@ -162,9 +166,10 @@ func (w *Wizard) rail() []RailItem {
 		return nil
 	}
 	here := w.railIndex()
+	flow := w.flow()
 
-	out := make([]RailItem, len(stepKeys))
-	for i, key := range stepKeys {
+	out := make([]RailItem, len(flow))
+	for i, step := range flow {
 		st := RailFuture
 		switch {
 		case i < here:
@@ -172,7 +177,7 @@ func (w *Wizard) rail() []RailItem {
 		case i == here:
 			st = RailCurrent
 		}
-		out[i] = RailItem{Label: w.cat.T(key), State: st}
+		out[i] = RailItem{Label: w.cat.T(stepKeys[step]), State: st}
 	}
 	return out
 }
@@ -196,6 +201,22 @@ func (w *Wizard) buttons() []Button {
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepProfile, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
+	case StepOpen:
+		if len(w.openFiles) == 0 && strings.TrimSpace(w.cfg.DocPath) == "" {
+			return []Button{back}
+		}
+		return []Button{back, {Label: w.cat.T("btn.load"), Primary: true}}
+	case StepSave:
+		// A document that does not validate must not offer to be written: the
+		// operator opened this to correct one, and saving it broken is the one
+		// outcome nobody asked for.
+		if w.saved != "" {
+			return []Button{{Label: w.cat.T("btn.close"), Primary: true}}
+		}
+		if _, broken := w.firstProblemStep(); broken {
+			return []Button{back, {Label: w.cat.T("btn.fix"), Primary: true}}
+		}
+		return []Button{back, {Label: w.cat.T("btn.save"), Primary: true}}
 	case StepPreflight:
 		if w.busy {
 			return nil

@@ -13,6 +13,8 @@ step:
   summary: 요약
   install: 설치
   done: 완료
+  open: 문서
+  save: 저장
 lang:
   heading: 언어 선택
   help: 이 설치기의 언어를 고르십시오. 로그 출력은 항상 영어이며 바뀌지 않습니다.
@@ -32,7 +34,24 @@ menu:
   unavailable: "  (미구현)"
   unavailable.status: 아직 구현되지 않았습니다. 선택해도 아무것도 바뀌지 않습니다.
   missing.upgrade: 미구현. 업그레이드 단계에는 버전 차이 검사, 노드별 drain, 설치와 같은 재개 모델이 필요합니다.
-  missing.settings: 미구현. 구축 없이 문서를 편집하려면 마법사가 기존 문서를 읽어야 하는데 아직 못 합니다.
+open:
+  heading: 문서 열기
+  help: "편집할 cluster.yaml 을 고르십시오. 읽은 그대로 두고, 이어지는 화면에서 고친 뒤 다시 씁니다. 이 마법사에 화면이 없는 항목은 손대지 않고 그대로 유지됩니다."
+  path: 경로
+  path.hint: cluster.yaml 경로입니다. 아래에서 고르면 여기에 채워집니다.
+  found: "여기서 찾은 문서"
+  none: 이 디렉터리에서 문서를 찾지 못했습니다. 위에 경로를 입력하십시오.
+  hint: Space 로 아래 파일을 고르고, Enter 로 경로를 편집합니다
+  err.empty: 경로가 없어 열 것이 없습니다.
+save:
+  heading: 저장
+  help: "이대로 기록됩니다. 화면에 없는 항목은 읽어들인 문서에서 그대로 옮겨집니다."
+  path: 기록 위치
+  written: 문서를 기록했습니다.
+  after: "클러스터에는 아무 변경도 없습니다. 이 파일로 `platformctl apply -f` 를 실행해야 반영됩니다."
+  hint: Enter 로 파일을 기록하고, Esc 로 돌아가 고칩니다
+doc:
+  snapshot: "  (실행 스냅샷 — 편집하면 그 실행은 재개할 수 없습니다)"
 runs:
   heading: 실행 기록
   help: "이 도구가 남긴 실행 기록입니다. 최신순이며, 열면 그때 일어난 일을 재생합니다."
@@ -114,6 +133,8 @@ btn:
   fix: 고치러 가기
   logs: 로그
   close: 닫기
+  load: 불러오기
+  save: 저장
 key:
   retry: 재시도
 hint:

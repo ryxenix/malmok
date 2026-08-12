@@ -35,6 +35,13 @@ type field struct {
 // that does not exist.
 func (w *Wizard) fieldsFor(step Step) []field {
 	switch step {
+	case StepOpen:
+		return []field{
+			{labelKey: "open.path",
+				get:  func(c *Config) string { return c.DocPath },
+				set:  func(c *Config, v string) { c.DocPath = v },
+				hint: "open.path.hint"},
+		}
 	case StepNodes:
 		return []field{
 			{labelKey: "nodes.server",

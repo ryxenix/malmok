@@ -5,6 +5,50 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.40.0] - 2026-08-12
+
+### Added
+
+- The start menu's Settings entry works. It opens a `cluster.yaml`, walks the
+  same screens the install flow uses with the values already in them, and writes
+  it back. Nothing is applied to a cluster -- the screen says so, because an
+  operator who wrote a file and believes a node changed is the failure that
+  sentence exists to prevent.
+- The loaded document is kept whole and the wizard writes only over the fields
+  it owns (`Config.ApplyTo`). This is the whole feature. The wizard has no
+  screen for gateway listeners, etcd snapshots to S3 or the GitOps repository,
+  and a document rebuilt from the answers would have deleted every one of them:
+  what the operator was never shown, they did not agree to delete. Verified
+  against the live homelab document -- VIP, trust distribution, gateway,
+  bootstrap apps and the SSH password reference all survive an edit untouched.
+- Nodes are matched to their old selves by host, and failing that by position,
+  so a node renamed in place keeps its SSH key reference. A node carries more
+  than its address.
+- The document list marks a run's snapshot as one, because editing it is how an
+  operator loses the ability to resume that run.
+- Validation on the save screen is run against the document that will be
+  written, not against a reconstruction of it. A listener with no port lives in
+  the part no screen shows, which is exactly the part a reconstruction lacks.
+
+### Changed
+
+- The order of the wizard's screens is a list per flow rather than arithmetic on
+  the step numbers. Two flows cannot both be expressed by one run of consecutive
+  values, and stepping by `+1` is how a screen inserted in the middle silently
+  renumbers the rail.
+
+### Fixed
+
+- `pki.mode: none` dropped every agent. `ToSpec` returned early to clear the
+  domain, and the agent list was built after that point -- so choosing "decide
+  later" quietly produced a single-node cluster.
+- A validation message named the wrong screen. Problems are labelled with the
+  step that owns them, and the label was read out of a list indexed by the
+  step's own number, which the step numbers were never positions in.
+- Switching PKI mode left the old material behind. A private-ca document that
+  still carries an acme block is not inert: the loader resolves every SourceRef
+  it finds, so a leftover token reference fails the run before it starts.
+
 ## [0.39.1] - 2026-08-12
 
 ### Fixed

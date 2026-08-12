@@ -1,0 +1,506 @@
+package tui
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/platformctl/internal/spec"
+)
+
+// richDocument is a document with things in it the wizard has no screen for.
+//
+// That is the whole point of it: gateway listeners, an etcd snapshot target and
+// a GitOps repository are all real schema, none of them is asked about
+// anywhere, and all of them have to come back out of an edit unchanged.
+func richDocument() v1alpha1.ClusterSpec {
+	yes := true
+	return v1alpha1.ClusterSpec{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.KindSpec,
+		Metadata:   v1alpha1.Metadata{Name: "acme-prod", Profile: "onprem-dmz"},
+		Topology: v1alpha1.TopologySpec{
+			RegistrationAddress: "k8s.acme.internal",
+			Servers: []v1alpha1.NodeSpec{{
+				Host: "10.10.0.11", Role: v1alpha1.RoleServer,
+				SSH: v1alpha1.SSHSpec{
+					User: "ops", Port: 2222,
+					PrivateKey: "file://./keys/id_ed25519",
+				},
+			}},
+			Agents: []v1alpha1.NodeSpec{{
+				Host: "10.10.0.21", Role: v1alpha1.RoleAgent,
+				SSH: v1alpha1.SSHSpec{User: "ops", Port: 2222, PrivateKey: "file://./keys/id_ed25519"},
+			}},
+		},
+		Kubernetes: v1alpha1.KubernetesSpec{
+			Version:   "v1.34.10+rke2r1",
+			Dataplane: v1alpha1.DataplaneSpec{Preset: "cilium-gw"},
+			Etcd: v1alpha1.EtcdSpec{
+				S3: &v1alpha1.S3Spec{
+					Endpoint: "s3.acme.internal", Bucket: "etcd-backup",
+					AccessKey: "env://S3_ACCESS", SecretKey: "env://S3_SECRET",
+				},
+			},
+		},
+		PKI:     v1alpha1.PKISpec{Mode: v1alpha1.PKIPrivateCA, Domain: "acme.internal"},
+		Storage: v1alpha1.StorageSpec{Driver: "longhorn"},
+		Gateway: v1alpha1.GatewaySpec{
+			DomainSuffix: "acme.internal",
+			Gateways: []v1alpha1.Gateway{{
+				Name: "public", Namespace: "gateway-system", Address: "10.10.20.240",
+				Listeners: []v1alpha1.ListenerSpec{
+					{Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443,
+						TLS: &v1alpha1.ListenerTLS{SecretRef: "public-tls"}},
+				},
+			}},
+		},
+		Platform: v1alpha1.PlatformSpec{GitOps: v1alpha1.GitOpsSpec{
+			Enabled: &yes, Source: v1alpha1.GitOpsGit,
+			GitRepo: "https://git.acme.internal/platform.git", Branch: "main",
+			BootstrapApps: []string{"observability"},
+		}},
+	}
+}
+
+// The one thing this feature must not do.
+//
+// The wizard asks about a subset of the schema. A document rebuilt from the
+// answers would silently drop everything else -- and an operator who opened the
+// settings screen to change an IP address would find their gateway listeners
+// and their etcd backup gone, with nothing on screen having mentioned either.
+func TestEditingKeepsWhatNoScreenShows(t *testing.T) {
+	before := richDocument()
+	cfg := FromSpec(before)
+
+	// A change of the kind the settings screen exists for.
+	cfg.Server = "10.10.0.12"
+
+	after := before
+	cfg.ApplyTo(&after)
+
+	if after.Topology.Servers[0].Host != "10.10.0.12" {
+		t.Errorf("the edit did not take: server is %q", after.Topology.Servers[0].Host)
+	}
+
+	if len(after.Gateway.Gateways) != 1 ||
+		len(after.Gateway.Gateways[0].Listeners) != 1 ||
+		after.Gateway.Gateways[0].Listeners[0].TLS.SecretRef != "public-tls" {
+		t.Errorf("the gateway listeners were lost: %+v", after.Gateway.Gateways)
+	}
+	if after.Kubernetes.Etcd.S3 == nil || after.Kubernetes.Etcd.S3.Bucket != "etcd-backup" {
+		t.Errorf("the etcd snapshot target was lost: %+v", after.Kubernetes.Etcd.S3)
+	}
+	if after.Platform.GitOps.GitRepo != before.Platform.GitOps.GitRepo ||
+		len(after.Platform.GitOps.BootstrapApps) != 1 {
+		t.Errorf("the GitOps configuration was lost: %+v", after.Platform.GitOps)
+	}
+	if after.Metadata.Name != "acme-prod" {
+		t.Errorf("the cluster was renamed to %q", after.Metadata.Name)
+	}
+}
+
+// A node carries more than its address. Rebuilding the list from the hosts
+// alone would drop the key that reaches it.
+func TestEditingKeepsNodeCredentials(t *testing.T) {
+	before := richDocument()
+	cfg := FromSpec(before)
+
+	tests := []struct {
+		name    string
+		change  func(*Config)
+		host    string
+		wantKey v1alpha1.SourceRef
+	}{
+		{
+			name:   "an untouched node keeps its key",
+			change: func(*Config) {},
+			host:   "10.10.0.11", wantKey: "file://./keys/id_ed25519",
+		},
+		{
+			// Renaming a node in place is what renaming a node in place means:
+			// the same machine at a new address, reached the same way.
+			name:   "a renamed node keeps its key",
+			change: func(c *Config) { c.Server = "10.10.0.99" },
+			host:   "10.10.0.99", wantKey: "file://./keys/id_ed25519",
+		},
+		{
+			name:   "an added node has none to inherit",
+			change: func(c *Config) { c.Agents = append(c.Agents, "10.10.0.22") },
+			host:   "10.10.0.22", wantKey: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := cfg
+			c.Agents = append([]string{}, cfg.Agents...)
+			tc.change(&c)
+
+			after := before
+			c.ApplyTo(&after)
+
+			for _, n := range append(append([]v1alpha1.NodeSpec{},
+				after.Topology.Servers...), after.Topology.Agents...) {
+				if n.Host != tc.host {
+					continue
+				}
+				if n.SSH.PrivateKey != tc.wantKey {
+					t.Errorf("%s has key %q, want %q", n.Host, n.SSH.PrivateKey, tc.wantKey)
+				}
+				return
+			}
+			t.Errorf("no node named %s in %+v", tc.host, after.Topology)
+		})
+	}
+}
+
+// A mode change has to take the material with it. A private-ca document that
+// still carries an acme block is not inert: the loader resolves every SourceRef
+// it finds, so a leftover token reference fails the run before it starts.
+func TestTheModeDecidesWhichMaterialSurvives(t *testing.T) {
+	base := richDocument()
+	base.PKI.PrivateCA = &v1alpha1.PrivateCASpec{RootCert: "file://./pki/root.crt"}
+	base.PKI.ACME = &v1alpha1.ACMESpec{Email: "ops@acme.co.kr", APIToken: "env://ACME"}
+
+	tests := []struct {
+		mode              string
+		wantCA, wantACME  bool
+		wantDomainCleared bool
+	}{
+		{mode: "private-ca", wantCA: true},
+		{mode: "acme-dns01", wantACME: true},
+		{mode: "byo-cert"},
+		{mode: "none", wantDomainCleared: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.mode, func(t *testing.T) {
+			cfg := FromSpec(base)
+			cfg.PKIMode = tc.mode
+
+			after := base
+			cfg.ApplyTo(&after)
+
+			if (after.PKI.PrivateCA != nil) != tc.wantCA {
+				t.Errorf("privateCA = %+v", after.PKI.PrivateCA)
+			}
+			if (after.PKI.ACME != nil) != tc.wantACME {
+				t.Errorf("acme = %+v", after.PKI.ACME)
+			}
+			if (after.PKI.Domain == "") != tc.wantDomainCleared {
+				t.Errorf("domain = %q", after.PKI.Domain)
+			}
+		})
+	}
+}
+
+// A document with no certificates is still a document with agents.
+//
+// ToSpec used to return early for `pki.mode: none` and the agent list was built
+// after that point, so choosing "decide later" quietly produced a single-node
+// cluster.
+func TestNoCertificatesDoesNotDropTheAgents(t *testing.T) {
+	cfg := FromSpec(richDocument())
+	cfg.PKIMode = "none"
+
+	s := cfg.ToSpec()
+	if len(s.Topology.Agents) != 1 {
+		t.Errorf("%d agents survived pki.mode none", len(s.Topology.Agents))
+	}
+}
+
+// What is read has to come back the same when nothing is changed.
+func TestReadingAndWritingChangesNothingByItself(t *testing.T) {
+	before := richDocument()
+	after := before
+	FromSpec(before).ApplyTo(&after)
+
+	got, err := spec.Marshal(after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := spec.Marshal(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("a round trip changed the document:\n--- read\n%s\n--- written\n%s", want, got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The flow
+// ---------------------------------------------------------------------------
+
+func settingsWizard(t *testing.T, path string) *Wizard {
+	t.Helper()
+	w := wizard(t, LangEN, false, 96, 30, StepOpen)
+	w.mode = modeSettings
+	w.cfg.DocPath = path
+	return w
+}
+
+func writeDoc(t *testing.T, dir string, s v1alpha1.ClusterSpec) string {
+	t.Helper()
+	path := filepath.Join(dir, "cluster.yaml")
+	if err := spec.Save(path, s); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// The end-to-end claim: open a file, change something on a screen, write it
+// back, and have the result be a document the loader still accepts.
+func TestOpenEditSave(t *testing.T) {
+	path := writeDoc(t, t.TempDir(), richDocument())
+	w := settingsWizard(t, path)
+
+	if err := w.loadDocument(); err != nil {
+		t.Fatalf("the document did not load: %v", err)
+	}
+	if w.cfg.Server != "10.10.0.11" || w.cfg.SSHUser != "ops" || w.cfg.SSHPort != "2222" {
+		t.Errorf("the screens were not filled in: %+v", w.cfg)
+	}
+
+	w.cfg.Registration = "k8s-new.acme.internal"
+	if err := w.writeDocument(); err != nil {
+		t.Fatalf("the document did not save: %v", err)
+	}
+	if w.saved != path {
+		t.Errorf("saved = %q", w.saved)
+	}
+
+	reread, err := spec.Load(path)
+	if err != nil {
+		t.Fatalf("what was written does not load: %v", err)
+	}
+	if reread.Spec.Topology.RegistrationAddress != "k8s-new.acme.internal" {
+		t.Errorf("the edit did not reach the file: %q", reread.Spec.Topology.RegistrationAddress)
+	}
+	if len(reread.Spec.Gateway.Gateways) != 1 {
+		t.Error("the gateway did not survive the write")
+	}
+}
+
+// A path that is not there is the operator's typo, and the message has to be
+// the one the loader gave rather than a restatement of it.
+func TestOpeningSomethingThatIsNotThere(t *testing.T) {
+	w := settingsWizard(t, filepath.Join(t.TempDir(), "absent.yaml"))
+	if err := w.loadDocument(); err == nil {
+		t.Fatal("a missing file loaded")
+	}
+
+	w.cfg.DocPath = "   "
+	if err := w.loadDocument(); err == nil {
+		t.Fatal("an empty path loaded")
+	}
+}
+
+// Editing a run's snapshot is how an operator loses the ability to resume that
+// run, so the list says which entries are snapshots.
+func TestRunSnapshotsAreListedAndMarked(t *testing.T) {
+	dir := t.TempDir()
+	runDir := filepath.Join(dir, "runs", "01KZSAD2657Y0HS75ZQDH822G9")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeDoc(t, runDir, richDocument())
+
+	w := wizard(t, LangEN, false, 96, 30, StepOpen)
+	w.bundle = dir
+
+	found := w.listDocuments()
+	if len(found) != 1 {
+		t.Fatalf("found %d documents: %+v", len(found), found)
+	}
+	if found[0].Note != "doc.snapshot" {
+		t.Errorf("a run snapshot is listed without a warning: %+v", found[0])
+	}
+	if !strings.Contains(w.cat.T(found[0].Note), "resume") {
+		t.Errorf("the warning does not say what is lost: %q", w.cat.T(found[0].Note))
+	}
+}
+
+// The two flows share their middle screens and differ at both ends.
+func TestTheSettingsFlowEndsAtSaveNotAtInstall(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepPKI)
+	w.mode = modeSettings
+	w.next()
+	if w.step != StepSave {
+		t.Errorf("after the certificates screen the settings flow reached %v", w.step)
+	}
+
+	w = wizard(t, LangEN, false, 96, 30, StepPKI)
+	w.mode = modeInstall
+	w.next()
+	if w.step != StepPreflight {
+		t.Errorf("after the certificates screen the install flow reached %v", w.step)
+	}
+}
+
+// Nothing in the settings flow touches a node, and the screen has to say so:
+// an operator who wrote a file and believes a cluster changed is the failure
+// this sentence exists to prevent.
+func TestSavingSaysNothingHasBeenApplied(t *testing.T) {
+	path := writeDoc(t, t.TempDir(), richDocument())
+	w := settingsWizard(t, path)
+	if err := w.loadDocument(); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.writeDocument(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, body, _ := w.saveScreen(80)
+	if !strings.Contains(body, "apply") {
+		t.Errorf("the screen does not say what still has to be run:\n%s", body)
+	}
+}
+
+// The first screen of either flow returns to the menu rather than walking
+// backwards into it.
+func TestBackFromTheFirstSettingsScreenReachesTheMenu(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepOpen)
+	w.mode = modeSettings
+	w.back()
+	if w.step != StepMenu {
+		t.Errorf("back from the document screen reached %v", w.step)
+	}
+	if w.mode != modeInstall {
+		t.Error("the mode was left on settings after returning to the menu")
+	}
+}
+
+// A written document is not something to walk back into and rewrite.
+func TestBackIsRefusedOnceTheDocumentIsWritten(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepSave)
+	w.mode, w.saved = modeSettings, "/tmp/cluster.yaml"
+	w.back()
+	if w.step != StepSave {
+		t.Errorf("back left a written document at %v", w.step)
+	}
+}
+
+// The settings entry is no longer marked unavailable, and it goes somewhere.
+func TestTheSettingsMenuEntryIsLive(t *testing.T) {
+	for _, item := range menuItems {
+		if item.TitleKey != "menu.settings" {
+			continue
+		}
+		if item.Missing != "" {
+			t.Errorf("the settings entry still says %q", item.Missing)
+		}
+		if item.Enter != StepOpen {
+			t.Errorf("the settings entry goes to %v", item.Enter)
+		}
+		return
+	}
+	t.Fatal("there is no settings entry")
+}
+
+// Every screen in either flow has a rail label, or the rail draws a raw key.
+func TestEveryFlowStepHasALabel(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepMenu)
+	for _, flow := range [][]Step{installSteps, settingsSteps} {
+		for _, step := range flow {
+			key, ok := stepKeys[step]
+			if !ok {
+				t.Errorf("step %v has no catalogue key", step)
+				continue
+			}
+			if w.cat.T(key) == key {
+				t.Errorf("step %v has no entry for %q", step, key)
+			}
+		}
+	}
+}
+
+// A validation message names the screen that fixes it. Indexing a list by the
+// step's own number gave the wrong screen for every one of them.
+func TestProblemsNameTheScreenThatOwnsThem(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepSummary)
+	for _, tc := range []struct {
+		step Step
+		want string
+	}{
+		{StepProfile, "step.profile"},
+		{StepNodes, "step.nodes"},
+		{StepPKI, "step.pki"},
+		{StepSummary, "step.summary"},
+	} {
+		if got := stepKeys[tc.step]; got != tc.want {
+			t.Errorf("step %v is labelled %q, want %q", tc.step, got, tc.want)
+		}
+		if w.cat.T(stepKeys[tc.step]) == stepKeys[tc.step] {
+			t.Errorf("step %v has no translation", tc.step)
+		}
+	}
+}
+
+// Validation on the save screen is about the file that will be written.
+//
+// The wizard has no screen for a gateway's listeners. Validating a document
+// rebuilt from the answers would never see them -- so a listener with no port
+// would be written out and the problem would first appear at install time, on
+// a different machine, hours later.
+func TestValidationSeesWhatNoScreenShows(t *testing.T) {
+	broken := richDocument()
+	broken.Gateway.Gateways[0].Listeners = nil // a gateway with no listeners
+
+	w := wizard(t, LangEN, false, 96, 30, StepSave)
+	w.mode, w.doc = modeSettings, broken
+	w.cfg = FromSpec(broken)
+
+	var found bool
+	for _, line := range w.validateConfig() {
+		if strings.Contains(line, "listeners") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the screen validated a reconstruction rather than the document:\n%v",
+			w.validateConfig())
+	}
+
+	// And the install flow is unaffected: it has no loaded document to check
+	// against, and reaching for an empty one would report every field missing.
+	w.mode = modeInstall
+	for _, line := range w.validateConfig() {
+		if strings.Contains(line, "listeners") {
+			t.Errorf("the install flow validated a document it never loaded: %q", line)
+		}
+	}
+}
+
+// An edit makes implied values explicit, and that is the only thing it adds.
+//
+// A document may leave a node's role and SSH port out; the loader and the
+// phases fill both in. The wizard shows the operator what they resolve to, so
+// writing them is not a change of meaning -- but it is a change of text, and an
+// operator diffing the file afterwards should find it here rather than wonder
+// what else moved.
+func TestAnEditWritesTheDefaultsItShowed(t *testing.T) {
+	implicit := richDocument()
+	implicit.Topology.Servers[0].Role = ""
+	implicit.Topology.Servers[0].SSH.Port = 0
+	implicit.Topology.Agents[0].Role = ""
+	implicit.Topology.Agents[0].SSH.Port = 0
+
+	after := implicit
+	FromSpec(implicit).ApplyTo(&after)
+
+	if after.Topology.Servers[0].Role != v1alpha1.RoleServer ||
+		after.Topology.Agents[0].Role != v1alpha1.RoleAgent {
+		t.Errorf("the roles were not filled in: %+v", after.Topology)
+	}
+	if after.Topology.Servers[0].SSH.Port != 22 {
+		t.Errorf("the port is %d", after.Topology.Servers[0].SSH.Port)
+	}
+	// And nothing else was invented.
+	if after.Topology.Servers[0].SSH.PrivateKey != implicit.Topology.Servers[0].SSH.PrivateKey {
+		t.Error("the key reference changed")
+	}
+}

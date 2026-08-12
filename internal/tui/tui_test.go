@@ -278,7 +278,9 @@ func TestCatalogues(t *testing.T) {
 
 	// Every key the screens ask for has to exist in both languages.
 	var wanted []string
-	wanted = append(wanted, stepKeys...)
+	for _, key := range stepKeys {
+		wanted = append(wanted, key)
+	}
 	for _, s := range []event.Status{
 		event.StatusPending, event.StatusRunning, event.StatusOK,
 		event.StatusSkipped, event.StatusFailed, event.StatusBlocked,
@@ -1296,7 +1298,7 @@ func TestEveryButtonIsWired(t *testing.T) {
 	steps := []Step{
 		StepMenu, StepRuns, StepLang, StepProfile, StepNodes, StepNetwork,
 		StepOptions, StepRegistry, StepPKI, StepPreflight, StepSummary,
-		StepInstall, StepDone,
+		StepInstall, StepDone, StepOpen, StepSave,
 	}
 
 	// The labels activate knows. Anything a screen draws must be among them.
@@ -1304,6 +1306,7 @@ func TestEveryButtonIsWired(t *testing.T) {
 	for _, key := range []string{
 		"btn.back", "btn.quit", "btn.abort", "btn.close", "btn.logs",
 		"btn.check", "btn.fix", "btn.next", "btn.install", "btn.open",
+		"btn.load", "btn.save",
 	} {
 		m := wizard(t, LangEN, false, 96, 30, StepMenu)
 		known[m.cat.T(key)] = true

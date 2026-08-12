@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/platformctl/internal/exec"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
@@ -50,36 +51,59 @@ func (w *Wizard) fieldsFor(step Step) []field {
 				hint: "target.version.hint"},
 		}
 	case StepNodes:
-		return []field{
+		fs := []field{
 			{labelKey: "nodes.server",
 				get: func(c *Config) string { return c.Server },
 				set: func(c *Config, v string) { c.Server = v }},
 			{labelKey: "nodes.agents",
 				get: func(c *Config) string { return strings.Join(c.Agents, ", ") },
 				set: func(c *Config, v string) { c.Agents = splitList(v) }},
-			{labelKey: "nodes.user",
-				get: func(c *Config) string { return c.SSHUser },
-				set: func(c *Config, v string) { c.SSHUser = v }},
-			{labelKey: "nodes.port",
-				get: func(c *Config) string { return c.SSHPort },
-				set: func(c *Config, v string) { c.SSHPort = v }},
-			// The password never reaches the document. cluster.yaml is handed
-			// to customers and a plaintext secret in it is a liability, so this
-			// value is passed straight to the preflight session and is not
-			// written anywhere. Leave it empty to use an agent or a key.
-			{labelKey: "nodes.password", secret: true, hint: "hint.password",
-				get: func(c *Config) string { return c.SSHPassword },
-				set: func(c *Config, v string) { c.SSHPassword = v }},
-			{labelKey: "nodes.registration", hint: "hint.registration",
+		}
+
+		// The credentials appear only when something is dialled. A node whose
+		// address belongs to this machine is reached without a connection, and
+		// an SSH user and port on that screen are two questions with no answer
+		// -- worse, they read as though the tool were about to log in somewhere.
+		if w.needsSSH() {
+			fs = append(fs,
+				field{labelKey: "nodes.user",
+					get: func(c *Config) string { return c.SSHUser },
+					set: func(c *Config, v string) { c.SSHUser = v }},
+				field{labelKey: "nodes.port",
+					get: func(c *Config) string { return c.SSHPort },
+					set: func(c *Config, v string) { c.SSHPort = v }},
+			)
+		}
+
+		// The password stays either way, and means a different thing in each.
+		// Over SSH it logs in and then elevates; locally it only elevates, and
+		// it is still needed, because an account that cannot elevate answers
+		// "no" to every privileged question. Empty is right when a key or an
+		// agent is used, or when the tool is already running as root.
+		//
+		// It never reaches the document. cluster.yaml is handed to customers
+		// and a plaintext secret in it is a liability, so this value goes
+		// straight to the session and is written nowhere.
+		password := field{labelKey: "nodes.password", secret: true, hint: "hint.password",
+			get: func(c *Config) string { return c.SSHPassword },
+			set: func(c *Config, v string) { c.SSHPassword = v }}
+		if !w.needsSSH() {
+			password.labelKey, password.hint = "nodes.sudopassword", "hint.sudopassword"
+		}
+		fs = append(fs, password)
+
+		fs = append(fs,
+			field{labelKey: "nodes.registration", hint: "hint.registration",
 				get: func(c *Config) string { return c.Registration },
 				set: func(c *Config, v string) { c.Registration = v }},
-			{labelKey: "nodes.version",
+			field{labelKey: "nodes.version",
 				get: func(c *Config) string { return c.Version },
 				set: func(c *Config, v string) { c.Version = v }},
-			{labelKey: "nodes.domain",
+			field{labelKey: "nodes.domain",
 				get: func(c *Config) string { return c.Domain },
 				set: func(c *Config, v string) { c.Domain = v }},
-		}
+		)
+		return fs
 
 	case StepNetwork:
 		f := []field{
@@ -252,4 +276,46 @@ func splitList(v string) []string {
 		}
 	}
 	return out
+}
+
+// needsSSH reports whether any node in the configuration has to be dialled.
+//
+// One node that is not this machine is enough: the credentials are asked for
+// once and used for every connection, so hiding them because the server happens
+// to be local would leave the agents unreachable.
+func (w *Wizard) needsSSH() bool {
+	for _, host := range w.allHosts() {
+		if !exec.IsLocal(host) {
+			return true
+		}
+	}
+	return false
+}
+
+// allHosts is every address the configuration names, in screen order.
+func (w *Wizard) allHosts() []string {
+	out := make([]string, 0, 1+len(w.cfg.Agents))
+	if h := strings.TrimSpace(w.cfg.Server); h != "" {
+		out = append(out, h)
+	}
+	for _, a := range w.cfg.Agents {
+		if h := strings.TrimSpace(a); h != "" {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
+// nodesHelp is what the node screen explains, which depends on whether
+// anything is dialled.
+//
+// The screen looks different in the two cases -- there is no SSH user and no
+// port when nothing is connected to -- and an explanation that talked about
+// entering nodes to install on either way would leave the operator to work out
+// why two fields had gone.
+func (w *Wizard) nodesHelp() string {
+	if w.needsSSH() {
+		return "nodes.help"
+	}
+	return "nodes.help.local"
 }

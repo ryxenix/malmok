@@ -709,6 +709,13 @@ func (w *Wizard) back() (tea.Model, tea.Cmd) {
 func (w *Wizard) enter() {
 	w.focus, w.editing = focusContent, false
 	w.btn = primaryIndex(w.buttons())
+	// A screen's content can shrink under a cursor that was left on it: the
+	// node screen drops the SSH user and port when every address turns out to
+	// be this machine's. A cursor past the end highlights nothing and makes
+	// Enter do something other than what the screen says.
+	if n := w.contentLen(); n > 0 && w.cursor[w.step] >= n {
+		w.cursor[w.step] = n - 1
+	}
 }
 
 func primaryIndex(btns []Button) int {

@@ -110,7 +110,7 @@ func (w *Wizard) View() tea.View {
 	case StepLang:
 		f.Heading, f.Body, f.Status = w.langScreen(body)
 	case StepNodes:
-		f.Heading, f.Body, f.Status = w.formScreen(StepNodes, "nodes.heading", "nodes.help", body)
+		f.Heading, f.Body, f.Status = w.formScreen(StepNodes, "nodes.heading", w.nodesHelp(), body)
 		f.Body = w.withTopology(f.Body, body)
 	case StepNetwork:
 		f.Heading, f.Body, f.Status = w.formScreen(StepNetwork, "net.heading", "net.help", body)

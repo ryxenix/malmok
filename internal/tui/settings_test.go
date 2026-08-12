@@ -589,3 +589,132 @@ func TestTheUpgradeMenuEntryIsLive(t *testing.T) {
 	}
 	t.Fatal("there is no upgrade entry")
 }
+
+// ---------------------------------------------------------------------------
+// Local nodes
+// ---------------------------------------------------------------------------
+
+// The credentials appear only when something is dialled.
+//
+// An SSH user and port on a screen where nothing is connected to are two
+// questions with no answer, and worse, they read as though the tool were about
+// to log in somewhere.
+func TestTheNodeScreenAsksForCredentialsOnlyWhenItDials(t *testing.T) {
+	tests := []struct {
+		name     string
+		server   string
+		agents   []string
+		wantSSH  bool
+		wantHelp string
+	}{
+		{
+			name: "a remote server", server: "10.10.0.11", agents: []string{"10.10.0.21"},
+			wantSSH: true, wantHelp: "nodes.help",
+		},
+		{
+			name: "this machine only", server: "127.0.0.1",
+			wantHelp: "nodes.help.local",
+		},
+		{
+			name: "the literal name", server: "local",
+			wantHelp: "nodes.help.local",
+		},
+		{
+			// One node that is not this machine is enough: the credentials are
+			// asked once and used for every connection, so dropping them
+			// because the server is local would leave the agent unreachable.
+			name:   "a local server and a remote agent",
+			server: "127.0.0.1", agents: []string{"10.10.0.21"},
+			wantSSH: true, wantHelp: "nodes.help",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := wizard(t, LangEN, false, 96, 30, StepNodes)
+			w.cfg.Server, w.cfg.Agents = tc.server, tc.agents
+
+			if got := w.needsSSH(); got != tc.wantSSH {
+				t.Errorf("needsSSH = %v", got)
+			}
+			if got := w.nodesHelp(); got != tc.wantHelp {
+				t.Errorf("help is %q, want %q", got, tc.wantHelp)
+			}
+
+			var labels []string
+			for _, f := range w.fieldsFor(StepNodes) {
+				labels = append(labels, f.labelKey)
+			}
+			for _, key := range []string{"nodes.user", "nodes.port"} {
+				if has := contains(labels, key); has != tc.wantSSH {
+					t.Errorf("%s present = %v, want %v (%v)", key, has, tc.wantSSH, labels)
+				}
+			}
+
+			// The password stays either way and means a different thing in
+			// each: over SSH it logs in and then elevates, locally it only
+			// elevates -- and it is still needed, because an account that
+			// cannot elevate answers "no" to every privileged question.
+			want := "nodes.password"
+			if !tc.wantSSH {
+				want = "nodes.sudopassword"
+			}
+			if !contains(labels, want) {
+				t.Errorf("%s is missing: %v", want, labels)
+			}
+		})
+	}
+}
+
+// Which address is the machine the operator is sitting at is the one thing a
+// diagram of addresses cannot show, and it decides whether a connection is
+// opened at all.
+func TestTheTopologyMarksThisMachine(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepNodes)
+	w.cfg.Server, w.cfg.Agents = "127.0.0.1", []string{"10.10.0.21"}
+
+	var here, marked int
+	for _, seg := range w.topology() {
+		for _, row := range seg.rows {
+			if row.note == "" {
+				continue
+			}
+			marked++
+			if row.addr == "127.0.0.1" {
+				here++
+			}
+		}
+	}
+	if here != 1 {
+		t.Errorf("the local node is marked %d times", here)
+	}
+	if marked != 1 {
+		t.Errorf("%d rows are marked as this machine", marked)
+	}
+}
+
+// The screens shrink under the cursor: a cursor past the end highlights nothing
+// and makes Enter do something other than what the screen says.
+func TestTheCursorIsClampedWhenAScreenShrinks(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepNodes)
+	w.cfg.Server, w.cfg.Agents = "10.10.0.11", []string{"10.10.0.21"}
+	last := w.contentLen() - 1
+	w.cursor[StepNodes] = last
+
+	// Every address becomes this machine's, so the SSH user and port go.
+	w.cfg.Server, w.cfg.Agents = "127.0.0.1", nil
+	w.enter()
+
+	if got := w.cursor[StepNodes]; got > w.contentLen()-1 {
+		t.Errorf("the cursor is at %d and the screen has %d rows", got, w.contentLen())
+	}
+}
+
+func contains(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}

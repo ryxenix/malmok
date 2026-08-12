@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"platform.ryxen.dev/platformctl/internal/exec"
 )
 
 // The topology panel is the one place a diagram earns its keep.
@@ -54,6 +56,13 @@ func (w *Wizard) topology() []segment {
 			display = shown
 		}
 		row := topoRow{marker: marker, role: role, addr: display, bad: bad}
+		// The one thing a diagram of addresses cannot show: which of them is
+		// the machine the operator is sitting at. It is the difference between
+		// a build that opens a connection and one that does not, and it is
+		// decided by the address, so the operator has no other way to check it.
+		if role != w.cat.T("topo.lbpool") && exec.IsLocal(host) {
+			row.note = w.cat.T("topo.here")
+		}
 		addr, err := netip.ParseAddr(strings.TrimSpace(host))
 		if err != nil {
 			if unparsed == nil {
@@ -147,6 +156,9 @@ func (w *Wizard) topoRow(r topoRow, width int) string {
 		mark = w.theme.Err.Render(r.marker)
 	}
 	body := padCells(r.role, 9) + r.addr
+	if r.note != "" {
+		body = padCells(body, 24) + r.note
+	}
 	// The marker is one cell plus its separator; the rest is the body.
 	return mark + " " + padCells(truncCells(body, width-2), width-2)
 }

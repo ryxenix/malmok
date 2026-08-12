@@ -5,6 +5,29 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.42.1] - 2026-08-12
+
+### Changed
+
+- The wizard's node screen asks for SSH credentials only when something is
+  dialled. An SSH user and port on a screen where nothing is connected to are
+  two questions with no answer, and worse, they read as though the tool were
+  about to log in somewhere. One node that is not this machine is enough to
+  bring them back: the credentials are asked once and used for every
+  connection.
+- The password stays either way and says which it is. Over SSH it logs in and
+  then elevates; locally it only elevates, and it is still needed, because an
+  account that cannot elevate answers "no" to every privileged question
+  (`v0.42.0`). It is labelled `sudo password` there, and the hint says to leave
+  it empty when platformctl is already running as root.
+- The topology panel marks the node that is this machine. Which address the
+  operator is sitting at is the one thing a diagram of addresses cannot show,
+  and it decides whether a connection is opened at all.
+- A cursor left past the end of a screen that shrank is pulled back. The node
+  screen loses two rows the moment every address turns out to be local, and a
+  cursor beyond the last row highlights nothing while Enter does something other
+  than what the screen says.
+
 ## [0.42.0] - 2026-08-12
 
 ### Added

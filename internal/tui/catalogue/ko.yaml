@@ -73,11 +73,13 @@ runs:
 nodes:
   heading: 노드 정보
   help: "설치할 노드를 입력하십시오. agent 는 쉼표로 구분합니다."
+  help.local: "설치할 노드를 입력하십시오. 여기 적힌 주소가 모두 이 기계의 것이라 작업은 여기서 돌고, 아무 곳에도 접속하지 않습니다."
   server: server IP
   agents: agent IP
   user: SSH 사용자
   port: SSH 포트
   password: SSH 비밀번호
+  sudopassword: sudo 비밀번호
   registration: 조인 주소
   version: RKE2 버전
   domain: 도메인
@@ -161,6 +163,7 @@ hint:
   registry: 모든 시스템 이미지를 여기서 받습니다
   sourceref: file:// · env:// · sops:// — 값이 아니라 참조
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
+  sudopassword: 이 기계에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. platformctl 을 이미 root 로 돌리는 중이면 비워두십시오
   toggle_steps: 단계목록
   toggle_ascii: ascii
   toggle_lang: English
@@ -227,4 +230,5 @@ topo:
   agent: agent
   lbpool: LB 풀
   join: 조인
+  here: 이 기계
   unresolved: 주소가 아님

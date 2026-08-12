@@ -74,11 +74,13 @@ runs:
 nodes:
   heading: Node details
   help: "Enter the nodes to install on. Separate agents with commas."
+  help.local: "Enter the nodes to install on. Every address here belongs to this machine, so the work runs here and nothing is connected to."
   server: Server IP
   agents: Agent IPs
   user: SSH user
   port: SSH port
   password: SSH password
+  sudopassword: sudo password
   registration: Join address
   version: RKE2 version
   domain: Domain
@@ -162,6 +164,7 @@ hint:
   registry: Every system image is pulled from here
   sourceref: file://, env:// or sops:// -- a reference, not the value
   rootkey: This is the intermediate key. The root key stays offline
+  sudopassword: Only used to elevate on this machine; never written to cluster.yaml. Leave empty if platformctl is already running as root
   toggle_steps: steps
   toggle_ascii: ascii
   toggle_lang: 한국어
@@ -228,4 +231,5 @@ topo:
   agent: agent
   lbpool: lb pool
   join: join
+  here: this machine
   unresolved: not an address

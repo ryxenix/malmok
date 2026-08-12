@@ -108,8 +108,8 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.menuScreen(body)
 	case StepRuns:
 		f.Heading, f.Body, f.Status = w.runsScreen(body)
-	case StepLang:
-		f.Heading, f.Body, f.Status = w.langScreen(body)
+	case StepPrefs:
+		f.Heading, f.Body, f.Status = w.prefsScreen(body)
 	case StepWhere:
 		f.Heading, f.Body, f.Status = w.whereScreen(body)
 	case StepNodes:
@@ -202,10 +202,10 @@ func (w *Wizard) buttons() []Button {
 			return []Button{back}
 		}
 		return []Button{back, {Label: w.cat.T("btn.open"), Primary: true}}
-	case StepLang:
-		// Back goes to the menu rather than nowhere: an operator who chose
-		// Install by mistake has to be able to leave without quitting.
-		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
+	case StepPrefs:
+		// Back goes to the menu rather than nowhere: an operator who chose the
+		// wrong entry has to be able to leave without quitting.
+		return []Button{back, {Label: w.cat.T("btn.done"), Primary: true}}
 	case StepProfile, StepWhere, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepOpen:
@@ -255,22 +255,6 @@ func (w *Wizard) buttons() []Button {
 // ---------------------------------------------------------------------------
 // Input screens
 // ---------------------------------------------------------------------------
-
-func (w *Wizard) langScreen(width int) (string, string, string) {
-	body := w.dim(w.cat.T("lang.help"), width) + "\n\n" +
-		w.theme.Radio(
-			[]string{"English", "한국어"},
-			[]string{"default", "toggle with g"},
-			langIndex(w.cfg.Lang), w.cursor[StepLang], width, w.glyphs)
-	return w.cat.T("lang.heading"), body, w.cat.T("hint.select")
-}
-
-func langIndex(l Lang) int {
-	if l == LangKO {
-		return 1
-	}
-	return 0
-}
 
 // formScreen renders any step whose content is a list of editable fields.
 //

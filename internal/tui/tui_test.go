@@ -66,7 +66,7 @@ func plain(s string) string { return sgr.ReplaceAllString(s, "") }
 func allSteps(t *testing.T, lang Lang, ascii bool, w, h int) map[Step]string {
 	t.Helper()
 	out := map[Step]string{}
-	for s := StepLang; s <= StepDone; s++ {
+	for s := StepProfile; s <= StepDone; s++ {
 		out[s] = render(t, wizard(t, lang, ascii, w, h, s), runInProgress())
 	}
 	return out
@@ -215,7 +215,7 @@ func TestFinishedScreenListsFailuresUnboxed(t *testing.T) {
 
 // Every step must offer a way forward, or the operator is stuck on it.
 func TestEveryStepOffersAWayForward(t *testing.T) {
-	for s := StepLang; s <= StepDone; s++ {
+	for s := StepProfile; s <= StepDone; s++ {
 		if got := wizard(t, LangEN, false, 90, 26, s).buttons(); len(got) == 0 {
 			t.Errorf("step %d has no buttons", s)
 		}
@@ -403,7 +403,7 @@ func TestWizardWalksToTheEnd(t *testing.T) {
 	if m.step != StepDone {
 		t.Fatalf("wizard never reached the final step, stopped at %d", m.step)
 	}
-	for s := StepLang; s <= StepDone; s++ {
+	for s := StepProfile; s <= StepDone; s++ {
 		if !seen[s] && s != StepDone {
 			t.Errorf("step %d was skipped", s)
 		}
@@ -455,7 +455,7 @@ func TestPrimaryActionIsPreselected(t *testing.T) {
 	}
 	m.width, m.height = 90, 26
 
-	for s := StepLang; s <= StepDone; s++ {
+	for s := StepProfile; s <= StepDone; s++ {
 		m.step = s
 		m.enter()
 		btns := m.buttons()
@@ -1212,8 +1212,9 @@ func TestMenuHasNoRailOrCounter(t *testing.T) {
 	if len(install.rail()) == 0 {
 		t.Error("the install flow lost its rail")
 	}
-	// Nodes is the fourth screen of twelve: the flow gained "Where" before it.
-	if got := plain(install.View().Content); !strings.Contains(got, "4/12") {
+	// Nodes is the third screen of eleven: the language moved to Settings and
+	// the flow gained "Where".
+	if got := plain(install.View().Content); !strings.Contains(got, "3/11") {
 		t.Errorf("the install flow lost its counter:\n%s", got)
 	}
 }
@@ -1254,7 +1255,7 @@ func TestInstallIsTheDefaultEntry(t *testing.T) {
 		t.Errorf("the menu opens on %s", menuItems[m.menu].TitleKey)
 	}
 	m.next()
-	if m.step != StepLang {
+	if m.step != StepProfile {
 		t.Errorf("choosing Install went to %v", m.step)
 	}
 }
@@ -1263,7 +1264,7 @@ func TestInstallIsTheDefaultEntry(t *testing.T) {
 // quitting, and leaving means the menu rather than the previous question of a
 // flow they are abandoning.
 func TestBackFromTheFlowReturnsToTheMenu(t *testing.T) {
-	m := wizard(t, LangEN, false, 96, 30, StepLang)
+	m := wizard(t, LangEN, false, 96, 30, StepProfile)
 	m.back()
 	if m.step != StepMenu {
 		t.Errorf("back from the first install step went to %v", m.step)
@@ -1306,9 +1307,10 @@ func TestEmptyRunListSaysSo(t *testing.T) {
 // concludes the tool is stuck rather than that the feature is absent.
 func TestEveryButtonIsWired(t *testing.T) {
 	steps := []Step{
-		StepMenu, StepRuns, StepLang, StepProfile, StepNodes, StepNetwork,
+		StepMenu, StepRuns, StepProfile, StepNodes, StepNetwork,
 		StepOptions, StepRegistry, StepPKI, StepPreflight, StepSummary,
 		StepInstall, StepDone, StepOpen, StepSave, StepTarget, StepUpgrade,
+		StepPrefs,
 	}
 
 	// The labels activate knows. Anything a screen draws must be among them.
@@ -1316,7 +1318,7 @@ func TestEveryButtonIsWired(t *testing.T) {
 	for _, key := range []string{
 		"btn.back", "btn.quit", "btn.abort", "btn.close", "btn.logs",
 		"btn.check", "btn.fix", "btn.next", "btn.install", "btn.open",
-		"btn.load", "btn.save", "btn.upgrade",
+		"btn.load", "btn.save", "btn.upgrade", "btn.done",
 	} {
 		m := wizard(t, LangEN, false, 96, 30, StepMenu)
 		known[m.cat.T(key)] = true

@@ -2,10 +2,10 @@
 app:
   title: platformctl
 step:
-  lang: 언어
   nodes: 노드
   profile: 프로파일
   where: 설치 위치
+  prefs: 설정
   options: 옵션
   network: 네트워크
   registry: 레지스트리
@@ -18,9 +18,17 @@ step:
   save: 저장
   target: 버전
   upgrade: 업그레이드
-lang:
-  heading: 언어 선택
-  help: 이 설치기의 언어를 고르십시오. 로그 출력은 항상 영어이며 바뀌지 않습니다.
+prefs:
+  heading: 설정
+  help: "화면이 보이는 방식입니다. Space 로 커서 위 항목을 바꾸며, 선택은 다음 실행에도 유지됩니다. g · a · s 로도 어느 화면에서든 같은 셋을 바꿀 수 있습니다."
+  lang: 언어
+  charset: 문자셋
+  charset.unicode: 유니코드
+  charset.ascii: ASCII
+  rail: 단계 목록
+  rail.shown: 표시
+  rail.hidden: 숨김
+  where: 저장 위치
 menu:
   heading: 시작
   help: "무엇을 하시겠습니까?"
@@ -28,8 +36,10 @@ menu:
   install.help: RKE2 클러스터를 새로 구축하거나, 이 도구가 이미 만든 클러스터에 다시 적용합니다.
   upgrade: 업그레이드
   upgrade.help: 클러스터를 새 버전으로 올립니다. 노드는 한 대씩 진행합니다.
+  document: 문서 편집
+  document.help: 기존 cluster.yaml 을 열어 구축 없이 고칩니다.
   settings: 설정
-  settings.help: 구축을 시작하지 않고 기존 cluster.yaml 을 편집합니다.
+  settings.help: 언어 · 문자셋 · 단계 목록. 다음 실행에도 유지됩니다.
   logs: 실행 기록과 로그
   logs.help: 이전 실행이 무엇을 했는지 봅니다. 실패한 실행도 포함합니다.
   quit: 종료
@@ -151,6 +161,7 @@ status:
   blocked: 차단
 btn:
   next: 계속
+  done: 완료
   open: 열기
   back: 뒤로
   quit: 종료

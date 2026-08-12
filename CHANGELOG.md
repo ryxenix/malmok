@@ -5,6 +5,29 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.44.0] - 2026-08-12
+
+### Added
+
+- A Settings entry, for what the word means: how the screen looks. Language,
+  character set and the step list, kept between runs in the user's config
+  directory. They are the three things `g`, `a` and `s` already toggled; the
+  screen exists so they can be found without knowing them, and so the answer
+  survives the session.
+- A flag still wins over a saved preference, but only when it was actually
+  passed. A default that silently overruled a choice made on screen would make
+  the setting look broken.
+
+### Changed
+
+- The language is no longer the first question of an install. It is a property
+  of the person reading the screen, not of the cluster being built, and asking
+  it there meant it could only be changed by starting a build. The install flow
+  now opens on the profile.
+- The old Settings entry is called Edit a document, which is what it does: it
+  opens an existing `cluster.yaml` and changes it. Calling that Settings was
+  what left the actual settings with nowhere to live.
+
 ## [0.43.2] - 2026-08-12
 
 ### Fixed

@@ -3,10 +3,10 @@
 app:
   title: platformctl
 step:
-  lang: Language
   nodes: Nodes
   profile: Profile
   where: Where
+  prefs: Settings
   options: Options
   network: Network
   registry: Registry
@@ -19,9 +19,17 @@ step:
   save: Save
   target: Version
   upgrade: Upgrade
-lang:
-  heading: Language
-  help: Choose the language for this installer. It does not change log output, which is always English.
+prefs:
+  heading: Settings
+  help: "How this screen looks. Space changes the one under the cursor and the choice is kept for next time; g, a and s are the same three toggles from any screen."
+  lang: Language
+  charset: Character set
+  charset.unicode: Unicode
+  charset.ascii: ASCII
+  rail: Step list
+  rail.shown: shown
+  rail.hidden: hidden
+  where: Kept in
 menu:
   heading: Start
   help: "What would you like to do?"
@@ -29,8 +37,10 @@ menu:
   install.help: Build a new RKE2 cluster from scratch, or re-run against one this tool already built.
   upgrade: Upgrade
   upgrade.help: Move a cluster to a newer version, one node at a time.
+  document: Edit a document
+  document.help: Open an existing cluster.yaml and change it without starting a build.
   settings: Settings
-  settings.help: Edit an existing cluster.yaml without starting a build.
+  settings.help: Language, character set and the step list. Kept between runs.
   logs: Runs and logs
   logs.help: Look at what a previous run did, including one that failed.
   quit: Quit
@@ -152,6 +162,7 @@ status:
   blocked: blocked
 btn:
   next: Continue
+  done: Done
   open: Open
   back: Back
   quit: Quit

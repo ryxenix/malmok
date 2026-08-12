@@ -41,9 +41,10 @@ type MenuItem struct {
 // wants, and Logs last because it is what somebody opening it for the twentieth
 // time wants and they already know where it is.
 var menuItems = []MenuItem{
-	{TitleKey: "menu.install", HelpKey: "menu.install.help", Enter: StepLang},
+	{TitleKey: "menu.install", HelpKey: "menu.install.help", Enter: StepProfile},
 	{TitleKey: "menu.upgrade", HelpKey: "menu.upgrade.help", Enter: StepOpen, Mode: modeUpgrade},
-	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepOpen, Mode: modeSettings},
+	{TitleKey: "menu.document", HelpKey: "menu.document.help", Enter: StepOpen, Mode: modeSettings},
+	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepPrefs},
 	{TitleKey: "menu.logs", HelpKey: "menu.logs.help", Enter: StepRuns},
 	{TitleKey: "menu.quit", HelpKey: "menu.quit.help", Enter: StepMenu},
 }

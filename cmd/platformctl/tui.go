@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"platform.ryxen.dev/platformctl/internal/attach"
 	"platform.ryxen.dev/platformctl/internal/tui"
@@ -20,10 +21,21 @@ type tuiFlags struct {
 	mono    bool
 	lang    string
 	rail    bool
+
+	// flags is the set this was registered on, so a preference can tell a
+	// default apart from an instruction.
+	flags *pflag.FlagSet
+}
+
+// set reports whether a flag was passed on this invocation, as opposed to
+// holding its default.
+func (f *tuiFlags) set(name string) bool {
+	return f.flags != nil && f.flags.Changed(name)
 }
 
 func (f *tuiFlags) register(cmd *cobra.Command) {
 	fl := cmd.Flags()
+	f.flags = fl
 	fl.BoolVar(&f.enabled, "tui", false, "draw a full-screen view instead of streaming lines")
 	fl.BoolVar(&f.ascii, "ascii", false, "force the ASCII character set (default: auto-detect)")
 	fl.StringVar(&f.lang, "lang", "en", "screen language: en | ko")
@@ -33,6 +45,21 @@ func (f *tuiFlags) register(cmd *cobra.Command) {
 }
 
 func (f *tuiFlags) screen(ctx context.Context, runID, runDir string, preflight, install, upgrade tui.Work) (*tui.Screen, error) {
+	// What the operator chose last time, unless this invocation said otherwise.
+	// A flag is an instruction about this run and a preference is a standing
+	// answer, so the flag wins -- but only when it was actually passed, or a
+	// default would silently overrule a choice somebody made on screen.
+	prefs := tui.LoadPrefs()
+	if !f.set("lang") && prefs.Lang != "" {
+		f.lang = string(prefs.Lang)
+	}
+	if !f.set("ascii") && prefs.ASCII {
+		f.ascii = true
+	}
+	if !f.set("rail") && prefs.HideRail {
+		f.rail = false
+	}
+
 	// The bundle is where the menu looks for past runs. Derived from the run
 	// directory rather than passed again: they are always <bundle>/runs/<id>.
 	bundle := ""

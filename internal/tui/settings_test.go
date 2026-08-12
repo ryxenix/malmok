@@ -385,21 +385,82 @@ func TestBackIsRefusedOnceTheDocumentIsWritten(t *testing.T) {
 	}
 }
 
-// The settings entry is no longer marked unavailable, and it goes somewhere.
-func TestTheSettingsMenuEntryIsLive(t *testing.T) {
+// Editing a document is its own entry, and it goes somewhere.
+//
+// It used to be called Settings, which it is not: it edits a cluster document.
+// Settings is now what the word means -- how the screen looks -- and the
+// language lives there rather than being the first question of an install.
+func TestTheDocumentMenuEntryIsLive(t *testing.T) {
 	for _, item := range menuItems {
-		if item.TitleKey != "menu.settings" {
+		if item.TitleKey != "menu.document" {
 			continue
 		}
 		if item.Missing != "" {
 			t.Errorf("the settings entry still says %q", item.Missing)
 		}
-		if item.Enter != StepOpen {
-			t.Errorf("the settings entry goes to %v", item.Enter)
+		if item.Enter != StepOpen || item.Mode != modeSettings {
+			t.Errorf("the document entry goes to %v in mode %v", item.Enter, item.Mode)
 		}
 		return
 	}
-	t.Fatal("there is no settings entry")
+	t.Fatal("there is no document entry")
+}
+
+// The language is a property of the person reading the screen, not of the
+// cluster being built. It used to be the first question of an install, which
+// meant it could only be changed by starting one.
+func TestTheLanguageLivesInSettings(t *testing.T) {
+	var settings *MenuItem
+	for i := range menuItems {
+		if menuItems[i].TitleKey == "menu.settings" {
+			settings = &menuItems[i]
+		}
+	}
+	if settings == nil {
+		t.Fatal("there is no settings entry")
+	}
+	if settings.Enter != StepPrefs || settings.Missing != "" {
+		t.Errorf("settings goes to %v (missing=%q)", settings.Enter, settings.Missing)
+	}
+
+	// And building a cluster no longer asks.
+	w := wizard(t, LangEN, false, 96, 30, StepMenu)
+	for _, step := range w.flow() {
+		if stepKeys[step] == "step.lang" {
+			t.Error("the install flow still asks for a language")
+		}
+	}
+
+	// The screen changes it.
+	w.step = StepPrefs
+	w.cursor[StepPrefs] = 0
+	before := w.cat.Lang()
+	w.selectUnderCursor()
+	if w.cat.Lang() == before {
+		t.Error("choosing on the settings screen did not change the language")
+	}
+}
+
+// A setting that does not survive the session is a slower way of pressing g.
+func TestPreferencesRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	want := Prefs{Lang: LangKO, ASCII: true, HideRail: true}
+	if err := want.Save(); err != nil {
+		t.Fatalf("%v", err)
+	}
+	if got := LoadPrefs(); got != want {
+		t.Errorf("read back %+v, want %+v", got, want)
+	}
+
+	// A missing file is the defaults, not an error: the tool works without it,
+	// and refusing to start because a preference file was malformed would be
+	// the screen's appearance stopping an install.
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "absent"))
+	if got := LoadPrefs(); got != (Prefs{}) {
+		t.Errorf("a missing file read as %+v", got)
+	}
 }
 
 // Every screen in either flow has a rail label, or the rail draws a raw key.

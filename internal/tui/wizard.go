@@ -33,7 +33,6 @@ const (
 	// StepRuns lists what has been run on this machine, so the record of a
 	// build is reachable without knowing `attach` exists.
 	StepRuns
-	StepLang
 	// Profile comes before everything it decides: the network mode, the PKI
 	// mode and the storage driver all follow from it, and a screen that asks
 	// about a proxy before knowing whether there is one wastes a question.
@@ -64,6 +63,12 @@ const (
 	// move to, and moving there.
 	StepTarget
 	StepUpgrade
+
+	// StepPrefs is how the screen looks, as opposed to what it builds. The
+	// language used to be the first question of an install, which said it was
+	// a property of the cluster; it is a property of the person reading, and
+	// they are the same person on their twentieth run.
+	StepPrefs
 )
 
 // mode is which of the two flows the wizard is walking.
@@ -92,7 +97,7 @@ const (
 // two-screen detour look like part of the work.
 var (
 	installSteps = []Step{
-		StepLang, StepProfile, StepWhere, StepNodes, StepNetwork, StepOptions,
+		StepProfile, StepWhere, StepNodes, StepNetwork, StepOptions,
 		StepRegistry, StepPKI, StepPreflight, StepSummary, StepInstall, StepDone,
 	}
 	settingsSteps = []Step{
@@ -108,7 +113,7 @@ var (
 
 // stepKeys is the catalogue key for each screen that appears in a rail.
 var stepKeys = map[Step]string{
-	StepLang: "step.lang", StepProfile: "step.profile", StepNodes: "step.nodes",
+	StepProfile: "step.profile", StepNodes: "step.nodes",
 	StepNetwork: "step.network", StepOptions: "step.options",
 	StepRegistry: "step.registry", StepPKI: "step.pki",
 	StepPreflight: "step.preflight", StepSummary: "step.summary",
@@ -116,6 +121,7 @@ var stepKeys = map[Step]string{
 	StepOpen: "step.open", StepSave: "step.save",
 	StepTarget: "step.target", StepUpgrade: "step.upgrade",
 	StepWhere: "step.where",
+	StepPrefs: "step.prefs",
 }
 
 // flow is the sequence the current mode walks.
@@ -269,6 +275,10 @@ type Wizard struct {
 	upgrade   Work
 	workCtx   context.Context
 	hideRail  bool
+
+	// prefsErr is what went wrong saving the preferences, empty when nothing
+	// did.
+	prefsErr string
 
 	// menu is the selected start-menu entry; runs is what was found on this
 	// machine and runSel is the highlighted one.
@@ -631,6 +641,13 @@ func (w *Wizard) editKey(s string) (tea.Model, tea.Cmd) {
 func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 	cur := w.cursor[w.step]
 	switch w.step {
+	case StepPrefs:
+		if cur < len(prefsRows) {
+			prefsRows[cur].toggle(w)
+			// Written as it is changed rather than on the way out: an operator
+			// who closes the window has still made the choice.
+			w.savePrefs()
+		}
 	case StepWhere:
 		w.setLocal(cur == 0)
 	case StepNodes:
@@ -647,11 +664,6 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 		// both would give no chance to look at the path first.
 		if i := cur - len(w.fieldsFor(StepOpen)); i >= 0 && i < len(w.openFiles) {
 			w.cfg.DocPath = w.openFiles[i].Path
-		}
-	case StepLang:
-		lang := []Lang{LangEN, LangKO}[cur]
-		if cat, err := LoadCatalogue(lang); err == nil {
-			w.cat, w.cfg.Lang = cat, lang
 		}
 	case StepRegistry:
 		if cur < len(registryModes) {
@@ -705,7 +717,8 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 		}
 		return w, nil
 	case w.cat.T("btn.next"), w.cat.T("btn.install"), w.cat.T("btn.open"),
-		w.cat.T("btn.load"), w.cat.T("btn.save"), w.cat.T("btn.upgrade"):
+		w.cat.T("btn.load"), w.cat.T("btn.save"), w.cat.T("btn.upgrade"),
+		w.cat.T("btn.done"):
 		return w.next()
 	}
 	return w, nil
@@ -727,7 +740,7 @@ func (w *Wizard) back() (tea.Model, tea.Cmd) {
 	// rather than walking backwards into it: an operator who chose the wrong
 	// entry wants the menu, not the previous question of a flow they are
 	// leaving.
-	if i <= 0 || w.step == StepRuns {
+	if i <= 0 || w.step == StepRuns || w.step == StepPrefs {
 		w.step = StepMenu
 		w.mode = modeInstall
 		w.enter()
@@ -800,6 +813,13 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 			return w, nil
 		}
 		return w, w.openRun(w.runs[w.runSel])
+
+	case StepPrefs:
+		// Nothing to move on to: the screen is the whole of it, and its choices
+		// are saved as they are made.
+		w.step = StepMenu
+		w.enter()
+		return w, nil
 
 	case StepOpen:
 		if err := w.loadDocument(); err != nil {
@@ -965,8 +985,6 @@ func (w *Wizard) phase(id string) *phaseView {
 // contentLen is how many rows the current step's content pane has.
 func (w *Wizard) contentLen() int {
 	switch w.step {
-	case StepLang:
-		return 2
 	case StepNetwork:
 		return len(w.fieldsFor(StepNetwork))
 	case StepNodes:
@@ -981,6 +999,8 @@ func (w *Wizard) contentLen() int {
 		return len(dataplanes) + len(storages) + len(w.fieldsFor(StepOptions))
 	case StepWhere:
 		return 2
+	case StepPrefs:
+		return len(prefsRows)
 	case StepOpen:
 		return len(w.fieldsFor(StepOpen)) + len(w.openFiles)
 	case StepTarget:

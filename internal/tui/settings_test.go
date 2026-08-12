@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/platformctl/internal/exec"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
@@ -717,4 +718,119 @@ func contains(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// The question that comes first, because it is the first thing an operator
+// knows and it decides what every screen after it has to ask.
+//
+// The wizard used to skip it and open on an address field, so somebody
+// installing on the machine in front of them had to read their own IP off
+// `ip addr` and type it back -- a value the tool was sitting on the whole time.
+func TestTheWizardAsksWhichMachineBeforeAskingForAddresses(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepMenu)
+
+	flow := w.flow()
+	where, nodes := -1, -1
+	for i, st := range flow {
+		if st == StepWhere {
+			where = i
+		}
+		if st == StepNodes {
+			nodes = i
+		}
+	}
+	if where < 0 || nodes < 0 {
+		t.Fatalf("the flow is %v", flow)
+	}
+	if where > nodes {
+		t.Errorf("the address screen comes before the one that asks which machine: %v", flow)
+	}
+}
+
+// This machine is the default. An installer is normally run on the machine
+// being installed, and opening on "somewhere else" makes the common case the
+// one that takes more steps.
+func TestThisMachineIsTheDefault(t *testing.T) {
+	if len(exec.LocalIPv4s()) == 0 {
+		t.Skip("this machine has no routable address to offer")
+	}
+	w := wizard(t, LangEN, false, 96, 30, StepWhere)
+	if !w.cfg.Local {
+		t.Error("the wizard opened on somewhere else")
+	}
+	// And the address came from the machine rather than from the operator.
+	if !contains(exec.LocalIPv4s(), w.cfg.Server) {
+		t.Errorf("the server address is %q, which is not one of this machine's %v",
+			w.cfg.Server, exec.LocalIPv4s())
+	}
+}
+
+// Choosing this machine fills the address in; choosing another clears what was
+// right for here, because leaving it would be the wizard suggesting a node that
+// does not exist.
+func TestSwitchingWhereRewritesTheAddress(t *testing.T) {
+	if len(exec.LocalIPv4s()) == 0 {
+		t.Skip("this machine has no routable address to offer")
+	}
+	w := wizard(t, LangEN, false, 96, 30, StepWhere)
+
+	w.setLocal(false)
+	if w.cfg.Server != "" {
+		t.Errorf("switching away kept %q", w.cfg.Server)
+	}
+
+	w.cfg.Server = "10.10.0.11"
+	w.setLocal(false) // no change, so nothing is touched
+	if w.cfg.Server != "10.10.0.11" {
+		t.Errorf("an address the operator typed was cleared: %q", w.cfg.Server)
+	}
+
+	w.setLocal(true)
+	if !contains(exec.LocalIPv4s(), w.cfg.Server) {
+		t.Errorf("switching to this machine left %q", w.cfg.Server)
+	}
+}
+
+// The address is chosen from what the machine reports, never typed.
+//
+// A multi-homed host is a real case where which address the cluster advertises
+// matters (PF-609), and typing is not what should decide it.
+func TestTheLocalAddressIsChosenNotTyped(t *testing.T) {
+	if len(exec.LocalIPv4s()) == 0 {
+		t.Skip("this machine has no routable address to offer")
+	}
+	w := wizard(t, LangEN, false, 96, 30, StepNodes)
+	w.setLocal(true)
+
+	for _, f := range w.fieldsFor(StepNodes) {
+		if f.labelKey == "nodes.server" {
+			t.Error("the node screen still asks for an address this machine already knows")
+		}
+	}
+	if w.contentLen() <= len(w.fieldsFor(StepNodes)) {
+		t.Error("the address chooser takes no rows, so there is nothing to choose from")
+	}
+
+	// And choosing one takes.
+	addrs := exec.LocalIPv4s()
+	w.cursor[StepNodes] = len(addrs) - 1
+	w.selectUnderCursor()
+	if w.cfg.Server != addrs[len(addrs)-1] {
+		t.Errorf("choosing an address left the server at %q", w.cfg.Server)
+	}
+}
+
+// Editing a document that names this machine opens on the chooser rather than
+// on a field asking for an address it already has.
+func TestReadingADocumentRestoresTheBranch(t *testing.T) {
+	doc := richDocument()
+	doc.Topology.Servers[0].Host = "127.0.0.1"
+	doc.Topology.Servers[0].NodeIP = "10.10.0.11"
+
+	if c := FromSpec(doc); !c.Local {
+		t.Error("a document naming this machine was read back as remote")
+	}
+	if c := FromSpec(richDocument()); c.Local {
+		t.Error("a document naming another machine was read back as local")
+	}
 }

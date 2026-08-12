@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/platformctl/internal/exec"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
@@ -160,6 +161,10 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 	if len(s.Topology.Servers) > 0 {
 		first := s.Topology.Servers[0]
 		c.Server = first.Host
+		// Which branch the screens are in, read back the same way the runner
+		// decides it. A document that names this machine opens on the address
+		// chooser rather than on a field asking for an address it already has.
+		c.Local = exec.NodeIsLocal(first)
 		if first.SSH.User != "" {
 			c.SSHUser = first.SSH.User
 		}

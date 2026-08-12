@@ -5,6 +5,34 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.43.0] - 2026-08-12
+
+### Added
+
+- The wizard asks which machine it is building on, before it asks for any
+  address. It is the first thing an operator knows and it decides what every
+  screen after it has to ask; skipping it meant somebody installing on the
+  machine in front of them had to read their own IP off `ip addr` and type it
+  back -- a value the tool was sitting on the whole time.
+- This machine is the default, because an installer is normally run on the
+  machine being installed. A host with no routable address is not offered it:
+  the address is what the cluster advertises.
+- The address is chosen from the ones the machine reports, never typed. A
+  multi-homed host is a real case where which address the cluster advertises
+  matters (PF-609), and typing is not what should decide it.
+- Choosing another machine clears the address that was right for here, because
+  leaving it would be the wizard suggesting a node that does not exist.
+- The branch is not written into the document. The address is this machine's, so
+  a document read back here routes locally on its own -- and the same file
+  copied to another machine falls back to SSH rather than silently installing
+  onto the wrong box.
+
+### Fixed
+
+- The failure list on the final screen truncated the node off. It read
+  `l1-bootstrap 10.10....`, and the machine a failure happened on is the one
+  thing an operator acts on. The node comes first now and the phase gives way.
+
 ## [0.42.1] - 2026-08-12
 
 ### Changed

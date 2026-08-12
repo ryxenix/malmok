@@ -51,14 +51,19 @@ func (w *Wizard) fieldsFor(step Step) []field {
 				hint: "target.version.hint"},
 		}
 	case StepNodes:
-		fs := []field{
-			{labelKey: "nodes.server",
+		var fs []field
+		// Not asked for when the answer is this machine: the address is chosen
+		// from the ones the machine reports, above the fields.
+		if !w.cfg.Local {
+			fs = append(fs, field{labelKey: "nodes.server",
 				get: func(c *Config) string { return c.Server },
-				set: func(c *Config, v string) { c.Server = v }},
+				set: func(c *Config, v string) { c.Server = v }})
+		}
+		fs = append(fs, []field{
 			{labelKey: "nodes.agents",
 				get: func(c *Config) string { return strings.Join(c.Agents, ", ") },
 				set: func(c *Config, v string) { c.Agents = splitList(v) }},
-		}
+		}...)
 
 		// The credentials appear only when something is dialled. A node whose
 		// address belongs to this machine is reached without a connection, and
@@ -318,4 +323,37 @@ func (w *Wizard) nodesHelp() string {
 		return "nodes.help"
 	}
 	return "nodes.help.local"
+}
+
+// setLocal switches the wizard between building here and building elsewhere.
+//
+// Choosing this machine fills the server address in from what the machine
+// already knows. Choosing another machine clears it, because the address that
+// was right for here is wrong for anywhere else and leaving it would be the
+// wizard suggesting a node that does not exist.
+func (w *Wizard) setLocal(local bool) {
+	if w.cfg.Local == local {
+		return
+	}
+	w.cfg.Local = local
+	w.cursor[StepNodes] = 0
+
+	if !local {
+		if exec.IsLocal(w.cfg.Server) {
+			w.cfg.Server = ""
+		}
+		return
+	}
+	if addrs := exec.LocalIPv4s(); len(addrs) > 0 {
+		w.cfg.Server = addrs[0]
+	}
+}
+
+// localAddressCount is how many rows the address chooser takes on the node
+// screen, which is none unless this machine is the one being built on.
+func (w *Wizard) localAddressCount() int {
+	if !w.cfg.Local {
+		return 0
+	}
+	return len(exec.LocalIPv4s())
 }

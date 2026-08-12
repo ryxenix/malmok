@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	osexec "os/exec"
+	"sort"
 	"strings"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
@@ -185,4 +186,33 @@ func Connect(ctx context.Context, cfg SSHConfig) (Runner, error) {
 		return NewLocal(cfg.Host), nil
 	}
 	return Dial(ctx, cfg)
+}
+
+// LocalIPv4s lists this machine's routable IPv4 addresses.
+//
+// For the one question an installer should never ask: what is your own
+// address. The machine is right here and knows; making an operator read it off
+// `ip addr` and type it back is asking them to make a typo on a value that
+// cannot be wrong.
+//
+// Loopback is left out because it is not an address the cluster can use, and
+// IPv6 with it for now: RKE2's single-stack default is v4, and offering an
+// address the rest of the tool would not advertise is worse than offering none.
+func LocalIPv4s() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, ip := range localAddresses() {
+		v4 := ip.To4()
+		if v4 == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+			continue
+		}
+		s := v4.String()
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -6,6 +6,7 @@ step:
   lang: Language
   nodes: Nodes
   profile: Profile
+  where: Where
   options: Options
   network: Network
   registry: Registry
@@ -71,11 +72,20 @@ runs:
   help: "Every run this tool recorded, newest first. Opening one replays what happened."
   none: No run has been recorded here yet. A run appears once `platformctl apply` has written one.
   count: run(s)
+where:
+  heading: Where to build
+  help: "Which machine is this cluster being built on? The first server can be this machine, in which case nothing is connected to and its address is taken from the machine itself."
+  here: This machine
+  remote: Other machines
+  remote.note: entered by address, reached over SSH
+  noaddress: This machine has no routable IPv4 address, so there is nothing for the cluster to advertise
 nodes:
   heading: Node details
   help: "Enter the nodes to install on. Separate agents with commas."
   help.local: "Enter the nodes to install on. Every address here belongs to this machine, so the work runs here and nothing is connected to."
   server: Server IP
+  thismachine: This machine
+  advertised: the address the rest of the cluster reaches
   agents: Agent IPs
   user: SSH user
   port: SSH port

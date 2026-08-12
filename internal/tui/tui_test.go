@@ -238,6 +238,9 @@ func TestBackIsAbsentWhileInstalling(t *testing.T) {
 // containing "a" would toggle the character set.
 func TestEditingCapturesShortcutKeys(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
+	// The node screen is a pure form when the nodes are somewhere else; with
+	// this machine as the target its first row is the address chooser.
+	m.setLocal(false)
 	m.editing = true
 	m.cursor[StepNodes] = 0
 	m.cfg.Server = ""
@@ -874,6 +877,9 @@ func TestFailedScreenNamesTheCauseAndTheWayForward(t *testing.T) {
 
 	screen := plain(render(t, m, nil))
 
+	// The node is named on the failure line itself, not only in the summary
+	// above it: that line is what an operator reads to know which machine to
+	// go to.
 	for _, want := range []string{
 		"PF-601", "l1-bootstrap", "10.10.0.11", "port 9345 unreachable",
 		"--resume " + m.runID,
@@ -926,6 +932,7 @@ func TestSpaceSelectsAndEnterAdvances(t *testing.T) {
 // mean while the cursor is on one.
 func TestEnterOpensAFieldRatherThanAdvancing(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
+	m.setLocal(false)
 	m.cursor[StepNodes] = 0
 
 	m.key(fakeKey("enter"))
@@ -965,6 +972,7 @@ func TestMixedScreenKeysFollowTheCursor(t *testing.T) {
 // friction on a first build.
 func TestEnterWalksTheFormOntoTheButtons(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
+	m.setLocal(false)
 	n := len(m.fieldsFor(StepNodes))
 	if n < 2 {
 		t.Fatalf("expected several fields, got %d", n)
@@ -1054,6 +1062,7 @@ func TestKeyHintsFollowTheScreen(t *testing.T) {
 	}
 
 	form := wizard(t, LangEN, false, 96, 24, StepNodes)
+	form.setLocal(false)
 	if got := form.keyHints(""); !strings.Contains(got, "edit") {
 		t.Errorf("a form screen does not offer edit: %q", got)
 	}
@@ -1203,7 +1212,8 @@ func TestMenuHasNoRailOrCounter(t *testing.T) {
 	if len(install.rail()) == 0 {
 		t.Error("the install flow lost its rail")
 	}
-	if got := plain(install.View().Content); !strings.Contains(got, "3/11") {
+	// Nodes is the fourth screen of twelve: the flow gained "Where" before it.
+	if got := plain(install.View().Content); !strings.Contains(got, "4/12") {
 		t.Errorf("the install flow lost its counter:\n%s", got)
 	}
 }

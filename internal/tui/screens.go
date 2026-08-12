@@ -10,6 +10,7 @@ import (
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/platformctl/internal/exec"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
@@ -109,8 +110,10 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.runsScreen(body)
 	case StepLang:
 		f.Heading, f.Body, f.Status = w.langScreen(body)
+	case StepWhere:
+		f.Heading, f.Body, f.Status = w.whereScreen(body)
 	case StepNodes:
-		f.Heading, f.Body, f.Status = w.formScreen(StepNodes, "nodes.heading", w.nodesHelp(), body)
+		f.Heading, f.Body, f.Status = w.nodesScreen(body)
 		f.Body = w.withTopology(f.Body, body)
 	case StepNetwork:
 		f.Heading, f.Body, f.Status = w.formScreen(StepNetwork, "net.heading", "net.help", body)
@@ -203,7 +206,7 @@ func (w *Wizard) buttons() []Button {
 		// Back goes to the menu rather than nowhere: an operator who chose
 		// Install by mistake has to be able to leave without quitting.
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
-	case StepProfile, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
+	case StepProfile, StepWhere, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepOpen:
 		if len(w.openFiles) == 0 && strings.TrimSpace(w.cfg.DocPath) == "" {
@@ -508,13 +511,25 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 	if failed {
 		b.WriteString("\n" + w.theme.Err.Render(w.cat.T("done.problems")) + "\n")
 		for _, e := range w.failures {
-			where := e.Phase
-			if e.Node != "" {
-				where += " " + e.Node
+			// The node first, because it is the subject and the phase is the
+			// stage. The column is fixed, so whichever comes second is what a
+			// long value loses -- and on the screen that says what failed, the
+			// machine it happened on is what an operator acts on. This read
+			// "l1-bootstrap 10.10...." until the rail grew a step and took the
+			// address with it.
+			where := e.Node
+			if where == "" {
+				where = e.Phase
+			} else if e.Phase != "" {
+				where += "  " + e.Phase
 			}
+			// Twenty-four cells fits an IPv4 address and a phase id together,
+			// which is the pair this column exists to carry. The two extra
+			// cells come out of the detail, the least identifying part of the
+			// line and one that was already being cut.
 			b.WriteString("  " + w.theme.Body.Render(padCells(e.Code, 10)) +
-				w.theme.Dim.Render(padCells(truncCells(where, 22), 24)) +
-				w.theme.Body.Render(truncCells(e.Detail, max(width-40, 10))) + "\n")
+				w.theme.Dim.Render(padCells(truncCells(where, 24), 26)) +
+				w.theme.Body.Render(truncCells(e.Detail, max(width-42, 10))) + "\n")
 		}
 		b.WriteString("\n" + w.dim(w.cat.T("done.resume"), width) + "\n")
 		b.WriteString("  " + w.theme.Body.Render(w.resumeCommand()) + "\n")
@@ -812,4 +827,92 @@ func (w *Wizard) withTopology(body string, width int) string {
 		return body
 	}
 	return body + "\n" + w.renderTopology(width)
+}
+
+// whereScreen asks which machine the cluster is being built on.
+//
+// First, because it is the first thing an operator knows and it decides what
+// every screen after it has to ask. The wizard used to skip it and open on an
+// address field, which meant somebody installing on the machine in front of
+// them had to read their own IP off `ip addr` and type it back -- a value the
+// tool was sitting on the whole time.
+func (w *Wizard) whereScreen(width int) (string, string, string) {
+	here := strings.Join(exec.LocalIPv4s(), ", ")
+	if here == "" {
+		here = w.cat.T("where.noaddress")
+	}
+
+	chosen := 1
+	if w.cfg.Local {
+		chosen = 0
+	}
+	body := w.dim(wrapCells(w.cat.T("where.help"), width), width) + "\n\n" +
+		w.theme.Radio(
+			[]string{w.cat.T("where.here"), w.cat.T("where.remote")},
+			[]string{here, w.cat.T("where.remote.note")},
+			chosen, w.cursor[StepWhere], width, w.glyphs)
+
+	return w.cat.T("where.heading"), body, w.cat.T("hint.select")
+}
+
+// nodesScreen is the form, with the address chooser above it when the machine
+// being built on is this one.
+//
+// A list rather than a field: the machine reports its own addresses, and a
+// multi-homed host is a real case where which one the cluster advertises
+// matters (PF-609) and typing is not what should decide it.
+func (w *Wizard) nodesScreen(width int) (string, string, string) {
+	if !w.cfg.Local {
+		return w.formScreen(StepNodes, "nodes.heading", w.nodesHelp(), width)
+	}
+
+	var b strings.Builder
+	b.WriteString(w.dim(wrapCells(w.cat.T(w.nodesHelp()), width), width) + "\n\n")
+
+	addrs := exec.LocalIPv4s()
+	cur := w.cursor[StepNodes]
+	if len(addrs) == 0 {
+		// Nothing to choose from and nothing to pretend about. The address is
+		// what the cluster advertises, so a machine with none is a machine this
+		// cannot be built on until it has one.
+		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+
+			wrapCells(w.cat.T("where.noaddress"), width)) + "\n\n")
+	} else {
+		b.WriteString(w.theme.Body.Render(w.cat.T("nodes.thismachine")) + "\n")
+		notes := make([]string, len(addrs))
+		if len(addrs) > 1 {
+			// Only worth saying where there is a decision: on a multi-homed
+			// host this is the address the rest of the cluster reaches.
+			for i := range notes {
+				notes[i] = w.cat.T("nodes.advertised")
+			}
+		}
+		b.WriteString(w.theme.Radio(addrs, notes, indexOfString(addrs, w.cfg.Server),
+			cur, width, w.glyphs))
+		b.WriteString("\n")
+	}
+
+	if fs := w.fieldsFor(StepNodes); len(fs) > 0 {
+		b.WriteString(w.theme.Fields(w.labels(StepNodes), w.maskedValues(StepNodes),
+			w.fieldIndex(), w.editing, width, w.glyphs))
+	}
+	if h := w.fieldHint(int(StepNodes), w.fieldIndex()); h != "" {
+		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
+	}
+
+	hint := "hint.edit"
+	if w.editing {
+		hint = "hint.editing"
+	}
+	return w.cat.T("nodes.heading"), b.String(), w.cat.T(hint)
+}
+
+// indexOfString is the position of a value in a list, or -1.
+func indexOfString(list []string, want string) int {
+	for i, s := range list {
+		if s == want {
+			return i
+		}
+	}
+	return -1
 }

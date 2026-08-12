@@ -10,6 +10,7 @@ import (
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/platformctl/internal/exec"
 )
 
 // The wizard is the whole application: a sequence of steps with a rail showing
@@ -37,6 +38,11 @@ const (
 	// mode and the storage driver all follow from it, and a screen that asks
 	// about a proxy before knowing whether there is one wastes a question.
 	StepProfile
+	// StepWhere is the question the wizard used to skip: which machine is this
+	// being built on. Asking for an address first meant an operator installing
+	// on the machine in front of them had to read their own IP off `ip addr`
+	// and type it back -- a value the tool was sitting on the whole time.
+	StepWhere
 	StepNodes
 	StepNetwork
 	StepOptions
@@ -86,7 +92,7 @@ const (
 // two-screen detour look like part of the work.
 var (
 	installSteps = []Step{
-		StepLang, StepProfile, StepNodes, StepNetwork, StepOptions,
+		StepLang, StepProfile, StepWhere, StepNodes, StepNetwork, StepOptions,
 		StepRegistry, StepPKI, StepPreflight, StepSummary, StepInstall, StepDone,
 	}
 	settingsSteps = []Step{
@@ -109,6 +115,7 @@ var stepKeys = map[Step]string{
 	StepInstall: "step.install", StepDone: "step.done",
 	StepOpen: "step.open", StepSave: "step.save",
 	StepTarget: "step.target", StepUpgrade: "step.upgrade",
+	StepWhere: "step.where",
 }
 
 // flow is the sequence the current mode walks.
@@ -163,6 +170,16 @@ type Config struct {
 	Registration string
 	Version      string
 	Domain       string
+
+	// Local says the first server is the machine platformctl is running on.
+	//
+	// Chosen on a screen rather than inferred from an address, because it is
+	// the first thing an operator knows and the last thing they should have to
+	// spell out. It is not written into the document: the address is this
+	// machine's, so a document read back here routes locally on its own, and
+	// the same file copied to another machine correctly falls back to SSH
+	// rather than silently installing onto the wrong box.
+	Local bool
 
 	Profile   string
 	Dataplane string
@@ -343,6 +360,14 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 	// The default profile's baseline applies from the start, so a screen never
 	// shows a mode that the chosen profile would not use.
 	wz.applyProfileDefaults()
+	// And the machine in front of the operator is the default target. An
+	// installer is normally run on the machine being installed; opening on
+	// "somewhere else" makes the common case the one that takes more steps.
+	// A machine with no routable address cannot be a node, so it is not
+	// offered as the default.
+	if len(exec.LocalIPv4s()) > 0 {
+		wz.setLocal(true)
+	}
 	wz.enforceASCIILanguage()
 	wz.enter()
 	return wz, nil
@@ -606,6 +631,16 @@ func (w *Wizard) editKey(s string) (tea.Model, tea.Cmd) {
 func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 	cur := w.cursor[w.step]
 	switch w.step {
+	case StepWhere:
+		w.setLocal(cur == 0)
+	case StepNodes:
+		// The addresses of this machine, when it is the one being built on.
+		// A list rather than a field: the machine knows them, and a multi-homed
+		// host is a real case where the choice matters (PF-609) and typing is
+		// not what should decide it.
+		if w.cfg.Local && cur < len(exec.LocalIPv4s()) {
+			w.cfg.Server = exec.LocalIPv4s()[cur]
+		}
 	case StepOpen:
 		// The list fills the field rather than loading straight away. Choosing
 		// a file and reading it are two decisions, and one keystroke that did
@@ -932,8 +967,10 @@ func (w *Wizard) contentLen() int {
 	switch w.step {
 	case StepLang:
 		return 2
-	case StepNodes, StepNetwork:
-		return len(w.fieldsFor(w.step))
+	case StepNetwork:
+		return len(w.fieldsFor(StepNetwork))
+	case StepNodes:
+		return w.localAddressCount() + len(w.fieldsFor(StepNodes))
 	case StepRegistry:
 		return len(registryModes) + len(w.fieldsFor(StepRegistry))
 	case StepPKI:
@@ -942,6 +979,8 @@ func (w *Wizard) contentLen() int {
 		return len(profileChoices())
 	case StepOptions:
 		return len(dataplanes) + len(storages) + len(w.fieldsFor(StepOptions))
+	case StepWhere:
+		return 2
 	case StepOpen:
 		return len(w.fieldsFor(StepOpen)) + len(w.openFiles)
 	case StepTarget:
@@ -974,6 +1013,8 @@ func startStep(preflight, install Work) Step {
 func (w *Wizard) fieldIndex() int {
 	i := w.cursor[w.step]
 	switch w.step {
+	case StepNodes:
+		i -= w.localAddressCount()
 	case StepOptions:
 		i -= len(dataplanes) + len(storages)
 	case StepRegistry:

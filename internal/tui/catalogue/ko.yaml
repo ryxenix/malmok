@@ -5,6 +5,7 @@ step:
   lang: 언어
   nodes: 노드
   profile: 프로파일
+  where: 설치 위치
   options: 옵션
   network: 네트워크
   registry: 레지스트리
@@ -70,11 +71,20 @@ runs:
   help: "이 도구가 남긴 실행 기록입니다. 최신순이며, 열면 그때 일어난 일을 재생합니다."
   none: 아직 기록된 실행이 없습니다. `platformctl apply` 가 한 번 돌면 나타납니다.
   count: 건
+where:
+  heading: 어디에 구축할지
+  help: "이 클러스터를 어느 기계에 구축합니까? 첫 server 를 이 기계로 하면 아무 곳에도 접속하지 않고, 주소도 기계에서 직접 읽어옵니다."
+  here: 이 기계
+  remote: 다른 기계
+  remote.note: 주소를 입력하고 SSH 로 접속합니다
+  noaddress: 이 기계에 라우팅 가능한 IPv4 주소가 없어 클러스터가 광고할 주소가 없습니다
 nodes:
   heading: 노드 정보
   help: "설치할 노드를 입력하십시오. agent 는 쉼표로 구분합니다."
   help.local: "설치할 노드를 입력하십시오. 여기 적힌 주소가 모두 이 기계의 것이라 작업은 여기서 돌고, 아무 곳에도 접속하지 않습니다."
   server: server IP
+  thismachine: 이 기계
+  advertised: 클러스터의 나머지가 닿는 주소
   agents: agent IP
   user: SSH 사용자
   port: SSH 포트

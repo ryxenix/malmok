@@ -15,6 +15,8 @@ step:
   done: 완료
   open: 문서
   save: 저장
+  target: 버전
+  upgrade: 업그레이드
 lang:
   heading: 언어 선택
   help: 이 설치기의 언어를 고르십시오. 로그 출력은 항상 영어이며 바뀌지 않습니다.
@@ -33,10 +35,10 @@ menu:
   quit.help: platformctl 을 닫습니다. 노드에서 돌고 있는 것은 중단되지 않습니다.
   unavailable: "  (미구현)"
   unavailable.status: 아직 구현되지 않았습니다. 선택해도 아무것도 바뀌지 않습니다.
-  missing.upgrade: 미구현. 업그레이드 단계에는 버전 차이 검사, 노드별 drain, 설치와 같은 재개 모델이 필요합니다.
 open:
   heading: 문서 열기
   help: "편집할 cluster.yaml 을 고르십시오. 읽은 그대로 두고, 이어지는 화면에서 고친 뒤 다시 씁니다. 이 마법사에 화면이 없는 항목은 손대지 않고 그대로 유지됩니다."
+  help.upgrade: "업그레이드할 클러스터를 가리키는 cluster.yaml 을 고르십시오. 읽기만 하고 쓰지 않습니다. 문서는 클러스터가 무엇인지를 적은 것이고, 마지막 노드가 새 버전을 보고할 때 그것이 사실이 됩니다."
   path: 경로
   path.hint: cluster.yaml 경로입니다. 아래에서 고르면 여기에 채워집니다.
   found: "여기서 찾은 문서"
@@ -50,6 +52,17 @@ save:
   written: 문서를 기록했습니다.
   after: "클러스터에는 아무 변경도 없습니다. 이 파일로 `platformctl apply -f` 를 실행해야 반영됩니다."
   hint: Enter 로 파일을 기록하고, Esc 로 돌아가 고칩니다
+target:
+  heading: 대상 버전
+  help: "옮겨갈 버전을 고르십시오. 사전 조건을 통과할 때까지 아무것도 건드리지 않습니다. 컨트롤 플레인은 마이너 버전을 한 단계씩만 올리고, 다운그레이드는 없으며, 첫 노드를 내리기 전에 모든 노드가 Ready 여야 합니다."
+  document: 문서
+  from: 현재 실행 중
+  unknown: 문서에 기록되어 있지 않음
+  version: 대상 버전
+  version.hint: "RKE2 버전. 예: v1.35.7+rke2r1"
+  note: "server 를 먼저, 그다음 agent 를, 노드 한 대씩 진행합니다. 각 노드는 kubelet 재시작 전에 drain 하고, 클러스터가 복귀를 확인하면 uncordon 합니다."
+upgrade:
+  heading: 업그레이드 중
 doc:
   snapshot: "  (실행 스냅샷 — 편집하면 그 실행은 재개할 수 없습니다)"
 runs:
@@ -106,6 +119,8 @@ done:
   heading: 완료
   ok: 설치가 끝났습니다
   failed: 설치가 중단되었습니다
+  upgraded: 클러스터가 새 버전으로 올라갔습니다
+  upgrade_failed: 업그레이드가 중단되었습니다
   cluster: 무엇이 구축되었나
   artifacts: 어디에 남았나
   rundir: run 디렉터리
@@ -135,6 +150,7 @@ btn:
   close: 닫기
   load: 불러오기
   save: 저장
+  upgrade: 업그레이드 시작
 key:
   retry: 재시도
 hint:

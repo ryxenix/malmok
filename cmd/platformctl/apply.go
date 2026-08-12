@@ -152,7 +152,23 @@ starting over. See docs/11-execute.md.`,
 					}
 					return runner.Run(c, phases[1:])
 				}
-				sc, err := screen.screen(ctx, st.Run, runDir, preflight, install)
+				// The upgrade reads the document the operator chose on screen
+				// rather than the one this command was given: an upgrade is a
+				// thing done to a cluster that already exists, and the wizard is
+				// where that cluster is named.
+				upgradeWork := func(c context.Context, cfg tui.Config) error {
+					if isDemo {
+						return errors.New(
+							"--demo contacts no node, so there is no cluster to upgrade")
+					}
+					chosen, err := spec.Load(cfg.DocPath)
+					if err != nil {
+						return err
+					}
+					return sess.Upgrade(c, chosen.Spec, cfg.UpgradeTo, cfg.SSHPassword,
+						events.Writer, runDir, st)
+				}
+				sc, err := screen.screen(ctx, st.Run, runDir, preflight, install, upgradeWork)
 				if err != nil {
 					return err
 				}

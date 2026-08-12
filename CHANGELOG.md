@@ -5,6 +5,58 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.41.0] - 2026-08-12
+
+### Added
+
+- `platformctl upgrade --to <version>`, and the start menu's Upgrade entry that
+  drives it. Servers first, then agents, one node at a time: a kubelet must
+  never lead its API server, and a control plane that restarts two members at
+  once is a restore rather than a retry.
+- A new code family, `UP`, for upgrade preconditions. They are measured before
+  anything is touched, which makes them preflight in character, but they answer
+  a different question -- a `PF` code says whether an install will work here, a
+  `UP` code says whether this step is legal from where the cluster already is.
+  Filing them together would make every preflight inventory a mix of the two.
+- `UP-001` to `UP-005` are the skew rules and each one is somebody's outage: a
+  malformed version, a downgrade (etcd has none), a skipped minor, a node
+  already past the target, and an agent that leads its servers. `UP-101` to
+  `UP-103` are the readiness ones: every node Ready before the first goes down,
+  a single-node cluster told its workloads restart in place, and a warning when
+  there is no recent etcd snapshot to go back to.
+- Each node is drained before its kubelet restarts and uncordoned once the
+  cluster agrees it is back. A disruption budget is honoured unless `--force`
+  says otherwise: a budget is somebody's statement about how much of their
+  service may be down, and the tool is not the one to overrule it.
+- Verified by upgrading the live two-node cluster from v1.34.10+rke2r1 to
+  v1.35.7+rke2r1.
+
+### Fixed
+
+Three defects the live upgrade found, all of them the same shape as before -- an
+observable that was not the thing that had to be true.
+
+- The drain counted the pods it had just failed to move. It excluded
+  `kube-system/etcd-` by name and left the API server, the scheduler, the
+  controller manager and the cloud controller manager counted, so a server that
+  drained perfectly reported five pods still to go. Counted by owner now:
+  a drain does not evict DaemonSet pods or mirror pods, which is a property, not
+  a naming convention.
+- The restart step compared modification time. The installer unpacks a tarball
+  and tar restores the archive's timestamps, so a freshly installed binary
+  carries the mtime of the day upstream built it -- eight days older than the
+  running unit. The check called the service current, nothing restarted, and the
+  node went on serving v1.34.10 with v1.35.7 sitting beside it. Change time is
+  set by the filesystem when the inode is written and no archive can carry it.
+- The skew rules read the binary on disk as though it were the running version.
+  Those differ exactly when an upgrade is half done, so the tool refused to
+  finish the upgrade it had itself started: "the servers run v1.35.7 and the
+  target is v1.35.7". The rules are about the kubelet version the control plane
+  reports; the installed version is carried alongside and shown, so a node
+  between the two is described rather than mistaken for a finished one.
+- The event stream's step field carried the whole step id -- fixed in 0.39.1 and
+  the reason every line in this release reads `upgrade-server/drain/<node>`.
+
 ## [0.40.0] - 2026-08-12
 
 ### Added

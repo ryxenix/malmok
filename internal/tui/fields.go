@@ -42,6 +42,13 @@ func (w *Wizard) fieldsFor(step Step) []field {
 				set:  func(c *Config, v string) { c.DocPath = v },
 				hint: "open.path.hint"},
 		}
+	case StepTarget:
+		return []field{
+			{labelKey: "target.version",
+				get:  func(c *Config) string { return c.UpgradeTo },
+				set:  func(c *Config, v string) { c.UpgradeTo = v },
+				hint: "target.version.hint"},
+		}
 	case StepNodes:
 		return []field{
 			{labelKey: "nodes.server",

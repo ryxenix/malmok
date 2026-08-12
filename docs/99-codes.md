@@ -16,11 +16,12 @@ outlive releases.
 |---|--:|--:|--:|--:|--:|
 | `PF` | 67 | 35 | 11 | 18 | 3 |
 | `PV` | 8 | 4 | — | 3 | 1 |
+| `UP` | 8 | 6 | — | 1 | 1 |
 | `EX` | 9 | 8 | — | 1 | — |
 | `MC` | 42 | — | — | — | — |
 | `DG` | 5 | — | — | — | — |
 
-Total: 131 codes.
+Total: 139 codes.
 
 ---
 
@@ -172,6 +173,32 @@ Source: docs/20-cert.md §6.5
 | ID | Reasons |
 |---|---|
 | `PV-002` | `CHAIN_NOT_SELF_SUFFICIENT`, `ROOT_NOT_TRUSTED` |
+
+---
+
+## 
+
+Source: 
+
+These codes carry no severity — see `internal/codes/codes.go`.
+
+### Version skew
+
+| ID | Item | Default message |
+|---|---|---|
+| `UP-001` | Target version is well formed | The target version is not an RKE2 version. It has the form v<major>.<minor>.<patch>+rke2r<n> |
+| `UP-002` | Target is newer than what runs | The target is not newer than the version already running. Kubernetes and etcd have no supported downgrade: the API server writes storage the older one cannot read, and restoring a snapshot is the only way back |
+| `UP-003` | One minor version at a time | The target skips a minor version. The control plane supports one minor step, and skipping one leaves API objects stored in a version the new server never learned to convert |
+| `UP-004` | No node is ahead of the target | A node already runs a version newer than the target, so the upgrade would move it backwards |
+| `UP-005` | No agent leads its servers | An agent runs a newer version than the servers. A kubelet may lag its API server and must never lead it; this cluster is already outside the supported skew and the servers have to be brought up first |
+
+### Cluster readiness
+
+| ID | Item | Default message |
+|---|---|---|
+| `UP-101` | Every node is Ready before starting | A node is not Ready. An upgrade restarts each node in turn, and starting one while another is already down is how a cluster loses quorum during a maintenance window |
+| `UP-102` | Workloads have somewhere to go | There is one node, so there is nowhere to drain to. Its workloads restart in place while it is upgraded |
+| `UP-103` | etcd has a recent snapshot | No etcd snapshot was taken recently. A failed control plane upgrade is recovered by restoring one, and the time to find out there is none is not afterwards |
 
 ---
 

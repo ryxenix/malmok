@@ -32,7 +32,7 @@ func (f *tuiFlags) register(cmd *cobra.Command) {
 		"show the step list down the left; --rail=false is the Proxmox layout (toggle with s)")
 }
 
-func (f *tuiFlags) screen(ctx context.Context, runID, runDir string, preflight, install tui.Work) (*tui.Screen, error) {
+func (f *tuiFlags) screen(ctx context.Context, runID, runDir string, preflight, install, upgrade tui.Work) (*tui.Screen, error) {
 	// The bundle is where the menu looks for past runs. Derived from the run
 	// directory rather than passed again: they are always <bundle>/runs/<id>.
 	bundle := ""
@@ -50,7 +50,7 @@ func (f *tuiFlags) screen(ctx context.Context, runID, runDir string, preflight, 
 	return tui.NewScreen(ctx, tui.Options{
 		RunID: runID, RunDir: runDir, ASCII: ascii, Mono: f.mono || os.Getenv("NO_COLOR") != "",
 		Lang: lang, HideRail: !f.rail, Bundle: bundle,
-		Preflight: preflight, Install: install,
+		Preflight: preflight, Install: install, Upgrade: upgrade,
 	})
 }
 

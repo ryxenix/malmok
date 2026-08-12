@@ -84,8 +84,16 @@ func (w *Wizard) listDocuments() []docEntry {
 
 // openScreen asks which document to edit.
 func (w *Wizard) openScreen(width int) (string, string, string) {
+	// The same screen serves both flows and they are not doing the same thing:
+	// one is about to rewrite this file, the other is about to restart every
+	// node the file names.
+	help := "open.help"
+	if w.mode == modeUpgrade {
+		help = "open.help.upgrade"
+	}
+
 	var b strings.Builder
-	b.WriteString(w.dim(wrapCells(w.cat.T("open.help"), width), width) + "\n\n")
+	b.WriteString(w.dim(wrapCells(w.cat.T(help), width), width) + "\n\n")
 
 	// The path field first, because typing one is always available even when
 	// nothing was found to list.
@@ -220,4 +228,46 @@ func (w *Wizard) writeDocument() error {
 	w.doc = edited
 	w.saved = path
 	return nil
+}
+
+// targetScreen asks which version to move to.
+//
+// It shows what the document says the cluster is on now, and nothing else: an
+// upgrade changes the version, and a screen that also offered the dataplane and
+// the storage driver would invite a change this flow has no way to apply.
+func (w *Wizard) targetScreen(width int) (string, string, string) {
+	var b strings.Builder
+	b.WriteString(w.dim(wrapCells(w.cat.T("target.help"), width), width) + "\n\n")
+
+	from := w.doc.Kubernetes.Version
+	if from == "" {
+		from = w.cat.T("target.unknown")
+	}
+	for _, r := range [][2]string{
+		{w.cat.T("target.document"), w.cfg.DocPath},
+		{w.cat.T("target.from"), from},
+	} {
+		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
+			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
+	}
+
+	b.WriteString("\n")
+	cur := w.cursor[StepTarget]
+	b.WriteString(w.theme.Fields(
+		w.labels(StepTarget), w.maskedValues(StepTarget), cur, w.editing, width, w.glyphs))
+
+	if h := w.fieldHint(int(StepTarget), cur); h != "" {
+		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
+	}
+
+	// Said before it happens rather than after. Every node restarts, one at a
+	// time, and an operator who did not expect that finds out from a workload
+	// rather than from this screen.
+	b.WriteString("\n\n" + w.dim(wrapCells(w.cat.T("target.note"), width), width))
+
+	hint := "hint.edit"
+	if w.editing {
+		hint = "hint.editing"
+	}
+	return w.cat.T("target.heading"), b.String(), w.cat.T(hint)
 }

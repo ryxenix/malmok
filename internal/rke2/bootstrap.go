@@ -88,6 +88,16 @@ func BootstrapSteps(runner exec.Runner, node v1alpha1.NodeSpec, spec v1alpha1.Cl
 	}
 }
 
+// InstallStep puts RKE2 on a node at a given version.
+//
+// Exported because the upgrade phase needs exactly this step at a new version.
+// ADR-013 made the observable "what does `rke2 --version` answer", which is
+// what makes installing and upgrading one operation rather than two that have
+// to be kept in agreement.
+func InstallStep(version, kind string, o Options) *engine.ShellStep {
+	return installStep(version, kind, o)
+}
+
 // installStep puts the RKE2 binary on the node at the requested version.
 //
 // The observable target is the version the binary reports. That makes the step

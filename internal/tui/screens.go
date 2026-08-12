@@ -135,6 +135,10 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.openScreen(body)
 	case StepSave:
 		f.Heading, f.Body, f.Status = w.saveScreen(body)
+	case StepTarget:
+		f.Heading, f.Body, f.Status = w.targetScreen(body)
+	case StepUpgrade:
+		f.Heading, f.Body, f.Status = w.progressScreen(body, "upgrade")
 	}
 
 	// The toggles are appended to whatever the screen wanted to say, so they
@@ -233,7 +237,9 @@ func (w *Wizard) buttons() []Button {
 			return []Button{back, {Label: w.cat.T("btn.fix"), Primary: true}}
 		}
 		return []Button{back, {Label: w.cat.T("btn.install"), Primary: true}}
-	case StepInstall:
+	case StepTarget:
+		return []Button{back, {Label: w.cat.T("btn.upgrade"), Primary: true}}
+	case StepInstall, StepUpgrade:
 		if w.busy {
 			return []Button{{Label: w.cat.T("btn.logs")}}
 		}
@@ -472,10 +478,17 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 	var b strings.Builder
 
 	failed := w.workErr != nil || len(w.failures) > 0
+	// An upgrade that says "installation complete" describes something that did
+	// not happen, and the sentence an operator reads at the end is the one they
+	// repeat to whoever asks what was done.
+	ok, stopped := "done.ok", "done.failed"
+	if w.mode == modeUpgrade {
+		ok, stopped = "done.upgraded", "done.upgrade_failed"
+	}
 	if failed {
-		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+w.cat.T("done.failed")) + "\n")
+		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+w.cat.T(stopped)) + "\n")
 	} else {
-		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T("done.ok")) + "\n")
+		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T(ok)) + "\n")
 	}
 
 	// What was built, where it went, and what to run next. A final screen that

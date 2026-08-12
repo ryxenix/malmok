@@ -29,11 +29,12 @@ type Options struct {
 	// installer's. Both are offered because operators arrive from both.
 	HideRail bool
 
-	// Preflight and Install are the long operations the wizard drives. Both
-	// report progress through the event stream rather than through their
+	// Preflight, Install and Upgrade are the long operations the wizard drives.
+	// All report progress through the event stream rather than through their
 	// return value; the error is only used to decide what to show next.
 	Preflight Work
 	Install   Work
+	Upgrade   Work
 
 	Output io.Writer
 	Input  io.Reader
@@ -56,6 +57,7 @@ func NewScreen(ctx context.Context, o Options) (*Screen, error) {
 	if err != nil {
 		return nil, err
 	}
+	wz.upgrade = o.Upgrade
 	wz.hideRail = o.HideRail
 	wz.runDir = o.RunDir
 	wz.bundle = o.Bundle

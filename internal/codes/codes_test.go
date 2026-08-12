@@ -90,6 +90,13 @@ func TestOtherInventories(t *testing.T) {
 			want:   []string{"DG-001", "DG-002", "DG-003", "DG-010", "DG-020"},
 		},
 		{
+			family: FamilyUpgrade,
+			want: []string{
+				"UP-001", "UP-002", "UP-003", "UP-004", "UP-005",
+				"UP-101", "UP-102", "UP-103",
+			},
+		},
+		{
 			family: FamilyExecution,
 			want: []string{
 				"EX-001", "EX-002", "EX-003", "EX-004", "EX-005",
@@ -113,7 +120,7 @@ func TestOtherInventories(t *testing.T) {
 // design documents found 121 defined codes; PF-908 was referenced without a
 // definition and became PF-612, and the EX family added 9 for the phase runner.
 func TestTotalInventory(t *testing.T) {
-	const want = 131
+	const want = 139
 	if got := len(All()); got != want {
 		t.Errorf("registry holds %d codes, want %d", got, want)
 	}
@@ -182,6 +189,7 @@ func TestSeverityByFamily(t *testing.T) {
 		{FamilyPreflight, true},
 		{FamilyVerification, true},
 		{FamilyExecution, true},
+		{FamilyUpgrade, true},
 		{FamilyMaintenance, false},
 		{FamilyDowngrade, false},
 	}

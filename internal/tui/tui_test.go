@@ -1298,7 +1298,7 @@ func TestEveryButtonIsWired(t *testing.T) {
 	steps := []Step{
 		StepMenu, StepRuns, StepLang, StepProfile, StepNodes, StepNetwork,
 		StepOptions, StepRegistry, StepPKI, StepPreflight, StepSummary,
-		StepInstall, StepDone, StepOpen, StepSave,
+		StepInstall, StepDone, StepOpen, StepSave, StepTarget, StepUpgrade,
 	}
 
 	// The labels activate knows. Anything a screen draws must be among them.
@@ -1306,7 +1306,7 @@ func TestEveryButtonIsWired(t *testing.T) {
 	for _, key := range []string{
 		"btn.back", "btn.quit", "btn.abort", "btn.close", "btn.logs",
 		"btn.check", "btn.fix", "btn.next", "btn.install", "btn.open",
-		"btn.load", "btn.save",
+		"btn.load", "btn.save", "btn.upgrade",
 	} {
 		m := wizard(t, LangEN, false, 96, 30, StepMenu)
 		known[m.cat.T(key)] = true

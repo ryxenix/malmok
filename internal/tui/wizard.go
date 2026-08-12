@@ -53,6 +53,11 @@ const (
 	// and the order of a build is what that ordering means.
 	StepOpen
 	StepSave
+
+	// StepTarget and StepUpgrade are the upgrade flow's own: which version to
+	// move to, and moving there.
+	StepTarget
+	StepUpgrade
 )
 
 // mode is which of the two flows the wizard is walking.
@@ -65,6 +70,7 @@ type mode int
 const (
 	modeInstall mode = iota
 	modeSettings
+	modeUpgrade
 )
 
 // The two flows, in the order their screens are walked.
@@ -87,6 +93,11 @@ var (
 		StepOpen, StepProfile, StepNodes, StepNetwork, StepOptions,
 		StepRegistry, StepPKI, StepSave,
 	}
+	// The upgrade asks two questions and then does one thing. It does not walk
+	// the configuration screens: an upgrade changes the version and nothing
+	// else, and offering to edit the dataplane on the way past would invite a
+	// change this flow has no way to apply.
+	upgradeSteps = []Step{StepOpen, StepTarget, StepUpgrade, StepDone}
 )
 
 // stepKeys is the catalogue key for each screen that appears in a rail.
@@ -97,12 +108,16 @@ var stepKeys = map[Step]string{
 	StepPreflight: "step.preflight", StepSummary: "step.summary",
 	StepInstall: "step.install", StepDone: "step.done",
 	StepOpen: "step.open", StepSave: "step.save",
+	StepTarget: "step.target", StepUpgrade: "step.upgrade",
 }
 
 // flow is the sequence the current mode walks.
 func (w *Wizard) flow() []Step {
-	if w.mode == modeSettings {
+	switch w.mode {
+	case modeSettings:
 		return settingsSteps
+	case modeUpgrade:
+		return upgradeSteps
 	}
 	return installSteps
 }
@@ -183,10 +198,16 @@ type Config struct {
 	ACMEProvider string
 	ACMEToken    string
 
-	// DocPath is the file the settings flow reads and writes. It is a wizard
+	// DocPath is the file the settings and upgrade flows read. It is a wizard
 	// value rather than a document one and is never serialised -- a document
 	// that recorded its own location would be wrong the moment it was copied.
 	DocPath string
+
+	// UpgradeTo is the version the upgrade flow moves to. Not written into the
+	// document by the flow itself: the file describes what the cluster is, and
+	// it becomes true when the last node reports the new version, not when
+	// somebody types it.
+	UpgradeTo string
 }
 
 // Work is a long operation the wizard drives, reported through the event
@@ -228,6 +249,7 @@ type Wizard struct {
 
 	preflight Work
 	install   Work
+	upgrade   Work
 	workCtx   context.Context
 	hideRail  bool
 
@@ -648,7 +670,7 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 		}
 		return w, nil
 	case w.cat.T("btn.next"), w.cat.T("btn.install"), w.cat.T("btn.open"),
-		w.cat.T("btn.load"), w.cat.T("btn.save"):
+		w.cat.T("btn.load"), w.cat.T("btn.save"), w.cat.T("btn.upgrade"):
 		return w.next()
 	}
 	return w, nil
@@ -657,7 +679,8 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 func (w *Wizard) back() (tea.Model, tea.Cmd) {
 	// Nothing goes back out of work already done on a node, and nothing goes
 	// back from a document already written.
-	if w.busy || w.step == StepMenu || w.step == StepInstall || w.step == StepDone {
+	if w.busy || w.step == StepMenu || w.step == StepInstall ||
+		w.step == StepUpgrade || w.step == StepDone {
 		return w, nil
 	}
 	if w.step == StepSave && w.saved != "" {
@@ -721,9 +744,8 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 		// The mode is chosen here and nowhere else. Every screen after this is
 		// shared, and a screen that had to ask which flow it was in would be a
 		// second place for the two to disagree.
-		w.mode = modeInstall
+		w.mode = item.Mode
 		if item.Enter == StepOpen {
-			w.mode = modeSettings
 			w.openFiles = w.listDocuments()
 			w.openErr, w.saveErr, w.saved = "", "", ""
 		}
@@ -762,6 +784,14 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 		w.saveErr = ""
 		w.enter()
 		return w, nil
+
+	case StepTarget:
+		if w.busy {
+			return w, nil
+		}
+		w.advance()
+		w.focus = focusButtons
+		return w, w.start(w.upgrade)
 
 	case StepPreflight:
 		if w.busy {
@@ -823,7 +853,7 @@ func (w *Wizard) advanceAfterWork() tea.Cmd {
 	switch w.step {
 	case StepPreflight:
 		w.btn, w.focus = primaryIndex(w.buttons()), focusButtons
-	case StepInstall:
+	case StepInstall, StepUpgrade:
 		w.step = StepDone
 		w.btn, w.focus = primaryIndex(w.buttons()), focusButtons
 	}
@@ -907,6 +937,8 @@ func (w *Wizard) contentLen() int {
 		return len(dataplanes) + len(storages) + len(w.fieldsFor(StepOptions))
 	case StepOpen:
 		return len(w.fieldsFor(StepOpen)) + len(w.openFiles)
+	case StepTarget:
+		return len(w.fieldsFor(StepTarget))
 	default:
 		return 0
 	}

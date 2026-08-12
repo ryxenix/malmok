@@ -16,6 +16,8 @@ step:
   done: Finished
   open: Document
   save: Save
+  target: Version
+  upgrade: Upgrade
 lang:
   heading: Language
   help: Choose the language for this installer. It does not change log output, which is always English.
@@ -34,10 +36,10 @@ menu:
   quit.help: Close platformctl. Nothing running on a node is stopped.
   unavailable: "  (not built yet)"
   unavailable.status: This is not implemented. Nothing here will change if you choose it.
-  missing.upgrade: Not implemented. The upgrade phase needs a version skew check, a per-node drain and the same resume model the install has.
 open:
   heading: Open a document
   help: "Choose the cluster.yaml to edit. It is read as it is, edited on the screens that follow, and written back — fields this wizard has no screen for are kept untouched."
+  help.upgrade: "Choose the cluster.yaml that names the cluster to upgrade. It is read, not written: the file describes what the cluster is, and it becomes true when the last node reports the new version."
   path: Path
   path.hint: A path to a cluster.yaml. Choosing one below fills this in.
   found: "Found here"
@@ -51,6 +53,17 @@ save:
   written: The document has been written.
   after: "Nothing on a cluster has changed. Run `platformctl apply -f` against this file to make it so."
   hint: Enter writes the file; Esc goes back to change something
+target:
+  heading: Target version
+  help: "Choose the version to move to. Nothing is touched until the preconditions pass: the control plane moves one minor version at a time, there is no downgrade, and every node has to be Ready before the first one goes down."
+  document: Document
+  from: Running now
+  unknown: not recorded in the document
+  version: Move to
+  version.hint: "An RKE2 version, e.g. v1.35.7+rke2r1"
+  note: "Servers first, then agents, one node at a time. Each node is drained before its kubelet restarts and uncordoned once the cluster agrees it is back."
+upgrade:
+  heading: Upgrading
 doc:
   snapshot: "  (a run's snapshot — editing it means that run can no longer be resumed)"
 runs:
@@ -107,6 +120,8 @@ done:
   heading: Finished
   ok: Installation complete
   failed: Installation stopped
+  upgraded: The cluster is on the new version
+  upgrade_failed: The upgrade stopped
   cluster: What was built
   artifacts: Where it went
   rundir: Run directory
@@ -136,6 +151,7 @@ btn:
   close: Close
   load: Load
   save: Save
+  upgrade: Start the upgrade
 key:
   retry: retry
 hint:

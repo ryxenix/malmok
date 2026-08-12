@@ -25,6 +25,11 @@ type MenuItem struct {
 	// which is what an unimplemented entry does.
 	Enter Step
 
+	// Mode is the flow this entry starts. Chosen here and nowhere else: every
+	// screen after the menu is shared, and a screen that had to work out which
+	// flow it was in would be a second place for the two to disagree.
+	Mode mode
+
 	// Missing names what has to exist before this entry can work. Empty means
 	// the entry works.
 	Missing string
@@ -37,9 +42,8 @@ type MenuItem struct {
 // time wants and they already know where it is.
 var menuItems = []MenuItem{
 	{TitleKey: "menu.install", HelpKey: "menu.install.help", Enter: StepLang},
-	{TitleKey: "menu.upgrade", HelpKey: "menu.upgrade.help", Enter: StepMenu,
-		Missing: "menu.missing.upgrade"},
-	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepOpen},
+	{TitleKey: "menu.upgrade", HelpKey: "menu.upgrade.help", Enter: StepOpen, Mode: modeUpgrade},
+	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepOpen, Mode: modeSettings},
 	{TitleKey: "menu.logs", HelpKey: "menu.logs.help", Enter: StepRuns},
 	{TitleKey: "menu.quit", HelpKey: "menu.quit.help", Enter: StepMenu},
 }

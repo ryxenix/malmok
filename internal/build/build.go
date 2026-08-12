@@ -24,6 +24,7 @@ import (
 	"platform.ryxen.dev/platformctl/internal/report"
 	"platform.ryxen.dev/platformctl/internal/rke2"
 	"platform.ryxen.dev/platformctl/internal/state"
+	"platform.ryxen.dev/platformctl/internal/upgrade"
 )
 
 // Session is the connections and findings one wizard-driven build shares
@@ -263,3 +264,52 @@ func (s sudoRunner) Close() error { return s.closer.Close() }
 type noCloseRunner struct{ exec.Runner }
 
 func (noCloseRunner) Close() error { return nil }
+
+// Upgrade moves the cluster the document names to a new version.
+//
+// The same shape as Install and for the same reason: the wizard is a way of
+// choosing what to do, not a second implementation of doing it. Measure what
+// the nodes are running, decide whether the step is legal from there, and only
+// then touch anything.
+func (s *Session) Upgrade(ctx context.Context, spec v1alpha1.ClusterSpec, target, password string,
+	w *event.Writer, runDir string, st *state.State) error {
+
+	if err := s.Connect(ctx, spec, password); err != nil {
+		return err
+	}
+
+	current := upgrade.Read(ctx, spec, s.runners.ByHost, s.runners.Control)
+	results := upgrade.Check(current, target)
+
+	// The preconditions reach the screen as events, never as a return value:
+	// ADR-002 keeps the renderer a consumer of the stream, so a refused upgrade
+	// looks the same whether or not anybody was watching it.
+	emitter := preflight.Emitter{Writer: w}
+	for _, r := range results {
+		emitter.Emit(r)
+	}
+	if blocking := upgrade.Blocking(results); len(blocking) > 0 {
+		return fmt.Errorf("%d precondition(s) stop the upgrade: %s",
+			len(blocking), blocking[0].Detail)
+	}
+
+	phases, err := upgrade.Phases(spec, target, upgrade.Runners{
+		ByHost: s.runners.ByHost, Control: s.runners.Control,
+	}, upgrade.Options{
+		RKE2:         rke2.Options{InstallTimeout: 20 * time.Minute, ReadyTimeout: 15 * time.Minute},
+		DrainTimeout: 10 * time.Minute,
+		// One node has nowhere to drain to, and evicting workloads that have no
+		// other home would wait for pods that can never be scheduled.
+		SingleNode: len(current.Nodes) < 2,
+	})
+	if err != nil {
+		return err
+	}
+
+	runner := &engine.Runner{
+		Events:    w,
+		State:     st,
+		StatePath: state.Path(runDir),
+	}
+	return runner.Run(ctx, phases)
+}

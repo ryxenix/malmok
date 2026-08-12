@@ -504,3 +504,88 @@ func TestAnEditWritesTheDefaultsItShowed(t *testing.T) {
 		t.Error("the key reference changed")
 	}
 }
+
+// The upgrade flow asks two questions and then does one thing.
+//
+// It does not walk the configuration screens: an upgrade changes the version
+// and nothing else, and offering to edit the dataplane on the way past would
+// invite a change this flow has no way to apply.
+func TestTheUpgradeFlowIsTwoQuestions(t *testing.T) {
+	want := []Step{StepOpen, StepTarget, StepUpgrade, StepDone}
+	w := wizard(t, LangEN, false, 96, 30, StepOpen)
+	w.mode = modeUpgrade
+
+	got := w.flow()
+	if len(got) != len(want) {
+		t.Fatalf("the flow is %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("step %d is %v, want %v", i, got[i], want[i])
+		}
+	}
+	for _, unwanted := range []Step{StepProfile, StepNodes, StepPKI, StepRegistry} {
+		for _, step := range got {
+			if step == unwanted {
+				t.Errorf("the upgrade flow walks %v", unwanted)
+			}
+		}
+	}
+}
+
+// The same screen serves the settings and upgrade flows, and they are not doing
+// the same thing: one rewrites the file, the other restarts every node it names.
+func TestTheDocumentScreenSaysWhichFlowItIsIn(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepOpen)
+
+	w.mode = modeSettings
+	_, settings, _ := w.openScreen(80)
+
+	w.mode = modeUpgrade
+	_, upgrade, _ := w.openScreen(80)
+
+	if settings == upgrade {
+		t.Error("both flows show the same explanation")
+	}
+	// Matched on the unwrapped part: the pane wraps, so a phrase that spans a
+	// line break is not a phrase this can look for.
+	if !strings.Contains(upgrade, "read, not") {
+		t.Errorf("the upgrade screen does not say the file is only read:\n%s", upgrade)
+	}
+}
+
+// An upgrade that says "installation complete" describes something that did not
+// happen, and that sentence is the one an operator repeats to whoever asks.
+func TestTheFinalScreenNamesWhatWasDone(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepDone)
+
+	w.mode = modeInstall
+	_, install, _ := w.doneScreen(80)
+
+	w.mode = modeUpgrade
+	_, upgraded, _ := w.doneScreen(80)
+
+	if strings.Contains(upgraded, "Installation complete") {
+		t.Errorf("an upgrade reported an installation:\n%s", upgraded)
+	}
+	if install == upgraded {
+		t.Error("both flows end with the same sentence")
+	}
+}
+
+// The upgrade entry is live and starts the upgrade flow, not the settings one.
+func TestTheUpgradeMenuEntryIsLive(t *testing.T) {
+	for _, item := range menuItems {
+		if item.TitleKey != "menu.upgrade" {
+			continue
+		}
+		if item.Missing != "" {
+			t.Errorf("the upgrade entry still says %q", item.Missing)
+		}
+		if item.Enter != StepOpen || item.Mode != modeUpgrade {
+			t.Errorf("the upgrade entry goes to %v in mode %v", item.Enter, item.Mode)
+		}
+		return
+	}
+	t.Fatal("there is no upgrade entry")
+}

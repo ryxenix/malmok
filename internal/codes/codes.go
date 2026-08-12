@@ -1,6 +1,7 @@
 // Package codes is the single source of truth for platformctl's diagnostic
-// codes: preflight probes (PF), post-apply verification (PV), execution
-// failures (EX), maintenance checks (MC) and downgrade reasons (DG).
+// codes: preflight probes (PF), post-apply verification (PV), upgrade
+// preconditions (UP), execution failures (EX), maintenance checks (MC) and
+// downgrade reasons (DG).
 //
 // WHY THIS IS CODE AND NOT A MARKDOWN TABLE
 //
@@ -51,10 +52,16 @@ const (
 	// FamilyExecution covers failures of the phase runner itself. See
 	// docs/11-execute.md §6 and internal/codes/execution.go.
 	FamilyExecution Family = "EX"
+	// FamilyUpgrade covers the preconditions of moving an existing cluster to a
+	// new version. Measured before anything is touched, like a preflight check,
+	// but answering a different question: a PF code says whether an install
+	// will work here, a UP code says whether this step is legal from where the
+	// cluster already is. See internal/codes/upgrade.go.
+	FamilyUpgrade Family = "UP"
 )
 
 // Families lists every family in registry display order.
-var Families = []Family{FamilyPreflight, FamilyVerification, FamilyExecution, FamilyMaintenance, FamilyDowngrade}
+var Families = []Family{FamilyPreflight, FamilyVerification, FamilyUpgrade, FamilyExecution, FamilyMaintenance, FamilyDowngrade}
 
 func (f Family) String() string { return string(f) }
 
@@ -139,6 +146,7 @@ type Code struct {
 func (c Code) HasSeverity() bool {
 	return c.Family == FamilyPreflight ||
 		c.Family == FamilyVerification ||
+		c.Family == FamilyUpgrade ||
 		c.Family == FamilyExecution
 }
 
@@ -170,6 +178,7 @@ func init() {
 	sources = [][]Code{
 		preflightCodes,
 		verificationCodes,
+		upgradeCodes,
 		executionCodes,
 		maintenanceCodes,
 		downgradeCodes,
@@ -265,7 +274,7 @@ func sortCodes(cs []Code) {
 // Validation
 // ---------------------------------------------------------------------------
 
-var idPattern = regexp.MustCompile(`^(PF|PV|EX|MC|DG)-[0-9]{3}$`)
+var idPattern = regexp.MustCompile(`^(PF|PV|UP|EX|MC|DG)-[0-9]{3}$`)
 
 // Validate returns every structural problem in the registry. The test suite
 // fails on a non-empty result; nothing else calls it at runtime.

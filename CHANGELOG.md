@@ -5,6 +5,38 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.43.2] - 2026-08-12
+
+### Fixed
+
+A pass over every Korean screen, not only the new ones.
+
+- `에이전트` was used for an SSH agent in the credential hint, and an agent is a
+  worker node everywhere else in this tool -- the worst place for that
+  collision. It is `ssh-agent` now.
+- Writing a document was `기록`, which is what the event log does. Saving a file
+  is `저장`; one word for both made the save screen sound like it had appended
+  to a log.
+- `폐쇄망 번들에서 서빙` is not Korean. `누르기`, not `실행`, for activating a
+  button -- `실행` is what this tool calls a run. `공유 경로`, not
+  `내보내기 경로`, for an NFS export.
+- The final screen asked three questions where Korean wants noun phrases:
+  `무엇이 구축되었나` / `어디에 남았나` / `무엇이 실패했나` are `구축 결과` /
+  `산출물 위치` / `실패한 항목`.
+- `run` was left in English inside Korean sentences on the same screen that
+  calls it `실행 기록`, which made one concept look like two.
+- Spacing: `진행중` -> `진행 중`, `단계목록` -> `단계 목록`.
+
+### Changed
+
+- The summary screen follows the same rule the node screen does: it lists an
+  SSH user only when something is dialled. A build that opens no connection was
+  being summarised with a credential for a step that is not going to happen.
+- The profile row on the summary and final screens is labelled from the rail
+  rather than from the profile screen's title. A heading reused as a row label
+  reads as a heading -- in Korean that row said `프로파일 선택`, "choose a
+  profile", beside the profile that had already been chosen.
+
 ## [0.43.1] - 2026-08-12
 
 ### Fixed

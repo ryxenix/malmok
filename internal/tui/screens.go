@@ -349,17 +349,31 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 }
 
 func (w *Wizard) summaryScreen(width int) (string, string, string) {
-	rows := [][2]string{
-		{w.cat.T("nodes.server"), w.cfg.Server},
-		{w.cat.T("nodes.agents"), strings.Join(w.cfg.Agents, ", ")},
-		{w.cat.T("nodes.user"), w.cfg.SSHUser + ":" + w.cfg.SSHPort},
-		{w.cat.T("nodes.registration"), w.cfg.Registration},
-		{w.cat.T("nodes.version"), w.cfg.Version},
-		{w.cat.T("nodes.domain"), w.cfg.Domain},
-		{w.cat.T("profile.heading"), w.cfg.Profile},
-		{w.cat.T("options.dataplane"), w.cfg.Dataplane},
-		{w.cat.T("options.storage"), w.cfg.Storage},
+	server := w.cat.T("nodes.server")
+	if w.cfg.Local {
+		server = w.cat.T("nodes.thismachine")
 	}
+	rows := [][2]string{
+		{server, w.cfg.Server},
+		{w.cat.T("nodes.agents"), strings.Join(w.cfg.Agents, ", ")},
+	}
+	// The same rule the node screen follows: credentials appear only where
+	// something is dialled. A summary that listed an SSH user for a build that
+	// opens no connection would describe a step that is not going to happen.
+	if w.needsSSH() {
+		rows = append(rows, [2]string{w.cat.T("nodes.user"), w.cfg.SSHUser + ":" + w.cfg.SSHPort})
+	}
+	rows = append(rows,
+		[2]string{w.cat.T("nodes.registration"), w.cfg.Registration},
+		[2]string{w.cat.T("nodes.version"), w.cfg.Version},
+		[2]string{w.cat.T("nodes.domain"), w.cfg.Domain},
+		// The rail's label, not the screen's title. A heading reused as a row
+		// label reads as a heading: in Korean this row said "프로파일 선택" --
+		// "choose a profile" -- beside the profile that had been chosen.
+		[2]string{w.cat.T("step.profile"), w.cfg.Profile},
+		[2]string{w.cat.T("options.dataplane"), w.cfg.Dataplane},
+		[2]string{w.cat.T("options.storage"), w.cfg.Storage},
+	)
 
 	var b strings.Builder
 	b.WriteString(w.dim(w.cat.T("summary.help"), width) + "\n\n")
@@ -547,7 +561,7 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 func (w *Wizard) builtRows() [][2]string {
 	nodes := 1 + len(w.cfg.Agents)
 	rows := [][2]string{
-		{w.cat.T("profile.heading"), w.cfg.Profile},
+		{w.cat.T("step.profile"), w.cfg.Profile},
 		{w.cat.T("done.nodes"), fmt.Sprintf("%d (%s)", nodes, w.cfg.Server)},
 		{w.cat.T("options.dataplane"), w.cfg.Dataplane},
 		{w.cat.T("options.storage"), w.cfg.Storage},

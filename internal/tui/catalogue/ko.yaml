@@ -49,10 +49,10 @@ open:
 save:
   heading: 저장
   help: "이대로 기록됩니다. 화면에 없는 항목은 읽어들인 문서에서 그대로 옮겨집니다."
-  path: 기록 위치
-  written: 문서를 기록했습니다.
+  path: 저장 위치
+  written: 문서를 저장했습니다.
   after: "클러스터에는 아무 변경도 없습니다. 이 파일로 `platformctl apply -f` 를 실행해야 반영됩니다."
-  hint: Enter 로 파일을 기록하고, Esc 로 돌아가 고칩니다
+  hint: Enter 로 저장하고, Esc 로 돌아가 고칩니다
 target:
   heading: 대상 버전
   help: "옮겨갈 버전을 고르십시오. 사전 조건을 통과할 때까지 아무것도 건드리지 않습니다. 컨트롤 플레인은 마이너 버전을 한 단계씩만 올리고, 다운그레이드는 없으며, 첫 노드를 내리기 전에 모든 노드가 Ready 여야 합니다."
@@ -95,7 +95,7 @@ nodes:
   domain: 도메인
 profile:
   heading: 프로파일 선택
-  help: 설치 환경을 고르십시오. 프로파일이 검증된 기준값을 정하고, 나머지 설정은 모두 그 위의 덮어쓰기입니다.
+  help: 설치 환경을 고르십시오. 프로파일이 검증된 기준값을 정하고, 나머지 설정은 그 위에 덮어쓰는 값입니다.
   homelab: 단일 노드 · 온라인 · local-path
   company: 1+2 · 온라인 · longhorn
   dmz: 1+2 · 프록시 · 사설 CA
@@ -113,10 +113,10 @@ dp:
   canal: Canal · Traefik · eBPF 불필요
 st:
   local: 단일 노드 전용
-  longhorn: 복제본 · iscsid 필요
+  longhorn: 복제 · iscsid 필요
   nfs: 외부 서버
   server: NFS 서버
-  path: 내보내기 경로
+  path: 공유 경로
 preflight:
   heading: 사전 검사
 summary:
@@ -126,25 +126,25 @@ summary:
   valid: 문서가 유효합니다
   invalid: 문서에 문제가 있습니다
 install:
-  heading: 설치 진행
+  heading: 설치 중
 done:
   heading: 완료
   ok: 설치가 끝났습니다
   failed: 설치가 중단되었습니다
   upgraded: 클러스터를 새 버전으로 올렸습니다
   upgrade_failed: 업그레이드가 중단되었습니다
-  cluster: 무엇이 구축되었나
-  artifacts: 어디에 남았나
-  rundir: run 디렉터리
+  cluster: 구축 결과
+  artifacts: 산출물 위치
+  rundir: 실행 디렉터리
   nodes: 노드
   elapsed: 소요 시간
   pki_none: 발급 안 함, 인증서는 나중에
-  problems: 무엇이 실패했나
-  next: 이 run 에 다시 붙으려면
+  problems: 실패한 항목
+  next: 이 실행에 다시 붙으려면
   resume: 원인을 고친 뒤 같은 run id 로 이어서 실행하십시오. 끝난 단계는 다시 돌지 않습니다.
 status:
   pending: 대기
-  running: 진행중
+  running: 진행 중
   ok: 완료
   skipped: 건너뜀
   failed: 실패
@@ -166,7 +166,7 @@ btn:
 key:
   retry: 재시도
 hint:
-  password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 키나 에이전트를 씁니다
+  password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 SSH 키나 ssh-agent 를 씁니다
   registration: VIP 또는 DNS 이름. 노드 자신의 주소는 안 됩니다 (ADR-008)
   lbpool: 게이트웨이가 외부 주소를 받아갈 CIDR
   noproxy: pod·service CIDR 을 넣지 않으면 클러스터 내부 통신이 프록시를 탑니다
@@ -174,7 +174,7 @@ hint:
   sourceref: file:// · env:// · sops:// — 값이 아니라 참조
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
   sudopassword: 이 서버에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. platformctl 을 이미 root 로 실행 중이면 비워두십시오
-  toggle_steps: 단계목록
+  toggle_steps: 단계 목록
   toggle_ascii: ascii
   toggle_lang: English
   select: 위아래로 이동, Space 로 선택, Enter 로 다음 단계
@@ -223,7 +223,7 @@ regmode:
   embedded: RKE2 가 노드 간에 이미지를 공유
   upstream: 인터넷에서 직접 받음
   external: "기존 레지스트리 (예: Harbor)"
-  internal: 폐쇄망 번들에서 서빙
+  internal: 폐쇄망 번들에서 제공
 cap:
   menu: 메뉴
   move: 이동
@@ -232,7 +232,7 @@ cap:
   edit: 편집
   nextfield: 다음 항목
   done: 마침
-  activate: 실행
+  activate: 누르기
   buttons: 버튼
   content: 본문으로
 topo:

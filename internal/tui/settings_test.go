@@ -1066,3 +1066,127 @@ func TestTheNewChoicesReachTheDocument(t *testing.T) {
 		t.Error("turning encryption off wrote a value instead of leaving it to the profile")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Registry and certificate screens
+// ---------------------------------------------------------------------------
+
+// Every value the validator can demand has to be enterable, or the wizard
+// walks the operator into a document it then refuses.
+func TestTheRegistryScreenCanSatisfyItsValidator(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepRegistry)
+
+	// An air-gapped build needs a bundle or a registry address; the bundle
+	// field exists exactly for the build that has no registry to point at.
+	w.cfg.NetworkMode = string(v1alpha1.NetworkAirgap)
+	w.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
+	var labels []string
+	for _, f := range w.fieldsFor(StepRegistry) {
+		labels = append(labels, f.labelKey)
+	}
+	if !contains(labels, "reg.bundle") {
+		t.Errorf("an air-gapped registry screen has no bundle field: %v", labels)
+	}
+
+	// Online, the bundle is not a question anybody asked.
+	w.cfg.NetworkMode = string(v1alpha1.NetworkOnline)
+	labels = nil
+	for _, f := range w.fieldsFor(StepRegistry) {
+		labels = append(labels, f.labelKey)
+	}
+	if contains(labels, "reg.bundle") {
+		t.Errorf("an online build is asked for an airgap bundle: %v", labels)
+	}
+
+	// The insecure decision reaches the document as a pointer: stated only
+	// when it says something, so the document that means it is distinguishable
+	// from the ones that never thought about it.
+	w.cfg.RegistryInsecure = true
+	if got := w.cfg.ToSpec().Registry.Insecure; got == nil || !*got {
+		t.Error("accepting an unverified certificate did not reach the document")
+	}
+	w.cfg.RegistryInsecure = false
+	if w.cfg.ToSpec().Registry.Insecure != nil {
+		t.Error("declining wrote `insecure: false` instead of nothing")
+	}
+}
+
+// byo-cert asks for the material it needs and nothing it does not.
+//
+// It used to fall through to the private-CA fields, which asked for an issuing
+// CA's key on a build that issues nothing -- and produced a document the
+// validator refuses with no screen able to fix it.
+func TestBYOCertAsksForTheCertificate(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepPKI)
+	w.cfg.PKIMode = string(v1alpha1.PKIBYOCert)
+
+	var labels []string
+	for _, f := range w.fieldsFor(StepPKI) {
+		labels = append(labels, f.labelKey)
+	}
+	for _, want := range []string{"pki.byocert", "pki.byokey", "pki.byoca"} {
+		if !contains(labels, want) {
+			t.Errorf("%s is missing: %v", want, labels)
+		}
+	}
+	for _, unwanted := range []string{"pki.key", "pki.inter", "pki.email"} {
+		if contains(labels, unwanted) {
+			t.Errorf("byo-cert asks for %s, which belongs to another mode: %v", unwanted, labels)
+		}
+	}
+
+	w.cfg.BYOCert = "file://./tls/cert.pem"
+	w.cfg.BYOKey = "env://TLS_KEY"
+	got := w.cfg.ToSpec()
+	if got.PKI.BYOCert == nil || got.PKI.BYOCert.Cert != "file://./tls/cert.pem" {
+		t.Errorf("the material did not reach the document: %+v", got.PKI.BYOCert)
+	}
+	// And the validator that demanded the fields is satisfied by them.
+	w.cfg.Domain = "acme.internal"
+	for _, line := range w.validateConfig() {
+		if strings.Contains(line, "byoCert") {
+			t.Errorf("the screen cannot satisfy its own validator: %s", line)
+		}
+	}
+}
+
+// The ACME server is how staging is told apart from production, and a mistake
+// against production spends a rate limit that resets in a week.
+func TestACMEOffersTheServer(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepPKI)
+	w.cfg.PKIMode = string(v1alpha1.PKIACMEDNS01)
+
+	var labels []string
+	for _, f := range w.fieldsFor(StepPKI) {
+		labels = append(labels, f.labelKey)
+	}
+	if !contains(labels, "pki.server") {
+		t.Errorf("the ACME screen has no server field: %v", labels)
+	}
+
+	w.cfg.ACMEEmail = "ops@acme.co.kr"
+	w.cfg.ACMEServer = "https://acme-staging-v02.api.letsencrypt.org/directory"
+	if got := w.cfg.ToSpec().PKI.ACME; got == nil || got.Server != w.cfg.ACMEServer {
+		t.Errorf("the server did not reach the document: %+v", got)
+	}
+}
+
+// Trust distribution is offered only where l2-pki reads the answer.
+func TestTrustDistributionFollowsTheMode(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepPKI)
+
+	w.cfg.PKIMode = string(v1alpha1.PKIPrivateCA)
+	if w.pkiExtraRows() == 0 {
+		t.Error("a private CA is not asked about trust distribution")
+	}
+	w.cfg.TrustBundle = true
+	if got := w.cfg.ToSpec().PKI.Trust.ClusterBundle; got == nil || !*got {
+		t.Error("the bundle choice did not reach the document")
+	}
+
+	// Distributing a public CA's root to every namespace is noise.
+	w.cfg.PKIMode = string(v1alpha1.PKIACMEDNS01)
+	if w.pkiExtraRows() != 0 {
+		t.Error("an ACME build is asked about distributing a CA nothing needs")
+	}
+}

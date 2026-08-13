@@ -208,6 +208,8 @@ hint:
   registry: Every system image is pulled from here
   sourceref: file://, env:// or sops:// -- a reference, not the value
   rootkey: This is the intermediate key. The root key stays offline
+  bundle: The Hauler artifact carried across the gap. Either this or a registry address -- an air-gapped build needs one of the two
+  acmeserver: Empty means Let's Encrypt production. Point it at staging while testing -- a mistake against production spends a rate limit that resets in a week
   sudopassword: Only used to elevate on this machine; never written to cluster.yaml. Leave empty if platformctl is already running as root
   toggle_steps: steps
   toggle_ascii: ascii
@@ -244,6 +246,12 @@ reg:
   user: Username ref
   pass: Password ref
   ca: CA certificate ref
+  bundle: Airgap bundle path
+  tls: Registry certificate
+  tls.verify: verify
+  tls.verify.note: the CA above, or a public one, has to vouch for it
+  tls.insecure: accept unverified
+  tls.insecure.note: recorded in the audit report; a lab shortcut, not a production setting
 pki:
   heading: Certificates
   help_mode: Whether to issue certificates now. At a first build the service domain is often not decided yet.
@@ -255,6 +263,15 @@ pki:
   email: Account email
   provider: DNS provider
   token: API token ref
+  server: ACME server
+  byocert: Certificate ref
+  byokey: Private key ref
+  byoca: Issuing CA ref
+  trust: Distribute the CA in-cluster
+  trust.bundle: every namespace
+  trust.bundle.note: trust-manager syncs the CA everywhere pods can read it
+  trust.nodes: nodes only
+  trust.nodes.note: pods that need the CA mount it themselves
 pkimode:
   none: decide later, gateways on HTTP
   acme: public certificates, needs DNS control

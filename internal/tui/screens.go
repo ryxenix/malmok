@@ -707,6 +707,17 @@ func (w *Wizard) pkiScreen(width int) (string, string, string) {
 	b.WriteString(w.theme.Radio(labelsOf(pkiModes), notesOf(w.cat, pkiModes),
 		indexOf(pkiModes, w.cfg.PKIMode), cur, width, w.glyphs))
 
+	// Trust distribution, for the one mode where l2-pki reads the answer. A
+	// cluster built without it has a CA the nodes trust and the pods do not,
+	// and the failure is an opaque x509 error from inside a container.
+	if w.pkiExtraRows() > 0 {
+		b.WriteString("\n" + w.theme.Body.Render(w.cat.T("pki.trust")) + "\n")
+		b.WriteString(w.theme.Radio(
+			[]string{w.cat.T("pki.trust.bundle"), w.cat.T("pki.trust.nodes")},
+			[]string{w.cat.T("pki.trust.bundle.note"), w.cat.T("pki.trust.nodes.note")},
+			boolIndex(w.cfg.TrustBundle), cur-len(pkiModes), width, w.glyphs))
+	}
+
 	if fs := w.fieldsFor(StepPKI); len(fs) > 0 {
 		b.WriteString("\n")
 		b.WriteString(w.theme.Fields(w.labels(StepPKI), w.maskedValues(StepPKI),
@@ -738,10 +749,25 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 	b.WriteString(w.theme.Radio(labelsOf(registryModes), notesOf(w.cat, registryModes),
 		indexOf(registryModes, w.cfg.RegistryMode), cur, width, w.glyphs))
 
+	// Whether to accept a certificate the registry cannot prove. Only for a
+	// registry this document points at, and two rows rather than a toggle: a
+	// decision a security review will ask about should show both answers and
+	// which was taken.
+	if w.registryHasAddress() {
+		b.WriteString("\n" + w.theme.Body.Render(w.cat.T("reg.tls")) + "\n")
+		b.WriteString(w.theme.Radio(
+			[]string{w.cat.T("reg.tls.verify"), w.cat.T("reg.tls.insecure")},
+			[]string{w.cat.T("reg.tls.verify.note"), w.cat.T("reg.tls.insecure.note")},
+			boolIndex(!w.cfg.RegistryInsecure), cur-len(registryModes), width, w.glyphs))
+	}
+
 	if fs := w.fieldsFor(StepRegistry); len(fs) > 0 {
 		b.WriteString("\n")
 		b.WriteString(w.theme.Fields(w.labels(StepRegistry), w.maskedValues(StepRegistry),
 			w.fieldIndex(), w.editing, width, w.glyphs))
+		if h := w.fieldHint(int(StepRegistry), w.fieldIndex()); h != "" {
+			b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
+		}
 	} else {
 		b.WriteString("\n" + w.dim(w.cat.T("reg.note_none"), width))
 	}

@@ -102,6 +102,17 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 		s.Registry.Password = v1alpha1.SourceRef(c.RegistryPass)
 		s.Registry.CACert = v1alpha1.SourceRef(c.RegistryCA)
 	}
+	s.Registry.Bundle = c.RegistryBundle
+	// The same pointer discipline as node encryption: stated only when it says
+	// something. `insecure: false` written into every document would make the
+	// one that means it indistinguishable from the ones that never thought
+	// about it.
+	if c.RegistryInsecure {
+		yes := true
+		s.Registry.Insecure = &yes
+	} else {
+		s.Registry.Insecure = nil
+	}
 
 	s.PKI.Mode = v1alpha1.PKIMode(c.PKIMode)
 	s.PKI.Domain = c.Domain
@@ -114,7 +125,7 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	//
 	// The offline root's private key has no field here and never will: it must
 	// not leave its custody (PF-706). Only the public root is referenced.
-	s.PKI.PrivateCA, s.PKI.ACME = nil, nil
+	s.PKI.PrivateCA, s.PKI.ACME, s.PKI.BYOCert = nil, nil, nil
 	switch v1alpha1.PKIMode(c.PKIMode) {
 	case v1alpha1.PKINone:
 		// Nothing is issued, so nothing is carried. A domain left in the
@@ -129,11 +140,28 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 				IntermediateKey:  v1alpha1.SourceRef(c.CAKey),
 			}
 		}
+		// Stated only when on: the document's zero value already means "no
+		// bundle", and l2-pki reads the pointer.
+		if c.TrustBundle {
+			yes := true
+			s.PKI.Trust.ClusterBundle = &yes
+		} else {
+			s.PKI.Trust.ClusterBundle = nil
+		}
+
+	case v1alpha1.PKIBYOCert:
+		if c.BYOCert != "" || c.BYOKey != "" {
+			s.PKI.BYOCert = &v1alpha1.BYOCertSpec{
+				Cert:   v1alpha1.SourceRef(c.BYOCert),
+				Key:    v1alpha1.SourceRef(c.BYOKey),
+				CACert: v1alpha1.SourceRef(c.BYOCA),
+			}
+		}
 
 	case v1alpha1.PKIACMEDNS01, v1alpha1.PKIACMEHTTP01:
 		if c.ACMEEmail != "" {
 			s.PKI.ACME = &v1alpha1.ACMESpec{
-				Email: c.ACMEEmail, DNSProvider: c.ACMEProvider,
+				Email: c.ACMEEmail, Server: c.ACMEServer, DNSProvider: c.ACMEProvider,
 				APIToken: v1alpha1.SourceRef(c.ACMEToken),
 			}
 		}
@@ -168,10 +196,13 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		DowngradePolicy: string(s.Kubernetes.Dataplane.DowngradePolicy),
 		LBPool:          s.Kubernetes.Dataplane.LoadBalancerPool,
 
-		RegistryHost: s.Registry.SystemDefaultRegistry,
-		RegistryUser: string(s.Registry.Username),
-		RegistryPass: string(s.Registry.Password),
-		RegistryCA:   string(s.Registry.CACert),
+		RegistryHost:     s.Registry.SystemDefaultRegistry,
+		RegistryUser:     string(s.Registry.Username),
+		RegistryPass:     string(s.Registry.Password),
+		RegistryCA:       string(s.Registry.CACert),
+		RegistryBundle:   s.Registry.Bundle,
+		RegistryInsecure: s.Registry.Insecure != nil && *s.Registry.Insecure,
+		TrustBundle:      s.PKI.Trust.ClusterBundle != nil && *s.PKI.Trust.ClusterBundle,
 
 		SSHUser: "root",
 		SSHPort: "22",
@@ -216,8 +247,11 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		c.CAKey = string(ca.IntermediateKey)
 	}
 	if a := s.PKI.ACME; a != nil {
-		c.ACMEEmail, c.ACMEProvider = a.Email, a.DNSProvider
+		c.ACMEEmail, c.ACMEServer, c.ACMEProvider = a.Email, a.Server, a.DNSProvider
 		c.ACMEToken = string(a.APIToken)
+	}
+	if b := s.PKI.BYOCert; b != nil {
+		c.BYOCert, c.BYOKey, c.BYOCA = string(b.Cert), string(b.Key), string(b.CACert)
 	}
 	return c
 }

@@ -207,6 +207,8 @@ hint:
   registry: 모든 시스템 이미지를 여기서 받습니다
   sourceref: file:// · env:// · sops:// — 값이 아니라 참조
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
+  bundle: 폐쇄망을 건너온 Hauler 아티팩트입니다. 이것 아니면 레지스트리 주소 — 폐쇄망 구축에는 둘 중 하나가 필요합니다
+  acmeserver: 비우면 Let's Encrypt 운영 서버입니다. 시험 중에는 staging 을 쓰십시오 — 운영 서버에 실수하면 일주일짜리 발급 한도를 소모합니다
   sudopassword: 이 서버에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. platformctl 을 이미 root 로 실행 중이면 비워두십시오
   toggle_steps: 단계 목록
   toggle_ascii: ascii
@@ -243,6 +245,12 @@ reg:
   user: 사용자 참조
   pass: 비밀번호 참조
   ca: CA 인증서 참조
+  bundle: 폐쇄망 번들 경로
+  tls: 레지스트리 인증서
+  tls.verify: 검증
+  tls.verify.note: 위의 CA 나 공인 CA 가 보증해야 합니다
+  tls.insecure: 미검증 허용
+  tls.insecure.note: 감사 리포트에 기록됩니다. 실험용이지 운영 설정이 아닙니다
 pki:
   heading: 인증서
   help_mode: 지금 인증서를 발급할지 정합니다. 초기 구축에서는 서비스 도메인이 아직 안 정해진 경우가 많습니다.
@@ -254,6 +262,15 @@ pki:
   email: 계정 이메일
   provider: DNS 공급자
   token: API 토큰 참조
+  server: ACME 서버
+  byocert: 인증서 참조
+  byokey: 개인키 참조
+  byoca: 발급 CA 참조
+  trust: 클러스터 안 CA 배포
+  trust.bundle: 전체 네임스페이스
+  trust.bundle.note: trust-manager 가 모든 파드가 읽을 수 있게 CA 를 동기화합니다
+  trust.nodes: 노드까지만
+  trust.nodes.note: CA 가 필요한 파드는 직접 마운트합니다
 pkimode:
   none: 나중에 결정 · 게이트웨이는 HTTP
   acme: 공인 인증서 · DNS 제어 필요

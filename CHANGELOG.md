@@ -5,6 +5,33 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.46.1] - 2026-08-13
+
+### Fixed
+
+The registry and certificate screens, audited the same way the profile was:
+every value their validators can demand is now enterable, and every decision
+their phases read is now on screen.
+
+- `byo-cert` fell through to the private-CA fields, asking for an issuing CA's
+  key on a build that issues nothing -- and producing a document the validator
+  refuses with no screen able to fix it. It asks for the certificate, the key
+  and the issuing CA now.
+- An air-gapped build must name a bundle or a registry address, and only the
+  address had a field: the build that carried a Hauler bundle instead was
+  unbuildable from the wizard. The bundle path appears when the network mode is
+  airgap.
+- The ACME server was not asked, so staging could not be told apart from
+  production -- and a mistake against production spends a rate limit that
+  resets in a week.
+- Trust distribution is a choice on the private-CA screen. l2-pki reads it, and
+  a cluster built without it has a CA the nodes trust and the pods do not; the
+  failure is an opaque x509 error from inside a container.
+- Accepting an unverified registry certificate is a visible two-row decision on
+  the modes that point at a registry. Written into the document only when
+  chosen, so the file that means it is distinguishable from the ones that never
+  thought about it.
+
 ## [0.46.0] - 2026-08-13
 
 ### Changed

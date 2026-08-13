@@ -93,6 +93,7 @@ nodes:
   help: "설치할 노드를 입력하십시오. agent 는 쉼표로 구분합니다."
   help.local: "설치할 노드를 입력하십시오. 적힌 주소가 모두 이 서버의 것이라 SSH 접속 없이 여기서 바로 실행됩니다."
   server: server IP
+  os: 운영체제
   thismachine: 이 서버
   advertised: 다른 노드가 접속할 주소
   agents: agent IP
@@ -118,6 +119,16 @@ options:
   dataplane: dataplane
   storage: 스토리지
   downgrade: 노드가 못 돌릴 때
+  fallback: 대신 쓸 것
+os:
+  auto: 노드에서 직접 읽음
+  ubuntu: Ubuntu 22.04 또는 24.04
+  rocky: Rocky Linux 9
+routing:
+  overlay: 노드 사이 VXLAN · 어떤 네트워크에서도 동작
+  native: 파드 CIDR 을 그대로 라우팅 · 네트워크가 실어줘야 함
+fallback:
+  none: 강등하지 않음
 netmode:
   online: 인터넷으로 직접 나감
   proxy: HTTP 프록시 경유 · DMZ
@@ -145,6 +156,7 @@ summary:
   help: 변경 전 마지막 확인입니다. 아직 어떤 노드에도 쓰지 않았습니다.
   warnings: 사전 검사 지적사항
   valid: 문서가 유효합니다
+  profile: 프로파일
   invalid: 문서에 문제가 있습니다
 install:
   heading: 설치 중
@@ -208,12 +220,12 @@ hint:
   finished: 끝났습니다
   close: Enter 로 닫기
 note:
-  profile: 프로파일이 검증된 기준값을 정합니다. 옵션 화면에 무엇이 선택됐는지 표시됩니다.
-  options: 프로파일을 덮어씁니다. CNI·게이트웨이·LB IP 는 하나의 원자적 선택입니다 (ADR-004).
+  options: CNI·게이트웨이·LB IP 는 하나의 원자적 선택입니다 (ADR-004).
 net:
   heading: 네트워크
   help: "노드가 인터넷에 대해 어디에 있는지, 그리고 네트워크팀과 합의해야 하는 주소들입니다. 프로파일이 제안한 값이며 모두 여기서 바꿀 수 있습니다."
   mode: 외부 연결
+  routing: 파드 라우팅
   encrypt: 노드 간 통신
   encrypt.on: 암호화
   encrypt.on.note: 노드 사이 WireGuard. 경계를 넘는 구성에서는 기본값

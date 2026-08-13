@@ -198,3 +198,30 @@ func contains(xs []string, want string) bool {
 	}
 	return false
 }
+
+// Match names the profile whose baseline a composition equals, or custom.
+//
+// The wizard composes a configuration axis by axis rather than offering six
+// canned combinations, because a combination nobody anticipated -- a homelab
+// behind a proxy, an air-gapped site on the full dataplane -- was otherwise
+// unreachable. The profile is the answer to "which validated baseline is this",
+// which is a fact about the composition and not a question to ask before it.
+//
+// It stays in the document because the audit report is built on it: `custom` is
+// Tier-3 and says, correctly, that this combination is not one CI exercises.
+func Match(b Baseline) v1alpha1.ProfileName {
+	for _, name := range Profiles() {
+		known, ok := baselines[name]
+		if !ok {
+			continue
+		}
+		// A profile's strictness about pinned gateway addresses is a property
+		// of the profile, not of the document: nothing in a ClusterSpec records
+		// it, so comparing it would relabel every read-back document custom.
+		b.RequirePinnedGatewayAddress = known.RequirePinnedGatewayAddress
+		if known == b {
+			return name
+		}
+	}
+	return v1alpha1.ProfileCustom
+}

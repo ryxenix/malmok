@@ -36,6 +36,9 @@ const (
 	// Profile comes before everything it decides: the network mode, the PKI
 	// mode and the storage driver all follow from it, and a screen that asks
 	// about a proxy before knowing whether there is one wastes a question.
+	// StepProfile is retired: the wizard composes axis by axis and the profile
+	// is derived from the composition (MatchedProfile). The constant stays so
+	// step numbering in state files and tests does not shift.
 	StepProfile
 	// StepWhere is the question the wizard used to skip: which machine is this
 	// being built on. Asking for an address first meant an operator installing
@@ -97,11 +100,11 @@ const (
 // two-screen detour look like part of the work.
 var (
 	installSteps = []Step{
-		StepProfile, StepWhere, StepNodes, StepNetwork, StepOptions,
+		StepWhere, StepNodes, StepNetwork, StepOptions,
 		StepRegistry, StepPKI, StepPreflight, StepSummary, StepInstall, StepDone,
 	}
 	settingsSteps = []Step{
-		StepOpen, StepProfile, StepNodes, StepNetwork, StepOptions,
+		StepOpen, StepNodes, StepNetwork, StepOptions,
 		StepRegistry, StepPKI, StepSave,
 	}
 	// The upgrade asks two questions and then does one thing. It does not walk
@@ -187,6 +190,22 @@ type Config struct {
 	// rather than silently installing onto the wrong box.
 	Local bool
 
+	// The axes. Composed one at a time on the screens that own them; there is
+	// no screen that asks for all of them at once under a name, because the
+	// six names could not cover the combinations people actually have.
+	OSFamily     string
+	Routing      string
+	Fallback     string
+	GitOpsSource string
+
+	// PinnedGateway is a profile's own strictness about requiring a DNS record
+	// before install (PF-612). Not composed; carried so a document that had it
+	// keeps it.
+	PinnedGateway bool
+
+	// Profile is what the composition turned out to match. Written by
+	// MatchedProfile rather than chosen, and kept here so the summary can show
+	// it without recomputing.
 	Profile   string
 	Dataplane string
 	Storage   string
@@ -218,6 +237,10 @@ type Config struct {
 	RegistryUser string
 	RegistryPass string
 	RegistryCA   string
+	// RegistryBundle is the Hauler artifact an air-gapped site carried across.
+	RegistryBundle string
+	// RegistryInsecure accepts a registry certificate that cannot be verified.
+	RegistryInsecure bool
 
 	NFSServer string
 	NFSPath   string
@@ -226,7 +249,20 @@ type Config struct {
 	CAIntermediate string
 	CAKey          string
 
+	// BYOCert is the supplied certificate and its key, for the mode that
+	// issues nothing. Selecting that mode used to show the private-CA fields,
+	// which asked for an issuing CA on a build that has none.
+	BYOCert string
+	BYOKey  string
+	BYOCA   string
+
+	// TrustBundle distributes a private CA to every namespace. Without it the
+	// nodes trust the CA and the pods do not, and the failure is an opaque
+	// x509 error from inside a container.
+	TrustBundle bool
+
 	ACMEEmail    string
+	ACMEServer   string
 	ACMEProvider string
 	ACMEToken    string
 
@@ -355,7 +391,13 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			Registration: "k8s-api.acme.internal",
 			Version:      "v1.34.5+rke2r1",
 			Domain:       "acme.internal",
-			Profile:      "onprem-dmz", Dataplane: "cilium-gw", Storage: "longhorn",
+			// Starting values, not a profile. Each is the answer most builds
+			// want, and every one is a screen away; what they match is derived
+			// (MatchedProfile) rather than chosen.
+			OSFamily: "auto", Routing: "overlay",
+			NetworkMode: "online", DowngradePolicy: "confirm",
+			Dataplane: "cilium-gw", Fallback: "canal-traefik", Storage: "local-path",
+			PKIMode: "none", RegistryMode: "embedded",
 			ProxyHTTP:  "http://proxy.acme.local:3128",
 			ProxyHTTPS: "http://proxy.acme.local:3128",
 			NoProxy:    []string{"10.0.0.0/8", ".acme.internal"},
@@ -376,9 +418,6 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			ACMEToken:    "env://ACME_API_TOKEN",
 		},
 	}
-	// The default profile's baseline applies from the start, so a screen never
-	// shows a mode that the chosen profile would not use.
-	wz.applyProfileDefaults()
 	// And the machine in front of the operator is the default target. An
 	// installer is normally run on the machine being installed; opening on
 	// "somewhere else" makes the common case the one that takes more steps.
@@ -665,6 +704,11 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 	case StepWhere:
 		w.setLocal(cur == 0)
 	case StepNodes:
+		if cur < len(osFamilies) {
+			w.cfg.OSFamily = osFamilies[cur].id
+			break
+		}
+		cur -= len(osFamilies)
 		// The addresses of this machine, when it is the one being built on.
 		// A list rather than a field: the machine knows them, and a multi-homed
 		// host is a real case where the choice matters (PF-609) and typing is
@@ -680,20 +724,18 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 			w.cfg.DocPath = w.openFiles[i].Path
 		}
 	case StepRegistry:
-		if cur < len(registryModes) {
+		switch {
+		case cur < len(registryModes):
 			w.cfg.RegistryMode = registryModes[cur].id
+		case cur < len(registryModes)+w.registryExtraRows():
+			w.cfg.RegistryInsecure = cur == len(registryModes)+1
 		}
 	case StepPKI:
-		if cur < len(pkiModes) {
+		switch {
+		case cur < len(pkiModes):
 			w.cfg.PKIMode = pkiModes[cur].id
-		}
-	case StepProfile:
-		if choices := profileChoices(); cur < len(choices) {
-			w.cfg.Profile = choices[cur].id
-			// The profile decides the validated baseline; showing the previous
-			// dataplane and storage next to a new profile would misdescribe
-			// what is about to be installed.
-			w.applyProfileDefaults()
+		case cur < len(pkiModes)+w.pkiExtraRows():
+			w.cfg.TrustBundle = cur == len(pkiModes)
 		}
 	case StepNetwork:
 		switch {
@@ -704,6 +746,8 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 			// setting somebody's security team asked for should show both
 			// answers and which one is chosen.
 			w.cfg.Encrypt = cur == len(networkModes)
+		case cur < len(networkModes)+2+len(routingModes):
+			w.cfg.Routing = routingModes[cur-len(networkModes)-2].id
 		}
 	case StepOptions:
 		switch {
@@ -713,6 +757,8 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 			w.cfg.Storage = storages[cur-len(dataplanes)].id
 		case cur < len(dataplanes)+len(storages)+len(downgradePolicies):
 			w.cfg.DowngradePolicy = downgradePolicies[cur-len(dataplanes)-len(storages)].id
+		case cur < len(dataplanes)+len(storages)+len(downgradePolicies)+len(fallbacks):
+			w.cfg.Fallback = fallbacks[cur-len(dataplanes)-len(storages)-len(downgradePolicies)].id
 		}
 	}
 	return w, nil
@@ -1012,18 +1058,16 @@ func (w *Wizard) phase(id string) *phaseView {
 func (w *Wizard) contentLen() int {
 	switch w.step {
 	case StepNetwork:
-		return len(networkModes) + 2 + len(w.fieldsFor(StepNetwork))
+		return len(networkModes) + 2 + len(routingModes) + len(w.fieldsFor(StepNetwork))
 	case StepNodes:
-		return w.localAddressCount() + len(w.fieldsFor(StepNodes))
+		return len(osFamilies) + w.localAddressCount() + len(w.fieldsFor(StepNodes))
 	case StepRegistry:
-		return len(registryModes) + len(w.fieldsFor(StepRegistry))
+		return len(registryModes) + w.registryExtraRows() + len(w.fieldsFor(StepRegistry))
 	case StepPKI:
-		return len(pkiModes) + len(w.fieldsFor(StepPKI))
-	case StepProfile:
-		return len(profileChoices())
+		return len(pkiModes) + w.pkiExtraRows() + len(w.fieldsFor(StepPKI))
 	case StepOptions:
 		return len(dataplanes) + len(storages) + len(downgradePolicies) +
-			len(w.fieldsFor(StepOptions))
+			len(fallbacks) + len(w.fieldsFor(StepOptions))
 	case StepWhere:
 		return 2
 	case StepPrefs:
@@ -1061,15 +1105,15 @@ func (w *Wizard) fieldIndex() int {
 	i := w.cursor[w.step]
 	switch w.step {
 	case StepNodes:
-		i -= w.localAddressCount()
+		i -= len(osFamilies) + w.localAddressCount()
 	case StepNetwork:
-		i -= len(networkModes) + 2
+		i -= len(networkModes) + 2 + len(routingModes)
 	case StepOptions:
-		i -= len(dataplanes) + len(storages) + len(downgradePolicies)
+		i -= len(dataplanes) + len(storages) + len(downgradePolicies) + len(fallbacks)
 	case StepRegistry:
-		i -= len(registryModes)
+		i -= len(registryModes) + w.registryExtraRows()
 	case StepPKI:
-		i -= len(pkiModes)
+		i -= len(pkiModes) + w.pkiExtraRows()
 	}
 	return i
 }

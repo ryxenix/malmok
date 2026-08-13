@@ -23,7 +23,10 @@ var fieldOwners = []struct {
 	prefix string
 	step   Step
 }{
-	{"metadata.", StepProfile},
+	// There is no screen that owns metadata: the profile is derived from what
+	// was composed rather than chosen, so a problem with it is a problem with
+	// the composition and the summary is where the composition is shown.
+	{"metadata.", StepSummary},
 	{"topology.", StepNodes},
 	{"kubernetes.version", StepNodes},
 	{"pki.domain", StepNodes},

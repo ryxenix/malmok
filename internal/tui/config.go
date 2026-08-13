@@ -41,7 +41,10 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	if s.Metadata.Name == "" {
 		s.Metadata.Name = "cluster"
 	}
-	s.Metadata.Profile = v1alpha1.ProfileName(c.Profile)
+	// Derived, not chosen. Six canned combinations cannot cover the
+	// combinations people actually have, and asking for one first made every
+	// screen after it an override of a decision nobody wanted to make.
+	s.Metadata.Profile = c.MatchedProfile()
 
 	// A VIP or DNS name, never a node's own address: otherwise adding a second
 	// server later means re-joining every node (ADR-008).
@@ -54,6 +57,9 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	s.Kubernetes.Version = c.Version
 	s.Kubernetes.Dataplane.Preset = v1alpha1.DataplanePreset(c.Dataplane)
 	s.Kubernetes.Dataplane.LoadBalancerPool = c.LBPool
+	s.Kubernetes.Dataplane.Fallback = v1alpha1.DataplanePreset(c.Fallback)
+	s.OS.Family = v1alpha1.OSFamily(c.OSFamily)
+	s.Network.Routing = v1alpha1.RoutingMode(c.Routing)
 
 	s.Storage.Driver = v1alpha1.StorageDriver(c.Storage)
 	if c.Storage == string(v1alpha1.StorageNFS) {
@@ -148,6 +154,10 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		Version:      s.Kubernetes.Version,
 		Domain:       s.Gateway.DomainSuffix,
 		Profile:      string(s.Metadata.Profile),
+		OSFamily:     string(s.OS.Family),
+		Routing:      string(s.Network.Routing),
+		Fallback:     string(s.Kubernetes.Dataplane.Fallback),
+		GitOpsSource: string(s.Platform.GitOps.Source),
 		Dataplane:    string(s.Kubernetes.Dataplane.Preset),
 		Storage:      string(s.Storage.Driver),
 		PKIMode:      string(s.PKI.Mode),
@@ -301,28 +311,6 @@ func (w *Wizard) validateConfig() []string {
 	return nil
 }
 
-// applyProfileDefaults moves a profile's baseline into the collected values, so
-// the options screen shows what the profile chose instead of whatever was there
-// before.
-//
-// Only the fields the wizard actually offers. Everything else the baseline
-// fixes is applied by spec.ApplyProfile when the document is built, and showing
-// a value the operator cannot change on a screen that looks editable would be
-// worse than not showing it.
-func (w *Wizard) applyProfileDefaults() {
-	b, ok := spec.BaselineFor(v1alpha1.ProfileName(w.cfg.Profile))
-	if !ok {
-		return
-	}
-	w.cfg.Dataplane = string(b.Dataplane)
-	w.cfg.Storage = string(b.Storage)
-	w.cfg.PKIMode = string(b.PKIMode)
-	w.cfg.RegistryMode = string(b.RegistryMode)
-	w.cfg.NetworkMode = string(b.NetworkMode)
-	w.cfg.Encrypt = b.EncryptNodeTraffic
-	w.cfg.DowngradePolicy = string(b.DowngradePolicy)
-}
-
 func atoiOr(s string, def int) int {
 	n := 0
 	for _, r := range s {
@@ -335,4 +323,31 @@ func atoiOr(s string, def int) int {
 		return def
 	}
 	return n
+}
+
+// MatchedProfile names the validated baseline this configuration equals.
+//
+// `custom` when it equals none of them, which is a true and useful statement:
+// Tier-3 means the combination is not one CI exercises, and the audit report
+// says so rather than claiming a profile the document does not actually match.
+func (c Config) MatchedProfile() v1alpha1.ProfileName {
+	return spec.Match(spec.Baseline{
+		OSFamily:           v1alpha1.OSFamily(c.OSFamily),
+		NetworkMode:        v1alpha1.NetworkMode(c.NetworkMode),
+		Routing:            v1alpha1.RoutingMode(c.Routing),
+		Dataplane:          v1alpha1.DataplanePreset(c.Dataplane),
+		Fallback:           v1alpha1.DataplanePreset(c.Fallback),
+		DowngradePolicy:    v1alpha1.DowngradePolicy(c.DowngradePolicy),
+		PKIMode:            v1alpha1.PKIMode(c.PKIMode),
+		Storage:            v1alpha1.StorageDriver(c.Storage),
+		RegistryMode:       v1alpha1.RegistryMode(c.RegistryMode),
+		GitOpsSource:       v1alpha1.GitOpsSourceType(c.GitOpsSource),
+		EncryptNodeTraffic: c.Encrypt,
+
+		// Not composed anywhere: it is a profile's own strictness about
+		// requiring a DNS record before install (PF-612), not a setting. A
+		// composition that matches a profile in every other respect inherits
+		// it, which is what makes the match meaningful.
+		RequirePinnedGatewayAddress: c.PinnedGateway,
+	})
 }

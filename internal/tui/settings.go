@@ -193,6 +193,17 @@ func (w *Wizard) loadDocument() error {
 	if err != nil {
 		return err
 	}
+	// The profile's own values are filled in before the screens read them.
+	//
+	// The wizard composes axis by axis and the profile is what the composition
+	// matches, so a document that left its axes to the profile would come back
+	// with them empty -- and be written out as `custom`, having silently lost
+	// the baseline it was relying on. Resolving first means the screens show
+	// what the document effectively is, and writing it back says the same
+	// thing.
+	if _, err := doc.ApplyProfile(); err != nil {
+		return err
+	}
 
 	lang, pass := w.cfg.Lang, w.cfg.SSHPassword
 	w.doc = doc.Spec

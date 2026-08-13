@@ -25,7 +25,10 @@ func richDocument() v1alpha1.ClusterSpec {
 	return v1alpha1.ClusterSpec{
 		APIVersion: v1alpha1.APIVersion,
 		Kind:       v1alpha1.KindSpec,
-		Metadata:   v1alpha1.Metadata{Name: "acme-prod", Profile: "onprem-dmz"},
+		// Explicitly custom. A named profile resolves its axes at load and is
+		// re-derived at save, so the identity round trip is only meaningful for
+		// a document that states what it is.
+		Metadata: v1alpha1.Metadata{Name: "acme-prod", Profile: "custom"},
 		Topology: v1alpha1.TopologySpec{
 			RegistrationAddress: "k8s.acme.internal",
 			Servers: []v1alpha1.NodeSpec{{
@@ -969,8 +972,8 @@ func TestWorkThatFailsBeforeAnythingRunsSaysWhy(t *testing.T) {
 // override".
 func TestAProfileIsAStartingPointNotALock(t *testing.T) {
 	w := wizard(t, LangEN, false, 96, 30, StepNetwork)
-	w.cfg.Profile = string(v1alpha1.ProfileHomelab)
-	w.applyProfileDefaults()
+	homelab, _ := spec.BaselineFor(v1alpha1.ProfileHomelab)
+	compose(w, homelab)
 
 	if w.networkMode() != v1alpha1.NetworkOnline {
 		t.Fatalf("the homelab baseline is %s", w.networkMode())
@@ -993,10 +996,10 @@ func TestAProfileIsAStartingPointNotALock(t *testing.T) {
 	if got := w.cfg.ToSpec().Network.Mode; got != v1alpha1.NetworkProxy {
 		t.Errorf("the document says %s", got)
 	}
-	// And the profile it started from is still recorded, because the audit
-	// report is about which baseline was accepted and what was changed on top.
-	if got := w.cfg.ToSpec().Metadata.Profile; got != v1alpha1.ProfileHomelab {
-		t.Errorf("the profile became %s", got)
+	// And the document says what this actually is: a combination no validated
+	// baseline contains, which is what `custom` means.
+	if got := w.cfg.ToSpec().Metadata.Profile; got != v1alpha1.ProfileCustom {
+		t.Errorf("the profile is %s", got)
 	}
 }
 

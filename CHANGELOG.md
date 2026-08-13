@@ -5,6 +5,27 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.46.0] - 2026-08-13
+
+### Changed
+
+- The wizard composes; it no longer asks which of six canned combinations to
+  start from. The profile chooser is gone, and every axis it used to fix is a
+  choice on the screen that owns it: the operating system with the nodes, pod
+  routing and reachability and node encryption on the network screen, the
+  dataplane with its fallback and the downgrade policy on the options screen.
+  v0.45.0 made the profile overridable; this removes the question itself,
+  because choosing a combination first made every later screen an override of a
+  decision nobody wanted to make.
+- The profile is derived, not chosen. The summary and the document name the
+  validated baseline the composition equals -- `custom` when it equals none,
+  which is a true statement: Tier-3 means the combination is not one CI
+  exercises. Composing a baseline axis by axis is recognised as that baseline,
+  and the audit trail keeps its vocabulary.
+- Editing a document resolves its profile's values into the axes first, so a
+  file that relied on a baseline is shown as what it effectively is and is
+  written back meaning the same thing.
+
 ## [0.45.0] - 2026-08-13
 
 ### Fixed

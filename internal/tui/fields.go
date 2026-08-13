@@ -5,7 +5,6 @@ import (
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
 // A field is one editable line on a screen.
@@ -156,7 +155,7 @@ func (w *Wizard) fieldsFor(step Step) []field {
 			w.cfg.RegistryMode != string(v1alpha1.RegistryBYO) {
 			return nil
 		}
-		return []field{
+		fs := []field{
 			{labelKey: "reg.host", hint: "hint.registry",
 				get: func(c *Config) string { return c.RegistryHost },
 				set: func(c *Config, v string) { c.RegistryHost = v }},
@@ -170,17 +169,50 @@ func (w *Wizard) fieldsFor(step Step) []field {
 				get: func(c *Config) string { return c.RegistryCA },
 				set: func(c *Config, v string) { c.RegistryCA = v }},
 		}
+		// Where the artifacts came across. An air-gapped build has to say
+		// either this or a registry address, and the validator refuses a
+		// document with neither -- so offering the address alone left one of
+		// the two answers unreachable.
+		if w.networkMode() == v1alpha1.NetworkAirgap {
+			fs = append(fs, field{labelKey: "reg.bundle", hint: "hint.bundle",
+				get: func(c *Config) string { return c.RegistryBundle },
+				set: func(c *Config, v string) { c.RegistryBundle = v }})
+		}
+		return fs
 
 	case StepPKI:
 		// Nothing is issued, so there is no account and no CA to describe.
 		if w.cfg.PKIMode == string(v1alpha1.PKINone) || w.cfg.PKIMode == "" {
 			return nil
 		}
+		// The certificate is supplied rather than issued, so what it needs is
+		// the material -- not a CA to sign with. This fell through to the
+		// private-CA fields, which asked for an issuing CA's key on a build
+		// that issues nothing and produced a document the validator refuses
+		// with no screen able to fix it.
+		if v1alpha1.PKIMode(w.cfg.PKIMode) == v1alpha1.PKIBYOCert {
+			return []field{
+				{labelKey: "pki.byocert", hint: "hint.sourceref",
+					get: func(c *Config) string { return c.BYOCert },
+					set: func(c *Config, v string) { c.BYOCert = v }},
+				{labelKey: "pki.byokey", secret: true, hint: "hint.sourceref",
+					get: func(c *Config) string { return c.BYOKey },
+					set: func(c *Config, v string) { c.BYOKey = v }},
+				{labelKey: "pki.byoca",
+					get: func(c *Config) string { return c.BYOCA },
+					set: func(c *Config, v string) { c.BYOCA = v }},
+			}
+		}
 		if isACME(v1alpha1.PKIMode(w.cfg.PKIMode)) {
 			return []field{
 				{labelKey: "pki.email",
 					get: func(c *Config) string { return c.ACMEEmail },
 					set: func(c *Config, v string) { c.ACMEEmail = v }},
+				// Staging or production. Getting this wrong on a real domain
+				// spends a rate limit that resets in a week.
+				{labelKey: "pki.server", hint: "hint.acmeserver",
+					get: func(c *Config) string { return c.ACMEServer },
+					set: func(c *Config, v string) { c.ACMEServer = v }},
 				{labelKey: "pki.provider",
 					get: func(c *Config) string { return c.ACMEProvider },
 					set: func(c *Config, v string) { c.ACMEProvider = v }},
@@ -204,8 +236,6 @@ func (w *Wizard) fieldsFor(step Step) []field {
 	return nil
 }
 
-// networkMode is what the chosen profile fixes, since the wizard does not offer
-// it as a separate question.
 // networkMode is what the operator chose, falling back to what the profile
 // suggested and then to online.
 //
@@ -216,17 +246,7 @@ func (w *Wizard) networkMode() v1alpha1.NetworkMode {
 	if m := v1alpha1.NetworkMode(w.cfg.NetworkMode); m != "" {
 		return m
 	}
-	if b, ok := spec.BaselineFor(v1alpha1.ProfileName(w.cfg.Profile)); ok {
-		return b.NetworkMode
-	}
 	return v1alpha1.NetworkOnline
-}
-
-func (w *Wizard) pkiMode() v1alpha1.PKIMode {
-	if b, ok := spec.BaselineFor(v1alpha1.ProfileName(w.cfg.Profile)); ok {
-		return b.PKIMode
-	}
-	return v1alpha1.PKIPrivateCA
 }
 
 func isACME(m v1alpha1.PKIMode) bool {
@@ -365,4 +385,33 @@ func (w *Wizard) localAddressCount() int {
 		return 0
 	}
 	return len(exec.LocalIPv4s())
+}
+
+// registryExtraRows is how many choice rows sit above the registry fields.
+//
+// Whether to accept a certificate the registry cannot prove is a decision, not
+// a field, and it only arises for a registry this document points at: the
+// embedded mirror and a plain upstream pull have no such question.
+func (w *Wizard) registryExtraRows() int {
+	if w.registryHasAddress() {
+		return 2
+	}
+	return 0
+}
+
+func (w *Wizard) registryHasAddress() bool {
+	return w.cfg.RegistryMode == string(v1alpha1.RegistryExternal) ||
+		w.cfg.RegistryMode == string(v1alpha1.RegistryBYO)
+}
+
+// pkiExtraRows is how many choice rows sit above the certificate fields.
+//
+// Only for a private CA. Distributing a public CA's root to every namespace is
+// noise, and it is the one mode where l2-pki reads the answer -- a cluster
+// built without it has a CA the nodes trust and the pods do not.
+func (w *Wizard) pkiExtraRows() int {
+	if v1alpha1.PKIMode(w.cfg.PKIMode) == v1alpha1.PKIPrivateCA {
+		return 2
+	}
+	return 0
 }

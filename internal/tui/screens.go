@@ -11,7 +11,6 @@ import (
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
 	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
 // One function per step, each returning the Frame the chrome draws. Keeping the
@@ -23,25 +22,6 @@ type choice struct {
 	id    string
 	label string
 	note  string // catalogue key, or literal text when derived from a baseline
-}
-
-// The Tier-1 profiles come from internal/spec rather than from a list here.
-// Two lists of the same six profiles would disagree the first time one is
-// edited, and the one the engine reads has to win.
-func profileChoices() []choice {
-	names := spec.Profiles()
-	out := make([]choice, 0, len(names))
-	for _, name := range names {
-		b, _ := spec.BaselineFor(name)
-		// Identifiers, not prose: os family, network mode, PKI and storage are
-		// the same words in every language.
-		out = append(out, choice{
-			id: string(name), label: string(name),
-			note: fmt.Sprintf("%s %s %s %s %s %s %s",
-				b.OSFamily, bullet, b.NetworkMode, bullet, b.PKIMode, bullet, b.Storage),
-		})
-	}
-	return out
 }
 
 // bullet is filled in per render so the ASCII fallback reaches these too.
@@ -71,6 +51,28 @@ var pkiModes = []choice{
 	{"acme-dns01", "acme-dns01", "pkimode.acme"},
 	{"private-ca", "private-ca", "pkimode.ca"},
 	{"byo-cert", "byo-cert", "pkimode.byo"},
+}
+
+// The OS family. `auto` is the honest default: PF-101 reads /etc/os-release,
+// and a document that states a family the node does not have is a document that
+// fails a check it did not need to run.
+var osFamilies = []choice{
+	{"auto", "auto", "os.auto"},
+	{"ubuntu", "ubuntu", "os.ubuntu"},
+	{"rocky", "rocky", "os.rocky"},
+}
+
+// How pod traffic crosses between nodes.
+var routingModes = []choice{
+	{"overlay", "overlay", "routing.overlay"},
+	{"native", "native", "routing.native"},
+}
+
+// The dataplane to fall back to when the nodes cannot run the chosen one.
+var fallbacks = []choice{
+	{"canal-traefik", "canal-traefik", "dp.canal"},
+	{"cilium-traefik", "cilium-traefik", "dp.cilium_traefik"},
+	{"", "none", "fallback.none"},
 }
 
 // Where the nodes sit relative to the internet. It decides whether a proxy is
@@ -138,8 +140,6 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.registryScreen(body)
 	case StepPKI:
 		f.Heading, f.Body, f.Status = w.pkiScreen(body)
-	case StepProfile:
-		f.Heading, f.Body, f.Status = w.profileScreen(body)
 	case StepOptions:
 		f.Heading, f.Body, f.Status = w.optionsScreen(body)
 	case StepPreflight:
@@ -223,7 +223,7 @@ func (w *Wizard) buttons() []Button {
 		// Back goes to the menu rather than nowhere: an operator who chose the
 		// wrong entry has to be able to leave without quitting.
 		return []Button{back, {Label: w.cat.T("btn.done"), Primary: true}}
-	case StepProfile, StepWhere, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
+	case StepWhere, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepOpen:
 		if len(w.openFiles) == 0 && strings.TrimSpace(w.cfg.DocPath) == "" {
@@ -316,23 +316,6 @@ func (w *Wizard) maskedValues(step Step) []string {
 	return vals
 }
 
-func (w *Wizard) profileScreen(width int) (string, string, string) {
-	bullet = w.glyphs.Dot
-	profiles := profileChoices()
-	labels, notes := make([]string, len(profiles)), make([]string, len(profiles))
-	chosen := 0
-	for i, p := range profiles {
-		labels[i], notes[i] = p.label, p.note
-		if p.id == w.cfg.Profile {
-			chosen = i
-		}
-	}
-	body := w.dim(w.cat.T("profile.help"), width) + "\n\n" +
-		w.theme.Radio(labels, notes, chosen, w.cursor[StepProfile], width, w.glyphs) +
-		"\n" + w.dim(w.cat.T("note.profile"), width)
-	return w.cat.T("profile.heading"), body, w.cat.T("hint.select")
-}
-
 func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	var b strings.Builder
 	b.WriteString(w.dim(w.cat.T("options.help"), width) + "\n\n")
@@ -355,6 +338,11 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	b.WriteString(w.theme.Radio(labelsOf(downgradePolicies), notesOf(w.cat, downgradePolicies),
 		indexOf(downgradePolicies, w.cfg.DowngradePolicy),
 		cur-len(dataplanes)-len(storages), width, w.glyphs))
+
+	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("options.fallback")) + "\n")
+	b.WriteString(w.theme.Radio(labelsOf(fallbacks), notesOf(w.cat, fallbacks),
+		indexOf(fallbacks, w.cfg.Fallback),
+		cur-len(dataplanes)-len(storages)-len(downgradePolicies), width, w.glyphs))
 
 	if fs := w.fieldsFor(StepOptions); len(fs) > 0 {
 		b.WriteString("\n")
@@ -388,7 +376,10 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 		// The rail's label, not the screen's title. A heading reused as a row
 		// label reads as a heading: in Korean this row said "프로파일 선택" --
 		// "choose a profile" -- beside the profile that had been chosen.
-		[2]string{w.cat.T("step.profile"), w.cfg.Profile},
+		// What the composition turned out to be, rather than what was picked
+		// before composing anything. `custom` is a true statement: Tier-3 means
+		// this combination is not one CI exercises.
+		[2]string{w.cat.T("summary.profile"), string(w.cfg.MatchedProfile())},
 		[2]string{w.cat.T("options.dataplane"), w.cfg.Dataplane},
 		[2]string{w.cat.T("options.storage"), w.cfg.Storage},
 	)
@@ -593,7 +584,7 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 func (w *Wizard) builtRows() [][2]string {
 	nodes := 1 + len(w.cfg.Agents)
 	rows := [][2]string{
-		{w.cat.T("step.profile"), w.cfg.Profile},
+		{w.cat.T("summary.profile"), string(w.cfg.MatchedProfile())},
 		{w.cat.T("done.nodes"), fmt.Sprintf("%d (%s)", nodes, w.cfg.Server)},
 		{w.cat.T("options.dataplane"), w.cfg.Dataplane},
 		{w.cat.T("options.storage"), w.cfg.Storage},
@@ -908,15 +899,37 @@ func (w *Wizard) whereScreen(width int) (string, string, string) {
 // multi-homed host is a real case where which one the cluster advertises
 // matters (PF-609) and typing is not what should decide it.
 func (w *Wizard) nodesScreen(width int) (string, string, string) {
-	if !w.cfg.Local {
-		return w.formScreen(StepNodes, "nodes.heading", w.nodesHelp(), width)
-	}
-
 	var b strings.Builder
 	b.WriteString(w.dim(wrapCells(w.cat.T(w.nodesHelp()), width), width) + "\n\n")
 
-	addrs := exec.LocalIPv4s()
 	cur := w.cursor[StepNodes]
+
+	// The OS family belongs with the machines it describes. `auto` is the
+	// default and the honest one: PF-101 reads /etc/os-release, and a document
+	// that states a family the node does not have fails a check it need not
+	// have run.
+	b.WriteString(w.theme.Body.Render(w.cat.T("nodes.os")) + "\n")
+	b.WriteString(w.theme.Radio(labelsOf(osFamilies), notesOf(w.cat, osFamilies),
+		indexOf(osFamilies, w.cfg.OSFamily), cur, width, w.glyphs))
+	b.WriteString("\n")
+
+	if !w.cfg.Local {
+		if fs := w.fieldsFor(StepNodes); len(fs) > 0 {
+			b.WriteString(w.theme.Fields(w.labels(StepNodes), w.maskedValues(StepNodes),
+				w.fieldIndex(), w.editing, width, w.glyphs))
+		}
+		if h := w.fieldHint(int(StepNodes), w.fieldIndex()); h != "" {
+			b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
+		}
+		hint := "hint.edit"
+		if w.editing {
+			hint = "hint.editing"
+		}
+		return w.cat.T("nodes.heading"), b.String(), w.cat.T(hint)
+	}
+
+	addrs := exec.LocalIPv4s()
+	cur -= len(osFamilies)
 	if len(addrs) == 0 {
 		// Nothing to choose from and nothing to pretend about. The address is
 		// what the cluster advertises, so a machine with none is a machine this
@@ -986,6 +999,10 @@ func (w *Wizard) networkScreen(width int) (string, string, string) {
 		[]string{w.cat.T("net.encrypt.on"), w.cat.T("net.encrypt.off")},
 		[]string{w.cat.T("net.encrypt.on.note"), w.cat.T("net.encrypt.off.note")},
 		boolIndex(w.cfg.Encrypt), cur-len(networkModes), width, w.glyphs))
+
+	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("net.routing")) + "\n")
+	b.WriteString(w.theme.Radio(labelsOf(routingModes), notesOf(w.cat, routingModes),
+		indexOf(routingModes, w.cfg.Routing), cur-len(networkModes)-2, width, w.glyphs))
 
 	if fs := w.fieldsFor(StepNetwork); len(fs) > 0 {
 		b.WriteString("\n")

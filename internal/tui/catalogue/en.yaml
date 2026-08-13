@@ -94,6 +94,7 @@ nodes:
   help: "Enter the nodes to install on. Separate agents with commas."
   help.local: "Enter the nodes to install on. Every address here belongs to this machine, so the work runs here and nothing is connected to."
   server: Server IP
+  os: Operating system
   thismachine: This machine
   advertised: the address the rest of the cluster reaches
   agents: Agent IPs
@@ -119,6 +120,16 @@ options:
   dataplane: Dataplane
   storage: Storage
   downgrade: If a node cannot run it
+  fallback: Fall back to
+os:
+  auto: read from the node itself
+  ubuntu: Ubuntu 22.04 or 24.04
+  rocky: Rocky Linux 9
+routing:
+  overlay: VXLAN between nodes; works on any network
+  native: routed pod CIDRs; needs the network to carry them
+fallback:
+  none: do not downgrade at all
 netmode:
   online: direct egress to the internet
   proxy: through an HTTP proxy, DMZ
@@ -146,6 +157,7 @@ summary:
   help: Review before anything is changed. Nothing has been written to a node yet.
   warnings: findings from preflight
   valid: The document is valid
+  profile: Matches profile
   invalid: The document has problems
 install:
   heading: Installing
@@ -209,12 +221,12 @@ hint:
   finished: Finished
   close: Enter to close
 note:
-  profile: The profile fixes the validated baseline; the options screen shows what it chose.
-  options: Overrides the profile. CNI, gateway and load balancer IP are one atomic choice (ADR-004).
+  options: CNI, gateway and load balancer IP are one atomic choice (ADR-004).
 net:
   heading: Network
   help: "Where the nodes sit relative to the internet, and the addressing the network team has to agree to. The profile suggested these; every one of them can be changed here."
   mode: Reachability
+  routing: Pod routing
   encrypt: Node-to-node traffic
   encrypt.on: encrypted
   encrypt.on.note: WireGuard between nodes; the default wherever they cross a boundary

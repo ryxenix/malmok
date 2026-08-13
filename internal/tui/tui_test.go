@@ -166,12 +166,12 @@ func TestVerdictIsLegibleFromTheMarker(t *testing.T) {
 // Below the width floor the rail is dropped before the content: knowing which
 // choice is in front of you beats knowing which step it belongs to.
 func TestNarrowTerminalDropsTheRailNotTheContent(t *testing.T) {
-	screen := plain(render(t, wizard(t, LangEN, false, 60, 24, StepProfile), nil))
+	screen := plain(render(t, wizard(t, LangEN, false, 60, 24, StepOptions), nil))
 
 	if strings.Contains(screen, "│") {
 		t.Error("the rail survived on a narrow terminal; the content pane needs the width")
 	}
-	if !strings.Contains(screen, "onprem-dmz") {
+	if !strings.Contains(screen, "cilium-gw") {
 		t.Errorf("the choices were dropped instead:\n%s", screen)
 	}
 }
@@ -238,11 +238,11 @@ func TestBackIsAbsentWhileInstalling(t *testing.T) {
 // containing "a" would toggle the character set.
 func TestEditingCapturesShortcutKeys(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
-	// The node screen is a pure form when the nodes are somewhere else; with
-	// this machine as the target its first row is the address chooser.
+	// The node screen opens with the operating system, which is a choice; the
+	// fields start below it.
 	m.setLocal(false)
 	m.editing = true
-	m.cursor[StepNodes] = 0
+	m.cursor[StepNodes] = len(osFamilies)
 	m.cfg.Server = ""
 
 	for _, key := range []string{"a", "g", "q", "1", "0", "."} {
@@ -403,7 +403,9 @@ func TestWizardWalksToTheEnd(t *testing.T) {
 	if m.step != StepDone {
 		t.Fatalf("wizard never reached the final step, stopped at %d", m.step)
 	}
-	for s := StepProfile; s <= StepDone; s++ {
+	// Every step of the flow, which is the list rather than the enum: the enum
+	// also numbers screens that belong to other flows.
+	for _, s := range installSteps {
 		if !seen[s] && s != StepDone {
 			t.Errorf("step %d was skipped", s)
 		}
@@ -469,52 +471,6 @@ func TestPrimaryActionIsPreselected(t *testing.T) {
 	}
 }
 
-// Profile choices come from internal/spec, not from a second list here. Two
-// lists of the same six profiles would disagree the first time one is edited,
-// and the one the engine reads has to win.
-func TestProfileChoicesComeFromTheSpecPackage(t *testing.T) {
-	got := profileChoices()
-	if len(got) != len(spec.Profiles()) {
-		t.Fatalf("wizard offers %d profiles, spec defines %d", len(got), len(spec.Profiles()))
-	}
-	for _, c := range got {
-		if _, ok := spec.BaselineFor(v1alpha1.ProfileName(c.id)); !ok {
-			t.Errorf("wizard offers %q, which spec has no baseline for", c.id)
-		}
-		if c.note == "" {
-			t.Errorf("%s has no summary line", c.id)
-		}
-	}
-}
-
-// Choosing a profile has to move its baseline into the options, or the options
-// screen describes an installation that is not the one about to happen.
-func TestChoosingAProfileAppliesItsBaseline(t *testing.T) {
-	m := wizard(t, LangEN, false, 90, 26, StepProfile)
-
-	choices := profileChoices()
-	target := -1
-	for i, c := range choices {
-		if c.id == string(v1alpha1.ProfileAirgapConservative) {
-			target = i
-		}
-	}
-	if target < 0 {
-		t.Fatal("the conservative profile is missing")
-	}
-
-	m.cursor[StepProfile] = target
-	m.selectUnderCursor()
-
-	b, _ := spec.BaselineFor(v1alpha1.ProfileAirgapConservative)
-	if m.cfg.Dataplane != string(b.Dataplane) {
-		t.Errorf("dataplane = %s, want %s from the baseline", m.cfg.Dataplane, b.Dataplane)
-	}
-	if m.cfg.Storage != string(b.Storage) {
-		t.Errorf("storage = %s, want %s from the baseline", m.cfg.Storage, b.Storage)
-	}
-}
-
 // A field the operator can break has to be reported on the screen that
 // produced it, not hours later.
 func TestSummaryReportsAnInvalidDocument(t *testing.T) {
@@ -549,21 +505,62 @@ func TestCollectedValuesBuildAValidDocument(t *testing.T) {
 	}
 }
 
-// Every profile has to produce a valid document, not just the default one. A
-// profile the wizard offers but cannot complete is a dead end an operator
-// discovers after answering eight screens.
-func TestEveryProfileProducesAValidDocument(t *testing.T) {
-	for _, c := range profileChoices() {
-		t.Run(c.id, func(t *testing.T) {
-			m := wizard(t, LangEN, false, 90, 26, StepSummary)
-			m.cfg.Profile = c.id
-			m.applyProfileDefaults()
+// compose sets the axes the way a baseline has them, which is what an operator
+// does one screen at a time.
+//
+// The wizard no longer offers the baselines as a list; it composes, and the
+// profile is what the composition turned out to match.
+func compose(m *Wizard, b spec.Baseline) {
+	m.cfg.OSFamily = string(b.OSFamily)
+	m.cfg.NetworkMode = string(b.NetworkMode)
+	m.cfg.Routing = string(b.Routing)
+	m.cfg.Dataplane = string(b.Dataplane)
+	m.cfg.Fallback = string(b.Fallback)
+	m.cfg.DowngradePolicy = string(b.DowngradePolicy)
+	m.cfg.PKIMode = string(b.PKIMode)
+	m.cfg.Storage = string(b.Storage)
+	m.cfg.RegistryMode = string(b.RegistryMode)
+	m.cfg.GitOpsSource = string(b.GitOpsSource)
+	m.cfg.Encrypt = b.EncryptNodeTraffic
+	m.cfg.PinnedGateway = b.RequirePinnedGatewayAddress
+}
 
+// Every validated combination has to be reachable by composing, and has to be
+// recognised as itself once composed.
+//
+// The profile is derived now: composing the homelab baseline axis by axis has
+// to produce a document that says homelab, or the audit report would call a
+// CI-exercised combination `custom`.
+func TestEveryProfileIsReachableByComposing(t *testing.T) {
+	for _, name := range spec.Profiles() {
+		b, ok := spec.BaselineFor(name)
+		if !ok {
+			t.Fatalf("no baseline for %s", name)
+		}
+		t.Run(string(name), func(t *testing.T) {
+			m := wizard(t, LangEN, false, 90, 26, StepSummary)
+			compose(m, b)
+
+			if got := m.cfg.MatchedProfile(); got != name {
+				t.Errorf("composing the %s baseline matched %s", name, got)
+			}
 			if problems := m.validateConfig(); len(problems) > 0 {
-				t.Errorf("profile %s cannot be completed:\n  %s",
-					c.id, strings.Join(problems, "\n  "))
+				t.Errorf("%s cannot be completed:\n  %s",
+					name, strings.Join(problems, "\n  "))
 			}
 		})
+	}
+}
+
+// And a combination none of them contains is custom rather than a lie.
+func TestAnUnlistedCombinationIsCustom(t *testing.T) {
+	m := wizard(t, LangEN, false, 90, 26, StepSummary)
+	b, _ := spec.BaselineFor(v1alpha1.ProfileHomelab)
+	compose(m, b)
+
+	m.cfg.NetworkMode = string(v1alpha1.NetworkProxy) // a homelab behind a proxy
+	if got := m.cfg.MatchedProfile(); got != v1alpha1.ProfileCustom {
+		t.Errorf("a combination no profile contains was reported as %s", got)
 	}
 }
 
@@ -572,8 +569,8 @@ func TestEveryProfileProducesAValidDocument(t *testing.T) {
 func TestScreensAdaptToTheProfile(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepPKI)
 
-	m.cfg.Profile = string(v1alpha1.ProfileHomelab) // pki none, online
-	m.applyProfileDefaults()
+	homelab, _ := spec.BaselineFor(v1alpha1.ProfileHomelab) // pki none, online
+	compose(m, homelab)
 	if got := m.labels(StepPKI); len(got) != 0 {
 		t.Errorf("a profile that issues nothing still asks about certificates: %v", got)
 	}
@@ -585,8 +582,8 @@ func TestScreensAdaptToTheProfile(t *testing.T) {
 		t.Errorf("an online profile is asked about a proxy: %v", got)
 	}
 
-	m.cfg.Profile = string(v1alpha1.ProfileOnpremDMZ) // private-ca, proxy
-	m.applyProfileDefaults()
+	dmz, _ := spec.BaselineFor(v1alpha1.ProfileOnpremDMZ) // private-ca, proxy
+	compose(m, dmz)
 	if got := m.labels(StepPKI); !containsAny(got, "Intermediate key ref") {
 		t.Errorf("a private-CA profile is not asked for CA material: %v", got)
 	}
@@ -641,7 +638,10 @@ func TestInvalidDocumentCannotBeInstalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.width, m.height, m.step = 90, 26, StepSummary
-	m.cfg.RegistryHost = "" // a field the validator requires
+	// A registry that points somewhere needs an address; clearing it is the
+	// smallest way to make the document invalid.
+	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
+	m.cfg.RegistryHost = ""
 	m.enter()
 
 	for _, b := range m.buttons() {
@@ -662,6 +662,7 @@ func TestInvalidDocumentCannotBeInstalled(t *testing.T) {
 // and the primary button goes there.
 func TestProblemsAreRoutedToTheScreenThatFixesThem(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepSummary)
+	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
 	m.cfg.RegistryHost = ""
 	m.cfg.LBPool = nil
 
@@ -931,27 +932,26 @@ func TestFinishedScreenSaysWhenNothingWasIssued(t *testing.T) {
 // Space chooses, Enter moves on. Making Enter select meant Tabbing to the
 // buttons on every screen, which is eleven extra keystrokes on a first build.
 func TestSpaceSelectsAndEnterAdvances(t *testing.T) {
-	m := wizard(t, LangEN, false, 90, 26, StepProfile)
-	choices := profileChoices()
+	m := wizard(t, LangEN, false, 90, 26, StepOptions)
 
 	// Space on a choice selects it and stays put.
-	m.cursor[StepProfile] = len(choices) - 1
+	m.cursor[StepOptions] = len(dataplanes) - 1
 	m.key(fakeKey("space"))
-	if m.step != StepProfile {
+	if m.step != StepOptions {
 		t.Errorf("Space moved to step %d; it must select in place", m.step)
 	}
-	if m.cfg.Profile != choices[len(choices)-1].id {
-		t.Errorf("Space did not select: profile is %s", m.cfg.Profile)
+	if m.cfg.Dataplane != dataplanes[len(dataplanes)-1].id {
+		t.Errorf("Space did not select: dataplane is %s", m.cfg.Dataplane)
 	}
 
 	// Enter on a choice moves on without touching the selection.
-	before := m.cfg.Profile
+	before := m.cfg.Dataplane
 	m.key(fakeKey("enter"))
-	if m.step == StepProfile {
+	if m.step == StepOptions {
 		t.Error("Enter did not advance from a choice screen")
 	}
-	if m.cfg.Profile != before {
-		t.Errorf("Enter changed the selection from %s to %s", before, m.cfg.Profile)
+	if m.cfg.Dataplane != before {
+		t.Errorf("Enter changed the selection from %s to %s", before, m.cfg.Dataplane)
 	}
 }
 
@@ -960,7 +960,7 @@ func TestSpaceSelectsAndEnterAdvances(t *testing.T) {
 func TestEnterOpensAFieldRatherThanAdvancing(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
 	m.setLocal(false)
-	m.cursor[StepNodes] = 0
+	m.cursor[StepNodes] = len(osFamilies)
 
 	m.key(fakeKey("enter"))
 	if !m.editing {
@@ -983,10 +983,9 @@ func TestMixedScreenKeysFollowTheCursor(t *testing.T) {
 		t.Error("a dataplane row is reported as a field")
 	}
 
-	// On a field row below them. The downgrade policy sits between the two
-	// groups and the fields, because deciding what happens when a node cannot
-	// run the dataplane belongs beside the dataplane.
-	m.cursor[StepOptions] = len(dataplanes) + len(storages) + len(downgradePolicies)
+	// On a field row below every choice group. The groups above the fields are
+	// the dataplane, the storage, the downgrade policy and its fallback.
+	m.cursor[StepOptions] = len(dataplanes) + len(storages) + len(downgradePolicies) + len(fallbacks)
 	if !m.cursorIsField() {
 		t.Error("the NFS server row is not reported as a field")
 	}
@@ -1002,12 +1001,12 @@ func TestMixedScreenKeysFollowTheCursor(t *testing.T) {
 func TestEnterWalksTheFormOntoTheButtons(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
 	m.setLocal(false)
+	m.cursor[StepNodes] = len(osFamilies)
 	n := len(m.fieldsFor(StepNodes))
 	if n < 2 {
 		t.Fatalf("expected several fields, got %d", n)
 	}
 
-	m.cursor[StepNodes] = 0
 	m.key(fakeKey("enter")) // open the first field
 	if !m.editing {
 		t.Fatal("Enter did not open the first field")
@@ -1015,7 +1014,9 @@ func TestEnterWalksTheFormOntoTheButtons(t *testing.T) {
 
 	for i := 0; i < n-1; i++ {
 		m.key(fakeKey("enter"))
-		if want := i + 1; m.cursor[StepNodes] != want {
+		// The fields sit below the operating system rows, so the cursor is
+		// offset by them.
+		if want := len(osFamilies) + i + 1; m.cursor[StepNodes] != want {
 			t.Fatalf("Enter moved the cursor to %d, want %d", m.cursor[StepNodes], want)
 		}
 		if !m.editing {
@@ -1085,13 +1086,15 @@ func TestSpinnerAdvancesAndFallsBack(t *testing.T) {
 // "space to choose" on a screen with nothing to choose is noise that teaches
 // the operator to stop reading the line.
 func TestKeyHintsFollowTheScreen(t *testing.T) {
-	choose := wizard(t, LangEN, false, 96, 24, StepProfile)
+	choose := wizard(t, LangEN, false, 96, 24, StepOptions)
 	if got := choose.keyHints(""); !strings.Contains(got, "choose") {
 		t.Errorf("a choice screen does not offer Space: %q", got)
 	}
 
 	form := wizard(t, LangEN, false, 96, 24, StepNodes)
 	form.setLocal(false)
+	// On a field row: the operating system rows sit above the fields.
+	form.cursor[StepNodes] = len(osFamilies)
 	if got := form.keyHints(""); !strings.Contains(got, "edit") {
 		t.Errorf("a form screen does not offer edit: %q", got)
 	}
@@ -1241,9 +1244,9 @@ func TestMenuHasNoRailOrCounter(t *testing.T) {
 	if len(install.rail()) == 0 {
 		t.Error("the install flow lost its rail")
 	}
-	// Nodes is the third screen of eleven: the language moved to Settings and
-	// the flow gained "Where".
-	if got := plain(install.View().Content); !strings.Contains(got, "3/11") {
+	// Nodes is the second screen of ten: there is no profile chooser and the
+	// language lives in Settings.
+	if got := plain(install.View().Content); !strings.Contains(got, "2/10") {
 		t.Errorf("the install flow lost its counter:\n%s", got)
 	}
 }
@@ -1284,7 +1287,7 @@ func TestInstallIsTheDefaultEntry(t *testing.T) {
 		t.Errorf("the menu opens on %s", menuItems[m.menu].TitleKey)
 	}
 	m.next()
-	if m.step != StepProfile {
+	if m.step != StepWhere {
 		t.Errorf("choosing Install went to %v", m.step)
 	}
 }

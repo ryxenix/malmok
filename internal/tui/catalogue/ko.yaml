@@ -201,7 +201,7 @@ key:
   retry: 재시도
 hint:
   password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 SSH 키나 ssh-agent 를 씁니다
-  registration: VIP 또는 DNS 이름. 노드 자신의 주소는 안 됩니다 (ADR-008)
+  registration: VIP 또는 DNS 이름. 비우면 이 서버 자신의 주소를 씁니다 — VIP 도 DNS 도 정책상 못 쓰는 환경용이며, 나중에 HA 로 가면 전 노드 재조인이 비용입니다
   lbpool: 게이트웨이가 외부 주소를 받아갈 CIDR
   noproxy: pod·service CIDR 을 넣지 않으면 클러스터 내부 통신이 프록시를 탑니다
   registry: 모든 시스템 이미지를 여기서 받습니다

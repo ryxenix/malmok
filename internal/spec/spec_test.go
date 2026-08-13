@@ -633,3 +633,51 @@ func TestSnapshotRawPreservesTheBytes(t *testing.T) {
 		t.Error("the snapshot differs from the file the operator supplied")
 	}
 }
+
+// A registrationAddress on a node's own IP is ADR-008's trap, and it is also
+// the only address some sites are allowed: an ARP VIP is a second IP answering
+// on the segment, which IDC and air-gapped network policy frequently forbids,
+// and a DNS name needs a zone somebody may write to. The trade is accepted by
+// stating it, never by default.
+func TestNodeAddressRegistrationIsAStatedTrade(t *testing.T) {
+	base := func() *Document {
+		return &Document{Spec: v1alpha1.ClusterSpec{
+			APIVersion: v1alpha1.APIVersion, Kind: v1alpha1.KindSpec,
+			Metadata: v1alpha1.Metadata{Name: "c", Profile: "custom"},
+			Network:  v1alpha1.NetworkSpec{Mode: v1alpha1.NetworkOnline},
+			Topology: v1alpha1.TopologySpec{
+				RegistrationAddress: "10.0.0.11",
+				Servers:             []v1alpha1.NodeSpec{{Host: "10.0.0.11"}},
+			},
+			Kubernetes: v1alpha1.KubernetesSpec{
+				Version:   "v1.35.7+rke2r1",
+				Dataplane: v1alpha1.DataplaneSpec{Preset: "canal-traefik"},
+			},
+			PKI:      v1alpha1.PKISpec{Mode: v1alpha1.PKINone},
+			Storage:  v1alpha1.StorageSpec{Driver: "local-path"},
+			Registry: v1alpha1.RegistrySpec{Mode: v1alpha1.RegistryEmbedded},
+		}}
+	}
+
+	// Unstated, the trap stays closed.
+	d := base()
+	if err := d.Validate(false); err == nil || !strings.Contains(err.Error(), "acceptNodeRegistration") {
+		t.Errorf("a node-address registration was not refused with the way out named: %v", err)
+	}
+
+	// Stated, it is the site's decision.
+	d = base()
+	d.Spec.Topology.AcceptNodeRegistration = true
+	if err := d.Validate(false); err != nil {
+		t.Errorf("the stated trade was still refused: %v", err)
+	}
+
+	// With a VIP there is no trade to make, and claiming both is a
+	// contradiction worth stopping on.
+	d = base()
+	d.Spec.Topology.AcceptNodeRegistration = true
+	d.Spec.Topology.VIP = &v1alpha1.VIPSpec{Provider: "kube-vip", Address: "10.0.0.200", Mode: "arp"}
+	if err := d.Validate(false); err == nil || !strings.Contains(err.Error(), "VIP") {
+		t.Errorf("registering on a node while a VIP exists was accepted: %v", err)
+	}
+}

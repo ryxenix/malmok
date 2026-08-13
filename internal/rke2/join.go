@@ -80,12 +80,18 @@ func JoinSteps(node exec.Runner, control exec.Runner, spec v1alpha1.ClusterSpec,
 		config = AgentConfig(target, spec, token)
 	}
 
-	return []engine.Step{
+	steps := []engine.Step{
 		add(installStep(spec.Kubernetes.Version, kind, o), node),
 		add(configStep(config), node),
 		add(unitStep(unit), node),
 		add(registeredStep(target, o), control),
 	}
+	if kind == "server" {
+		// Every server holds a kubeconfig, and the operator may sit at any of
+		// them. An agent has none to copy.
+		steps = append(steps, add(kubeconfigStep(target.SSH.User), node))
+	}
+	return steps
 }
 
 // unitStep starts the unit without waiting for the cluster to agree.

@@ -136,13 +136,27 @@ func validateTopology(s *v1alpha1.ClusterSpec) []error {
 
 	// A registrationAddress equal to a node's own address is the trap ADR-008
 	// exists to close: it works until the day a second server is added, and
-	// then every node has to re-join.
+	// then every node has to re-join. Sites whose network policy forbids the
+	// alternatives -- an ARP VIP is a second IP on the segment, a DNS name
+	// needs a writable zone -- can state the trade with acceptNodeRegistration,
+	// which is what makes it a decision rather than an accident.
 	for _, n := range all {
-		if t.RegistrationAddress == n.Host || (n.NodeIP != "" && t.RegistrationAddress == n.NodeIP) {
+		if t.RegistrationAddress != n.Host && (n.NodeIP == "" || t.RegistrationAddress != n.NodeIP) {
+			continue
+		}
+		if !t.AcceptNodeRegistration {
 			errs = append(errs, fmt.Errorf(
 				"topology.registrationAddress is node %s's own address; use a VIP or DNS name, "+
-					"otherwise adding a second server later means re-joining every node (ADR-008)",
+					"otherwise adding a second server later means re-joining every node (ADR-008). "+
+					"If the network policy allows neither, set topology.acceptNodeRegistration: true "+
+					"to state that trade",
 				n.Host))
+		} else if t.VIP != nil && t.VIP.Address != "" {
+			// Both at once is a contradiction: a VIP exists exactly so the
+			// registration address is not a node's.
+			errs = append(errs, fmt.Errorf(
+				"topology.acceptNodeRegistration is set and a VIP is configured; "+
+					"register through the VIP %s instead", t.VIP.Address))
 		}
 	}
 

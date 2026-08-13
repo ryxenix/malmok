@@ -310,3 +310,69 @@ func containsAny(list []any, want string) bool {
 	}
 	return false
 }
+
+// The account the tool logged in as is the account kubectl and k9s run from
+// five minutes after the install finishes, and RKE2's kubeconfig is root-only.
+// Without the copy the cluster looks broken from the very machine it was built
+// on -- found on a live server where k9s could not connect.
+func TestTheOperatorGetsAKubeconfig(t *testing.T) {
+	spec := v1alpha1.ClusterSpec{
+		Topology: v1alpha1.TopologySpec{RegistrationAddress: "k8s.acme.internal"},
+	}
+	node := v1alpha1.NodeSpec{Host: "10.0.0.11", SSH: v1alpha1.SSHSpec{User: "k8s"}}
+
+	var step *engine.ShellStep
+	for _, s := range BootstrapSteps(&exec.Fake{}, node, spec, Options{}) {
+		if st, ok := s.(*engine.ShellStep); ok && st.Name == "kubeconfig" {
+			step = st
+		}
+	}
+	if step == nil {
+		t.Fatal("bootstrap leaves the operator without cluster access")
+	}
+
+	// Theirs: owned by the login account, not readable by the group.
+	for _, want := range []string{"u='k8s'", "install -m 600 -o \"$u\"", Kubeconfig, ".kube/config"} {
+		if !strings.Contains(step.Do, want) {
+			t.Errorf("the copy does not include %q:\n%s", want, step.Do)
+		}
+	}
+	// Root needs no copy; the original is already root's to read. And on a
+	// local node the document names no account, so the account is whoever sudo
+	// elevated -- decided at run time, which is the only place it is known.
+	for _, want := range []string{"$SUDO_USER", `"$u" != root`} {
+		if !strings.Contains(step.Do, want) {
+			t.Errorf("the account resolution does not handle %q:\n%s", want, step.Do)
+		}
+	}
+	// The check compares content, so a rotated cluster CA is repaired by a
+	// re-run rather than reported as satisfied.
+	if !strings.Contains(step.Check, "cmp -s") {
+		t.Errorf("the check does not compare content:\n%s", step.Check)
+	}
+	if !strings.Contains(step.Check, "stat -c %U") {
+		t.Errorf("the check does not verify ownership:\n%s", step.Check)
+	}
+}
+
+// Joining servers hold a kubeconfig too; agents have none to copy.
+func TestJoiningServersGetAKubeconfigAndAgentsDoNot(t *testing.T) {
+	spec := v1alpha1.ClusterSpec{
+		Topology: v1alpha1.TopologySpec{RegistrationAddress: "k8s.acme.internal"},
+	}
+	has := func(role v1alpha1.NodeRole) bool {
+		target := v1alpha1.NodeSpec{Host: "10.0.0.12", Role: role, SSH: v1alpha1.SSHSpec{User: "k8s"}}
+		for _, s := range JoinSteps(&exec.Fake{}, &exec.Fake{}, spec, target, "token", Options{}) {
+			if st, ok := s.(*engine.ShellStep); ok && st.Name == "kubeconfig" {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(v1alpha1.RoleServer) {
+		t.Error("a joining server leaves its operator without cluster access")
+	}
+	if has(v1alpha1.RoleAgent) {
+		t.Error("an agent is given a kubeconfig it does not have")
+	}
+}

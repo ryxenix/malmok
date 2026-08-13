@@ -1190,3 +1190,38 @@ func TestTrustDistributionFollowsTheMode(t *testing.T) {
 		t.Error("an ACME build is asked about distributing a CA nothing needs")
 	}
 }
+
+// An empty join address is the wizard's spelling of "this server, and I accept
+// the trade": IDC and air-gapped policy frequently forbids a second IP on the
+// segment, and a DNS name needs a writable zone. A site with neither still
+// deserves a cluster.
+func TestAnEmptyJoinAddressRegistersOnTheServer(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepNodes)
+	w.cfg.Server, w.cfg.Agents = "10.0.0.11", nil
+	w.cfg.Registration = ""
+
+	got := w.cfg.ToSpec()
+	if got.Topology.RegistrationAddress != "10.0.0.11" {
+		t.Errorf("the registration address is %q", got.Topology.RegistrationAddress)
+	}
+	if !got.Topology.AcceptNodeRegistration {
+		t.Error("the trade was taken without being stated in the document")
+	}
+
+	// A named address is used as given, with nothing acknowledged.
+	w.cfg.Registration = "k8s.acme.internal"
+	got = w.cfg.ToSpec()
+	if got.Topology.RegistrationAddress != "k8s.acme.internal" || got.Topology.AcceptNodeRegistration {
+		t.Errorf("a real join address was rewritten: %q (accept=%v)",
+			got.Topology.RegistrationAddress, got.Topology.AcceptNodeRegistration)
+	}
+
+	// And reading the document back shows the field the way the wizard spells
+	// it: empty, meaning this server.
+	spec := w.cfg.ToSpec()
+	spec.Topology.RegistrationAddress = "10.0.0.11"
+	spec.Topology.AcceptNodeRegistration = true
+	if c := FromSpec(spec); c.Registration != "" {
+		t.Errorf("read back as %q, which would validate as a foreign address", c.Registration)
+	}
+}

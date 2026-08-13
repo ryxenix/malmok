@@ -46,9 +46,22 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	// screen after it an override of a decision nobody wanted to make.
 	s.Metadata.Profile = c.MatchedProfile()
 
-	// A VIP or DNS name, never a node's own address: otherwise adding a second
-	// server later means re-joining every node (ADR-008).
-	s.Topology.RegistrationAddress = c.Registration
+	// A VIP or DNS name, never a node's own address (ADR-008). Left empty, it
+	// falls to the first server's own address with the trade stated: IDC and
+	// air-gapped network policy frequently forbids a second IP on the segment,
+	// and a DNS name needs a zone somebody may write to. A site with neither
+	// still deserves a cluster; promoting it to HA later means re-joining.
+	s.Topology.RegistrationAddress = strings.TrimSpace(c.Registration)
+	s.Topology.AcceptNodeRegistration = false
+	if s.Topology.RegistrationAddress == "" && c.Server != "" {
+		addr := c.Server
+		// The document records the routable address, not the literal `local`.
+		if len(s.Topology.Servers) > 0 && s.Topology.Servers[0].NodeIP != "" {
+			addr = s.Topology.Servers[0].NodeIP
+		}
+		s.Topology.RegistrationAddress = addr
+		s.Topology.AcceptNodeRegistration = true
+	}
 
 	ssh := v1alpha1.SSHSpec{User: c.SSHUser, Port: atoiOr(c.SSHPort, 22)}
 	s.Topology.Servers = mergeNodes(s.Topology.Servers, []string{c.Server}, v1alpha1.RoleServer, ssh)
@@ -215,6 +228,9 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		c.Domain = s.PKI.Domain
 	}
 
+	if s.Topology.AcceptNodeRegistration {
+		c.Registration = ""
+	}
 	if len(s.Topology.Servers) > 0 {
 		first := s.Topology.Servers[0]
 		c.Server = first.Host

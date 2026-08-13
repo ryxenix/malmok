@@ -5,6 +5,35 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.47.0] - 2026-08-13
+
+### Added
+
+- The operator gets a kubeconfig. RKE2 writes /etc/rancher/rke2/rke2.yaml
+  root-only, which is correct for the file and useless for the person: the
+  account this tool logged in as -- the account somebody runs kubectl or k9s
+  from five minutes later -- could not read it, and the cluster looked broken
+  from the very machine it was built on. Found on the live server, where k9s
+  could not connect.
+
+  Bootstrap and every joining server now install a copy at ~/.kube/config,
+  owned by the login account, mode 600. A copy rather than a symlink or a
+  group, because those change the security of the original. On a local node the
+  account is whoever sudo elevated, resolved at run time; root gets no copy
+  because the original is already root's to read. Verified live: the k8s
+  account on 192.168.88.241 runs kubectl with no elevation.
+
+- `topology.acceptNodeRegistration`. A registration address on a node's own IP
+  is the trap ADR-008 closes -- and it is also the only address some sites are
+  allowed: an ARP VIP is a second IP answering on the segment, which IDC and
+  air-gapped network policy frequently forbids, and a DNS name needs a zone
+  somebody may write to. The trade -- promoting to HA later means re-joining
+  every node -- can now be taken by stating it in the document, never by
+  default, and never alongside a VIP that makes it pointless.
+
+- The wizard spells the same statement as an empty join address: leave it blank
+  and the first server's own address is used with the trade recorded.
+
 ## [0.46.1] - 2026-08-13
 
 ### Fixed

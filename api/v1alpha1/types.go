@@ -141,10 +141,21 @@ type ProxySpec struct {
 
 type TopologySpec struct {
 	// RegistrationAddress is the address every node uses to join
-	// (https://<addr>:9345). MUST be a VIP or DNS name, never a node IP —
-	// otherwise HA promotion later requires re-joining every node.
+	// (https://<addr>:9345). A VIP or DNS name, never a node IP — otherwise HA
+	// promotion later requires re-joining every node (ADR-008).
 	// Required even for single-node deployments.
 	RegistrationAddress string `yaml:"registrationAddress" json:"registrationAddress"`
+
+	// AcceptNodeRegistration accepts a registrationAddress that is a node's own
+	// IP, taking the cost ADR-008 exists to prevent: promoting to HA later
+	// means re-joining every node.
+	//
+	// It exists because the alternatives are not always available. An ARP VIP
+	// is a second IP answering on a segment, which IDC and air-gapped network
+	// policy frequently forbids, and a DNS name needs a zone somebody is
+	// allowed to write to. A site that has neither still deserves a cluster —
+	// but the trade is theirs to state, not this tool's to assume.
+	AcceptNodeRegistration bool `yaml:"acceptNodeRegistration,omitempty" json:"acceptNodeRegistration,omitempty"`
 
 	VIP *VIPSpec `yaml:"vip,omitempty" json:"vip,omitempty"`
 

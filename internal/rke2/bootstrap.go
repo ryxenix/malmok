@@ -85,6 +85,9 @@ func BootstrapSteps(runner exec.Runner, node v1alpha1.NodeSpec, spec v1alpha1.Cl
 		add(installStep(spec.Kubernetes.Version, "server", o)),
 		add(configStep(ServerConfig(node, spec, ""))),
 		add(serviceStep("rke2-server", o)),
+		// The operator's own access, not only the tool's: the account this
+		// logged in as is the account kubectl and k9s will run from.
+		add(kubeconfigStep(node.SSH.User)),
 	}
 }
 
@@ -409,4 +412,48 @@ func yamlString(s string) string {
 // shellQuote wraps a value for a POSIX shell.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// kubeconfigStep puts the cluster's kubeconfig where the operator's own tools
+// look for it.
+//
+// RKE2 writes /etc/rancher/rke2/rke2.yaml root-only, which is correct for the
+// file and useless for the person: the account this tool logged in as -- the
+// account somebody will run kubectl or k9s from five minutes after the install
+// finishes -- cannot read it, and the cluster looks broken from the very
+// machine it was built on. The copy is theirs: owned by them, mode 600, at the
+// path every kubernetes client checks first.
+//
+// A copy rather than a symlink or a group, because the alternatives change the
+// security of the original: a symlink needs the source readable, and a group
+// puts every future member one `usermod` away from cluster-admin. The copy can
+// go stale only if the cluster CA rotates, and the check compares content so a
+// re-run repairs exactly that.
+func kubeconfigStep(user string) *engine.ShellStep {
+	// The account is decided at run time, not at render time: over SSH it is
+	// the login account, and on a local node -- where the tool runs under sudo
+	// and the document names no credentials -- it is whoever sudo elevated.
+	// Root itself needs no copy; the original is already root's to read.
+	resolve := fmt.Sprintf(`u=%s
+[ -n "$u" ] || u=$SUDO_USER
+[ -n "$u" ] && [ "$u" != root ] || { echo "the operator is root, who can read the original"; exit 0; }
+home=$(getent passwd "$u" | cut -d: -f6)
+[ -n "$home" ] || { echo "no home directory for $u"; exit 1; }`, shellQuote(user))
+
+	return &engine.ShellStep{
+		Name: "kubeconfig",
+		Check: resolve + fmt.Sprintf(`
+cmp -s %s "$home/.kube/config" || { echo "$u has no current kubeconfig"; exit 1; }
+owner=$(stat -c %%U "$home/.kube/config")
+[ "$owner" = "$u" ] || { echo "$home/.kube/config belongs to $owner, not $u"; exit 1; }
+echo "$u can reach the cluster from $home/.kube/config"`, Kubeconfig),
+
+		Do: resolve + fmt.Sprintf(`
+set -e
+install -d -m 700 -o "$u" -g "$(id -gn "$u")" "$home/.kube"
+install -m 600 -o "$u" -g "$(id -gn "$u")" %s "$home/.kube/config"`, Kubeconfig),
+
+		Satisfied: "%s",
+		Missing:   "%s",
+	}
 }

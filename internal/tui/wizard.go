@@ -378,7 +378,6 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 	if len(exec.LocalIPv4s()) > 0 {
 		wz.setLocal(true)
 	}
-	wz.enforceASCIILanguage()
 	wz.enter()
 	return wz, nil
 }
@@ -493,9 +492,15 @@ func (w *Wizard) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		w.aborted = true
 		return w, tea.Quit
 	case "a":
+		// The character set and the language are two settings. Changing one
+		// used to change the other -- pressing `a` switched a Korean screen to
+		// English, on the reasoning that a terminal which cannot draw box
+		// characters cannot draw Hangul either. That is sometimes true and it
+		// is never this switch's business: an operator who asked for Korean
+		// asked for Korean, and one who cannot read the result can change it
+		// on a screen that now exists for the purpose.
 		w.ascii = !w.ascii
 		w.glyphs = GlyphsFor(w.ascii)
-		w.enforceASCIILanguage()
 		return w, nil
 	case "g":
 		if cat, err := LoadCatalogue(w.cat.Other()); err == nil {
@@ -1043,22 +1048,6 @@ func (w *Wizard) fieldIndex() int {
 		i -= len(pkiModes)
 	}
 	return i
-}
-
-// enforceASCIILanguage falls back to English whenever the character set does.
-//
-// The ASCII glyphs exist for a terminal that cannot draw box characters -- a
-// serial console, an IPMI viewer, PuTTY with the wrong codepage. None of those
-// can draw Hangul either, so a Korean screen there is unreadable in a way the
-// glyph fallback cannot fix. Tying the two keeps the fallback honest instead of
-// half-working.
-func (w *Wizard) enforceASCIILanguage() {
-	if !w.ascii || w.cat.Lang() == LangEN {
-		return
-	}
-	if cat, err := LoadCatalogue(LangEN); err == nil {
-		w.cat, w.cfg.Lang = cat, LangEN
-	}
 }
 
 // cursorIsField reports whether the content cursor is on an editable line

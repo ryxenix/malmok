@@ -124,11 +124,12 @@ var prefsRows = []prefsRow{
 			return w.cat.T("prefs.charset.unicode")
 		},
 		toggle: func(w *Wizard) {
+			// Only the character set. A setting that quietly changes another
+			// setting is a bug however good the reasoning behind it: this used
+			// to force the language to English, so choosing ASCII on the
+			// settings screen moved the cursor's neighbour.
 			w.ascii = !w.ascii
 			w.glyphs = GlyphsFor(w.ascii)
-			// The ASCII glyphs exist for a terminal that cannot draw box
-			// characters, and none of those can draw Hangul either.
-			w.enforceASCIILanguage()
 		},
 	},
 	{

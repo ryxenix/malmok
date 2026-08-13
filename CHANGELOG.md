@@ -5,6 +5,21 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.44.1] - 2026-08-13
+
+### Fixed
+
+- Changing the character set changed the language. Switching to ASCII forced the
+  catalogue to English, so on the settings screen choosing ASCII moved the row
+  above the cursor and left the operator reading English they had not asked for.
+
+  The reasoning behind it was that a terminal which cannot draw a box character
+  cannot draw Hangul either. That is sometimes true and it was never this
+  switch's business: somebody who asked for Korean asked for Korean, and
+  somebody who cannot read the result can change it on the screen that now
+  exists for the purpose. English is still the default, which is what covers the
+  terminal that genuinely cannot render it.
+
 ## [0.44.0] - 2026-08-12
 
 ### Added

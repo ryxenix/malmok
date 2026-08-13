@@ -816,27 +816,54 @@ func TestCataloguesContainNoGlyphs(t *testing.T) {
 	}
 }
 
-// A terminal that cannot draw a box character cannot draw Hangul either, so
-// the ASCII fallback takes the language with it. Leaving Korean on would make
-// the fallback half-work, which is worse than not having it.
-func TestASCIIFallbackForcesEnglish(t *testing.T) {
+// Two settings, and changing one must not change the other.
+//
+// The character set used to take the language with it, on the reasoning that a
+// terminal which cannot draw a box character cannot draw Hangul either. That is
+// sometimes true and it was never this switch's business: on the settings
+// screen, choosing ASCII moved the row above the cursor and the operator was
+// left looking at English they had not asked for. Somebody who cannot read the
+// result can change it on the screen that now exists for the purpose.
+func TestTheCharacterSetLeavesTheLanguageAlone(t *testing.T) {
 	m, err := NewWizard("run", true, true, LangKO, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.cat.Lang() != LangEN {
-		t.Errorf("ASCII mode kept the %s catalogue", m.cat.Lang())
+	if m.cat.Lang() != LangKO {
+		t.Errorf("starting in ASCII changed the catalogue to %s", m.cat.Lang())
 	}
 
-	// And toggling into ASCII at runtime does the same.
 	n, err := NewWizard("run", false, true, LangKO, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	n.key(fakeKey("a"))
-	if n.cat.Lang() != LangEN {
-		t.Errorf("toggling ASCII kept the %s catalogue", n.cat.Lang())
+	if !n.ascii {
+		t.Fatal("the a key did not change the character set")
 	}
+	if n.cat.Lang() != LangKO {
+		t.Errorf("toggling ASCII changed the catalogue to %s", n.cat.Lang())
+	}
+
+	// And the same through the settings screen, which is where an operator
+	// meets these as two named rows.
+	n.step = StepPrefs
+	for i, row := range prefsRows {
+		if row.labelKey != "prefs.charset" {
+			continue
+		}
+		n.cursor[StepPrefs] = i
+		before := n.cat.Lang()
+		n.selectUnderCursor()
+		if n.cat.Lang() != before {
+			t.Errorf("the character set row changed the language to %s", n.cat.Lang())
+		}
+		if n.ascii {
+			t.Error("the character set row did not change the character set")
+		}
+		return
+	}
+	t.Fatal("there is no character set row")
 }
 
 // A final screen that says only "finished" leaves the operator to work out

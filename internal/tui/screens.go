@@ -229,6 +229,14 @@ func (w *Wizard) buttons() []Button {
 			return nil
 		}
 		if w.workErr != nil {
+			// Nothing in the stream means nothing ran, so the checks did not
+			// find a problem -- something stopped them from starting. Retrying
+			// repeats it exactly, and the way forward is the screen that holds
+			// whatever was missing, so Back is what Enter should do.
+			if len(w.order) == 0 {
+				return []Button{{Label: w.cat.T("btn.back"), Primary: true},
+					{Label: w.cat.T("btn.check")}}
+			}
 			return []Button{back, {Label: w.cat.T("btn.check"), Primary: true}}
 		}
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
@@ -403,6 +411,20 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 // everything from the event stream.
 func (w *Wizard) progressScreen(width int, kind string) (string, string, string) {
 	var b strings.Builder
+
+	// Work that failed before the engine emitted anything has nothing in the
+	// stream to draw, and the screen was a bar at 0% with no explanation. That
+	// is the shape of every credential and connection failure -- the most
+	// common way a first run stops -- and the operator was left pressing a
+	// retry button that failed the same way each time.
+	//
+	// Rendered from the return value rather than from an event because the
+	// failure happened before any phase started: there is no phase to attach it
+	// to and no run for the engine to have written it into.
+	if w.workErr != nil && !w.busy {
+		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+w.cat.T("progress.stopped")) + "\n")
+		b.WriteString(w.dim(wrapCells(w.workErr.Error(), width), width) + "\n\n")
+	}
 
 	done := 0
 	for _, id := range w.order {

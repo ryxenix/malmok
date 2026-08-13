@@ -5,6 +5,26 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.44.2] - 2026-08-13
+
+### Fixed
+
+- The checks screen was blank and would not move on. Work that fails before the
+  engine emits anything leaves nothing in the stream to draw, so the screen was
+  a progress bar at 0% with no explanation -- and the wizard was holding the
+  reason the whole time, using it only to decide which button to show.
+
+  That is the shape of every credential and connection failure, which is the
+  most common way a first run stops. The reason is now on the screen. It is
+  rendered from the return value rather than from an event because the failure
+  happened before any phase started: there is no phase to attach it to and no
+  run for the engine to have written it into.
+- With nothing in the stream, Back is the primary action rather than Retry.
+  Nothing ran, so the checks found no problem -- something stopped them from
+  starting, retrying repeats it exactly, and the way forward is the screen that
+  holds whatever was missing. Retry stays primary once probes have reported,
+  because then there are findings and running them again is the useful thing.
+
 ## [0.44.1] - 2026-08-13
 
 ### Fixed

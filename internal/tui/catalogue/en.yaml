@@ -128,6 +128,8 @@ st:
   nfs: external server
   server: NFS server
   path: Export path
+progress:
+  stopped: It stopped before anything ran
 preflight:
   heading: Preflight checks
 summary:

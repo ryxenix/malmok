@@ -127,6 +127,8 @@ st:
   nfs: 외부 서버
   server: NFS 서버
   path: 공유 경로
+progress:
+  stopped: 시작도 못 하고 멈췄습니다
 preflight:
   heading: 사전 검사
 summary:

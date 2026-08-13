@@ -1,12 +1,15 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/platformctl/internal/event"
 	"platform.ryxen.dev/platformctl/internal/exec"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
@@ -893,5 +896,65 @@ func TestReadingADocumentRestoresTheBranch(t *testing.T) {
 	}
 	if c := FromSpec(richDocument()); c.Local {
 		t.Error("a document naming another machine was read back as local")
+	}
+}
+
+// Work that fails before the engine emits anything has to say so.
+//
+// The wizard held the error and used it only to pick a button, so a credential
+// or connection failure -- the most common way a first run stops -- rendered as
+// a progress bar at 0% with no explanation, and the operator was left pressing
+// a retry that failed the same way each time.
+func TestWorkThatFailsBeforeAnythingRunsSaysWhy(t *testing.T) {
+	const why = "local: this account cannot elevate without a password and none was given"
+	fail := func(context.Context, Config) error { return errors.New(why) }
+
+	w, err := NewWizard("run", false, true, LangEN, fail, fail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.width, w.height = 100, 24
+	w.step = StepPKI
+
+	_, cmd := w.next() // into the checks, which start the work
+	if cmd == nil {
+		t.Fatal("the checks did not start")
+	}
+	w.Update(cmd())
+
+	if w.busy {
+		t.Fatal("the screen is still waiting for work that returned")
+	}
+	body := plain(w.View().Content)
+	if !strings.Contains(body, why) {
+		t.Errorf("the screen does not say what stopped it:\n%s", body)
+	}
+
+	// And Enter goes back to fix it rather than repeating the same failure.
+	btns := w.buttons()
+	if len(btns) == 0 {
+		t.Fatal("the screen offers no way out")
+	}
+	var primary string
+	for _, b := range btns {
+		if b.Primary {
+			primary = b.Label
+		}
+	}
+	if primary != w.cat.T("btn.back") {
+		t.Errorf("the primary action is %q, which repeats the failure", primary)
+	}
+
+	// A failure after probes have reported is different: those are findings,
+	// and running them again is the useful thing to do.
+	w.fold(event.Event{Kind: event.KindPhase, Phase: "preflight", Status: event.StatusFailed})
+	primary = ""
+	for _, b := range w.buttons() {
+		if b.Primary {
+			primary = b.Label
+		}
+	}
+	if primary != w.cat.T("btn.check") {
+		t.Errorf("with findings on screen the primary action is %q", primary)
 	}
 }

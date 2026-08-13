@@ -206,7 +206,16 @@ func (w *Wizard) fieldsFor(step Step) []field {
 
 // networkMode is what the chosen profile fixes, since the wizard does not offer
 // it as a separate question.
+// networkMode is what the operator chose, falling back to what the profile
+// suggested and then to online.
+//
+// Read from the configuration rather than from the baseline: the profile fills
+// this in when it is chosen, and reading the baseline back would mean the
+// screen ignored every change made after that.
 func (w *Wizard) networkMode() v1alpha1.NetworkMode {
+	if m := v1alpha1.NetworkMode(w.cfg.NetworkMode); m != "" {
+		return m
+	}
 	if b, ok := spec.BaselineFor(v1alpha1.ProfileName(w.cfg.Profile)); ok {
 		return b.NetworkMode
 	}

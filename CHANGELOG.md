@@ -5,6 +5,26 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.45.0] - 2026-08-13
+
+### Fixed
+
+- A profile was a lock, not a starting point. The network mode came from the
+  baseline and from nowhere else, so a combination no profile happens to contain
+  -- a homelab behind a proxy, an air-gapped site that refuses to downgrade --
+  could not be produced from the wizard at all. The profile screen has always
+  claimed the opposite: "the profile fixes the validated baseline; every other
+  setting is an override."
+- Three settings a profile fixed now have screens. Reachability
+  (online / proxy / airgap) and node-to-node encryption on the network screen,
+  and what to do when a node cannot run the dataplane (confirm / auto / forbid)
+  beside the dataplane it is about.
+- The proxy fields follow the chosen mode rather than the profile's, so
+  selecting `proxy` reveals them wherever the build started from.
+- A test walks `spec.Baseline` and fails on any field that is neither offered on
+  a screen nor listed as deliberately document-only. Adding a baseline field
+  without deciding which side it falls on is what produced this.
+
 ## [0.44.2] - 2026-08-13
 
 ### Fixed

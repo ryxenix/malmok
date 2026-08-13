@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -956,5 +957,109 @@ func TestWorkThatFailsBeforeAnythingRunsSaysWhy(t *testing.T) {
 	}
 	if primary != w.cat.T("btn.check") {
 		t.Errorf("with findings on screen the primary action is %q", primary)
+	}
+}
+
+// A profile is a starting point, not the only way to reach a combination.
+//
+// The network mode came from the baseline and from nowhere else, so a homelab
+// behind a proxy -- a combination no profile happens to contain -- could not be
+// produced from the wizard at all. The screen has always claimed otherwise:
+// "the profile fixes the validated baseline; every other setting is an
+// override".
+func TestAProfileIsAStartingPointNotALock(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepNetwork)
+	w.cfg.Profile = string(v1alpha1.ProfileHomelab)
+	w.applyProfileDefaults()
+
+	if w.networkMode() != v1alpha1.NetworkOnline {
+		t.Fatalf("the homelab baseline is %s", w.networkMode())
+	}
+	// The proxy fields are not offered until there is a proxy to describe.
+	if len(w.fieldsFor(StepNetwork)) != 1 {
+		t.Errorf("an online build is asked about a proxy: %d fields", len(w.fieldsFor(StepNetwork)))
+	}
+
+	// Choose the combination no profile contains.
+	w.cursor[StepNetwork] = indexOf(networkModes, "proxy")
+	w.selectUnderCursor()
+
+	if w.networkMode() != v1alpha1.NetworkProxy {
+		t.Fatalf("the mode did not change: %s", w.networkMode())
+	}
+	if len(w.fieldsFor(StepNetwork)) <= 1 {
+		t.Error("choosing proxy did not reveal the proxy fields")
+	}
+	if got := w.cfg.ToSpec().Network.Mode; got != v1alpha1.NetworkProxy {
+		t.Errorf("the document says %s", got)
+	}
+	// And the profile it started from is still recorded, because the audit
+	// report is about which baseline was accepted and what was changed on top.
+	if got := w.cfg.ToSpec().Metadata.Profile; got != v1alpha1.ProfileHomelab {
+		t.Errorf("the profile became %s", got)
+	}
+}
+
+// Every field a profile fixes has to be reachable, or the next combination
+// nobody anticipated is unbuildable in the same way.
+//
+// The exceptions are listed rather than assumed: each is a value the wizard
+// deliberately does not ask about, and adding a baseline field without deciding
+// which side it falls on is what produced this bug.
+func TestEveryBaselineFieldIsReachableOrDeliberatelyNot(t *testing.T) {
+	// Reachable on a screen.
+	offered := map[string]bool{
+		"NetworkMode":        true,
+		"Dataplane":          true,
+		"Storage":            true,
+		"PKIMode":            true,
+		"RegistryMode":       true,
+		"DowngradePolicy":    true,
+		"EncryptNodeTraffic": true,
+	}
+	// Document-only, on purpose.
+	documentOnly := map[string]string{
+		"OSFamily":                    "measured from the node (PF-101), not asked",
+		"Routing":                     "implied by the dataplane preset (ADR-004)",
+		"Fallback":                    "the downgrade target; the policy above it is the decision",
+		"GitOpsSource":                "no GitOps screen exists yet",
+		"RequirePinnedGatewayAddress": "a profile's own strictness, not a setting",
+	}
+
+	typ := reflect.TypeOf(spec.Baseline{})
+	for i := 0; i < typ.NumField(); i++ {
+		name := typ.Field(i).Name
+		if offered[name] || documentOnly[name] != "" {
+			continue
+		}
+		t.Errorf("baseline field %s is neither offered on a screen nor listed as "+
+			"document-only; a combination that needs it cannot be built from the wizard", name)
+	}
+}
+
+// The three that were added carry through to the document.
+func TestTheNewChoicesReachTheDocument(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepOptions)
+	w.cfg.NetworkMode = string(v1alpha1.NetworkAirgap)
+	w.cfg.Encrypt = true
+	w.cfg.DowngradePolicy = string(v1alpha1.DowngradeForbid)
+
+	got := w.cfg.ToSpec()
+	if got.Network.Mode != v1alpha1.NetworkAirgap {
+		t.Errorf("network mode is %q", got.Network.Mode)
+	}
+	if got.Network.EncryptNodeTraffic == nil || !*got.Network.EncryptNodeTraffic {
+		t.Error("node traffic encryption did not reach the document")
+	}
+	if got.Kubernetes.Dataplane.DowngradePolicy != v1alpha1.DowngradeForbid {
+		t.Errorf("the downgrade policy is %q", got.Kubernetes.Dataplane.DowngradePolicy)
+	}
+
+	// Off is not stated rather than stated as false: the profile decides when
+	// the document is silent, and writing false would freeze an answer the
+	// profile is meant to give.
+	w.cfg.Encrypt = false
+	if w.cfg.ToSpec().Network.EncryptNodeTraffic != nil {
+		t.Error("turning encryption off wrote a value instead of leaving it to the profile")
 	}
 }

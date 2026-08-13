@@ -73,6 +73,23 @@ var pkiModes = []choice{
 	{"byo-cert", "byo-cert", "pkimode.byo"},
 }
 
+// Where the nodes sit relative to the internet. It decides whether a proxy is
+// asked for and whether images can be pulled at all, and it used to come only
+// from the profile -- so "homelab behind a proxy" was a document nobody could
+// produce from the wizard.
+var networkModes = []choice{
+	{"online", "online", "netmode.online"},
+	{"proxy", "proxy", "netmode.proxy"},
+	{"airgap", "airgap", "netmode.airgap"},
+}
+
+// What happens when the nodes cannot run what was asked for.
+var downgradePolicies = []choice{
+	{"confirm", "confirm", "dgpolicy.confirm"},
+	{"auto", "auto", "dgpolicy.auto"},
+	{"forbid", "forbid", "dgpolicy.forbid"},
+}
+
 var storages = []choice{
 	{"local-path", "local-path", "st.local"},
 	{"longhorn", "longhorn", "st.longhorn"},
@@ -116,7 +133,7 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.nodesScreen(body)
 		f.Body = w.withTopology(f.Body, body)
 	case StepNetwork:
-		f.Heading, f.Body, f.Status = w.formScreen(StepNetwork, "net.heading", "net.help", body)
+		f.Heading, f.Body, f.Status = w.networkScreen(body)
 	case StepRegistry:
 		f.Heading, f.Body, f.Status = w.registryScreen(body)
 	case StepPKI:
@@ -329,6 +346,15 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("options.storage")) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(storages), notesOf(w.cat, storages),
 		indexOf(storages, w.cfg.Storage), cur-len(dataplanes), width, w.glyphs))
+
+	// What to do when the nodes cannot run what was asked for. It belongs
+	// beside the dataplane because that is what it is usually about, and it was
+	// the profile's alone -- so an air-gapped build could not be told to refuse
+	// a downgrade rather than confirm one.
+	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("options.downgrade")) + "\n")
+	b.WriteString(w.theme.Radio(labelsOf(downgradePolicies), notesOf(w.cat, downgradePolicies),
+		indexOf(downgradePolicies, w.cfg.DowngradePolicy),
+		cur-len(dataplanes)-len(storages), width, w.glyphs))
 
 	if fs := w.fieldsFor(StepOptions); len(fs) > 0 {
 		b.WriteString("\n")
@@ -935,4 +961,52 @@ func indexOfString(list []string, want string) int {
 		}
 	}
 	return -1
+}
+
+// networkScreen asks where the nodes sit before asking for the addresses that
+// only matter once that is known.
+//
+// The mode used to come from the profile and from nowhere else, so a
+// combination the profiles did not happen to contain -- a homelab behind a
+// proxy, an air-gapped site on the full dataplane -- could not be produced from
+// the wizard at all. A profile is a starting point; every field it fills has to
+// stay reachable.
+func (w *Wizard) networkScreen(width int) (string, string, string) {
+	var b strings.Builder
+	b.WriteString(w.dim(wrapCells(w.cat.T("net.help"), width), width) + "\n\n")
+
+	cur := w.cursor[StepNetwork]
+
+	b.WriteString(w.theme.Body.Render(w.cat.T("net.mode")) + "\n")
+	b.WriteString(w.theme.Radio(labelsOf(networkModes), notesOf(w.cat, networkModes),
+		indexOf(networkModes, string(w.networkMode())), cur, width, w.glyphs))
+
+	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("net.encrypt")) + "\n")
+	b.WriteString(w.theme.Radio(
+		[]string{w.cat.T("net.encrypt.on"), w.cat.T("net.encrypt.off")},
+		[]string{w.cat.T("net.encrypt.on.note"), w.cat.T("net.encrypt.off.note")},
+		boolIndex(w.cfg.Encrypt), cur-len(networkModes), width, w.glyphs))
+
+	if fs := w.fieldsFor(StepNetwork); len(fs) > 0 {
+		b.WriteString("\n")
+		b.WriteString(w.theme.Fields(w.labels(StepNetwork), w.maskedValues(StepNetwork),
+			w.fieldIndex(), w.editing, width, w.glyphs))
+	}
+	if h := w.fieldHint(int(StepNetwork), w.fieldIndex()); h != "" {
+		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
+	}
+
+	hint := "hint.select"
+	if w.editing {
+		hint = "hint.editing"
+	}
+	return w.cat.T("net.heading"), b.String(), w.cat.T(hint)
+}
+
+// boolIndex maps a yes/no onto the two rows of a radio.
+func boolIndex(on bool) int {
+	if on {
+		return 0
+	}
+	return 1
 }

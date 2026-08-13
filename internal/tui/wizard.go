@@ -196,6 +196,15 @@ type Config struct {
 	PKIMode      string
 	RegistryMode string
 
+	// The three a profile used to decide on its own. A profile is a starting
+	// point -- "검증된 기준값", as the screen says -- and a combination it does
+	// not happen to contain was unreachable while these had no screen: there
+	// was no way to build a homelab behind a proxy, or an air-gapped site with
+	// anything but the conservative dataplane.
+	NetworkMode     string
+	Encrypt         bool
+	DowngradePolicy string
+
 	// Addressing the customer's network team has to agree to.
 	ProxyHTTP  string
 	ProxyHTTPS string
@@ -686,12 +695,24 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 			// what is about to be installed.
 			w.applyProfileDefaults()
 		}
+	case StepNetwork:
+		switch {
+		case cur < len(networkModes):
+			w.cfg.NetworkMode = networkModes[cur].id
+		case cur < len(networkModes)+2:
+			// Two rows, on and off, rather than a single row that toggles: a
+			// setting somebody's security team asked for should show both
+			// answers and which one is chosen.
+			w.cfg.Encrypt = cur == len(networkModes)
+		}
 	case StepOptions:
 		switch {
 		case cur < len(dataplanes):
 			w.cfg.Dataplane = dataplanes[cur].id
 		case cur < len(dataplanes)+len(storages):
 			w.cfg.Storage = storages[cur-len(dataplanes)].id
+		case cur < len(dataplanes)+len(storages)+len(downgradePolicies):
+			w.cfg.DowngradePolicy = downgradePolicies[cur-len(dataplanes)-len(storages)].id
 		}
 	}
 	return w, nil
@@ -991,7 +1012,7 @@ func (w *Wizard) phase(id string) *phaseView {
 func (w *Wizard) contentLen() int {
 	switch w.step {
 	case StepNetwork:
-		return len(w.fieldsFor(StepNetwork))
+		return len(networkModes) + 2 + len(w.fieldsFor(StepNetwork))
 	case StepNodes:
 		return w.localAddressCount() + len(w.fieldsFor(StepNodes))
 	case StepRegistry:
@@ -1001,7 +1022,8 @@ func (w *Wizard) contentLen() int {
 	case StepProfile:
 		return len(profileChoices())
 	case StepOptions:
-		return len(dataplanes) + len(storages) + len(w.fieldsFor(StepOptions))
+		return len(dataplanes) + len(storages) + len(downgradePolicies) +
+			len(w.fieldsFor(StepOptions))
 	case StepWhere:
 		return 2
 	case StepPrefs:
@@ -1040,8 +1062,10 @@ func (w *Wizard) fieldIndex() int {
 	switch w.step {
 	case StepNodes:
 		i -= w.localAddressCount()
+	case StepNetwork:
+		i -= len(networkModes) + 2
 	case StepOptions:
-		i -= len(dataplanes) + len(storages)
+		i -= len(dataplanes) + len(storages) + len(downgradePolicies)
 	case StepRegistry:
 		i -= len(registryModes)
 	case StepPKI:

@@ -64,6 +64,18 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 		s.Storage.NFS = nil
 	}
 
+	s.Network.Mode = v1alpha1.NetworkMode(c.NetworkMode)
+	// A pointer, so "not stated" and "off" stay different: the profile decides
+	// when the document is silent, and writing false would freeze an answer the
+	// profile is meant to give.
+	if c.Encrypt {
+		yes := true
+		s.Network.EncryptNodeTraffic = &yes
+	} else {
+		s.Network.EncryptNodeTraffic = nil
+	}
+	s.Kubernetes.Dataplane.DowngradePolicy = v1alpha1.DowngradePolicy(c.DowngradePolicy)
+
 	if c.ProxyHTTP != "" || c.ProxyHTTPS != "" {
 		s.Network.Proxy = &v1alpha1.ProxySpec{
 			HTTP: c.ProxyHTTP, HTTPS: c.ProxyHTTPS, NoProxy: c.NoProxy,
@@ -140,7 +152,11 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		Storage:      string(s.Storage.Driver),
 		PKIMode:      string(s.PKI.Mode),
 		RegistryMode: string(s.Registry.Mode),
-		LBPool:       s.Kubernetes.Dataplane.LoadBalancerPool,
+		NetworkMode:  string(s.Network.Mode),
+		Encrypt:      s.Network.EncryptNodeTraffic != nil && *s.Network.EncryptNodeTraffic,
+
+		DowngradePolicy: string(s.Kubernetes.Dataplane.DowngradePolicy),
+		LBPool:          s.Kubernetes.Dataplane.LoadBalancerPool,
 
 		RegistryHost: s.Registry.SystemDefaultRegistry,
 		RegistryUser: string(s.Registry.Username),
@@ -302,6 +318,9 @@ func (w *Wizard) applyProfileDefaults() {
 	w.cfg.Storage = string(b.Storage)
 	w.cfg.PKIMode = string(b.PKIMode)
 	w.cfg.RegistryMode = string(b.RegistryMode)
+	w.cfg.NetworkMode = string(b.NetworkMode)
+	w.cfg.Encrypt = b.EncryptNodeTraffic
+	w.cfg.DowngradePolicy = string(b.DowngradePolicy)
 }
 
 func atoiOr(s string, def int) int {

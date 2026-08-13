@@ -983,8 +983,10 @@ func TestMixedScreenKeysFollowTheCursor(t *testing.T) {
 		t.Error("a dataplane row is reported as a field")
 	}
 
-	// On a field row below them.
-	m.cursor[StepOptions] = len(dataplanes) + len(storages)
+	// On a field row below them. The downgrade policy sits between the two
+	// groups and the fields, because deciding what happens when a node cannot
+	// run the dataplane belongs beside the dataplane.
+	m.cursor[StepOptions] = len(dataplanes) + len(storages) + len(downgradePolicies)
 	if !m.cursorIsField() {
 		t.Error("the NFS server row is not reported as a field")
 	}

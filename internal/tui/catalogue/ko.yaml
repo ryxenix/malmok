@@ -117,6 +117,15 @@ options:
   help: dataplane 은 CNI · 게이트웨이 · LB IP 공급원을 하나로 묶은 선택입니다. 셋은 독립적이지 않습니다.
   dataplane: dataplane
   storage: 스토리지
+  downgrade: 노드가 못 돌릴 때
+netmode:
+  online: 인터넷으로 직접 나감
+  proxy: HTTP 프록시 경유 · DMZ
+  airgap: 외부 연결 없음 · 이미지는 번들에서
+dgpolicy:
+  confirm: 멈추고 무엇이 바뀌는지 알림
+  auto: 낮은 쪽을 택하고 기록
+  forbid: 강등하느니 구축을 거부
 dp:
   cilium_gw: Cilium CNI · Cilium 게이트웨이 · LB-IPAM
   cilium_traefik: Cilium CNI · Traefik 게이트웨이
@@ -203,7 +212,13 @@ note:
   options: 프로파일을 덮어씁니다. CNI·게이트웨이·LB IP 는 하나의 원자적 선택입니다 (ADR-004).
 net:
   heading: 네트워크
-  help: 고객사 네트워크팀과 합의해야 하는 주소들입니다. LB 주소 풀은 게이트웨이가 외부 주소를 받아가는 대역입니다.
+  help: "노드가 인터넷에 대해 어디에 있는지, 그리고 네트워크팀과 합의해야 하는 주소들입니다. 프로파일이 제안한 값이며 모두 여기서 바꿀 수 있습니다."
+  mode: 외부 연결
+  encrypt: 노드 간 통신
+  encrypt.on: 암호화
+  encrypt.on.note: 노드 사이 WireGuard. 경계를 넘는 구성에서는 기본값
+  encrypt.off: 평문
+  encrypt.off.note: 한 세그먼트 안이고 중간에 아무것도 없음
   proxyHTTP: HTTP 프록시
   proxyHTTPS: HTTPS 프록시
   noProxy: 프록시 제외

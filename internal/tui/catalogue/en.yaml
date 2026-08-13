@@ -118,6 +118,15 @@ options:
   help: The dataplane binds CNI, gateway and load balancer IP as one choice; they are not independent.
   dataplane: Dataplane
   storage: Storage
+  downgrade: If a node cannot run it
+netmode:
+  online: direct egress to the internet
+  proxy: through an HTTP proxy, DMZ
+  airgap: no egress at all; images come from a bundle
+dgpolicy:
+  confirm: stop and say what would change
+  auto: take the lesser option and record it
+  forbid: refuse to build rather than downgrade
 dp:
   cilium_gw: Cilium CNI and gateway, LB-IPAM
   cilium_traefik: Cilium CNI, Traefik gateway
@@ -204,7 +213,13 @@ note:
   options: Overrides the profile. CNI, gateway and load balancer IP are one atomic choice (ADR-004).
 net:
   heading: Network
-  help: Addressing the customer's network team has to agree to. The load balancer pool is what the gateway takes its external address from.
+  help: "Where the nodes sit relative to the internet, and the addressing the network team has to agree to. The profile suggested these; every one of them can be changed here."
+  mode: Reachability
+  encrypt: Node-to-node traffic
+  encrypt.on: encrypted
+  encrypt.on.note: WireGuard between nodes; the default wherever they cross a boundary
+  encrypt.off: cleartext
+  encrypt.off.note: one segment, nothing in between
   proxyHTTP: HTTP proxy
   proxyHTTPS: HTTPS proxy
   noProxy: No proxy

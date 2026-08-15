@@ -5,6 +5,16 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.48.3] - 2026-08-16
+
+### Changed
+
+- The product has a working name: **Malmok (말목)** -- a stake driven into the
+  ground, which is what this tool does to a cluster. The TUI title bar, README
+  and CLAUDE.md carry it. The CLI, the binary and the module path stay
+  `platformctl`: a rename there touches every import and every document that
+  says `platformctl apply`, and a working title is not the moment for that.
+
 ## [0.48.2] - 2026-08-16
 
 ### Added

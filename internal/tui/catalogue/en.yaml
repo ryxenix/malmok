@@ -1,7 +1,7 @@
 # TUI string catalogue. English is the default (ADR-009).
 # Diagnostic codes such as PF-204 are identifiers and never appear here.
 app:
-  title: platformctl
+  title: Malmok
 step:
   nodes: Nodes
   profile: Profile

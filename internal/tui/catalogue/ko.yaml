@@ -1,6 +1,6 @@
 # TUI 문자열 카탈로그. 진단 코드(PF-204 등)는 식별자라 여기 없다.
 app:
-  title: platformctl
+  title: Malmok
 step:
   nodes: 노드
   profile: 프로파일

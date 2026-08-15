@@ -5,6 +5,17 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.48.2] - 2026-08-16
+
+### Added
+
+- A regression test pinning the address-first rule: a document with no
+  domainSuffix, HTTP-only listeners and `pki.mode: none` validates, and the
+  moment certificates are issued the suffix becomes required. The validator
+  already behaved this way; the test keeps it that way, because a first build
+  is reached by address until DNS exists and the wizard's own "decide later"
+  answer must not produce a file the validator refuses.
+
 ## [0.48.1] - 2026-08-16
 
 ### Fixed

@@ -681,3 +681,54 @@ func TestNodeAddressRegistrationIsAStatedTrade(t *testing.T) {
 		t.Errorf("registering on a node while a VIP exists was accepted: %v", err)
 	}
 }
+
+// A first build frequently has no domain: applications are reached by address
+// until DNS exists, and deferring certificates (pki.mode none) defers the
+// naming question with them. A document with no domainSuffix and HTTP-only
+// listeners has to validate, or the wizard's own "decide later" answer produces
+// a file the validator refuses.
+func TestAFirstBuildNeedsNoDomain(t *testing.T) {
+	d := &Document{Spec: v1alpha1.ClusterSpec{
+		APIVersion: v1alpha1.APIVersion, Kind: v1alpha1.KindSpec,
+		Metadata: v1alpha1.Metadata{Name: "first", Profile: "custom"},
+		Network:  v1alpha1.NetworkSpec{Mode: v1alpha1.NetworkOnline},
+		Topology: v1alpha1.TopologySpec{
+			RegistrationAddress: "k8s.acme.internal",
+			Servers:             []v1alpha1.NodeSpec{{Host: "10.0.0.11"}},
+		},
+		Kubernetes: v1alpha1.KubernetesSpec{
+			Version: "v1.36.3+rke2r1",
+			Dataplane: v1alpha1.DataplaneSpec{
+				Preset:           "cilium-gw",
+				LoadBalancerPool: []string{"10.0.0.240/29"},
+			},
+		},
+		PKI:      v1alpha1.PKISpec{Mode: v1alpha1.PKINone},
+		Storage:  v1alpha1.StorageSpec{Driver: "local-path"},
+		Registry: v1alpha1.RegistrySpec{Mode: v1alpha1.RegistryEmbedded},
+		Gateway: v1alpha1.GatewaySpec{
+			// No domainSuffix: the gateway is reached by address.
+			Gateways: []v1alpha1.Gateway{{
+				Name: "public",
+				Listeners: []v1alpha1.ListenerSpec{{
+					Name: "http", Protocol: v1alpha1.ListenerHTTP, Port: 80,
+				}},
+				RouteNamespaces: "all",
+			}},
+		},
+	}}
+	if err := d.Validate(false); err != nil {
+		t.Errorf("an address-first build was refused: %v", err)
+	}
+
+	// The moment certificates are issued there are names, and the suffix is
+	// what the contract hands to application charts.
+	d.Spec.PKI.Mode = v1alpha1.PKIPrivateCA
+	d.Spec.PKI.PrivateCA = &v1alpha1.PrivateCASpec{
+		RootCert: "file://r.crt", IntermediateCert: "file://i.crt", IntermediateKey: "env://K",
+	}
+	d.Spec.PKI.Domain = "acme.internal"
+	if err := d.Validate(false); err == nil || !strings.Contains(err.Error(), "domainSuffix") {
+		t.Errorf("issuing certificates without a domain suffix was accepted: %v", err)
+	}
+}

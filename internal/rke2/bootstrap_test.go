@@ -158,10 +158,15 @@ func TestDisableListCannotReenableIngressNginx(t *testing.T) {
 	spec.Kubernetes.DisableBundled = []string{"rke2-metrics-server", "rke2-ingress-nginx"}
 
 	list, _ := parse(t, ServerConfig(serverNode(), spec, ""))["disable"].([]any)
-	if len(list) != 2 {
+	// Four: the three that are always off on this preset (ingress-nginx by
+	// ADR-005, the bundled Traefik and its CRD chart because the gateway is
+	// Cilium) and the one the document added. Naming an always-off entry again
+	// must not double it.
+	if len(list) != 4 {
 		t.Fatalf("disable holds %v", list)
 	}
-	if list[0] != "rke2-ingress-nginx" || !containsAny(list, "rke2-metrics-server") {
+	if list[0] != "rke2-ingress-nginx" || !containsAny(list, "rke2-metrics-server") ||
+		!containsAny(list, "rke2-traefik") {
 		t.Errorf("disable is %v", list)
 	}
 }
@@ -374,5 +379,37 @@ func TestJoiningServersGetAKubeconfigAndAgentsDoNot(t *testing.T) {
 	}
 	if has(v1alpha1.RoleAgent) {
 		t.Error("an agent is given a kubeconfig it does not have")
+	}
+}
+
+// RKE2 v1.36 replaced the EOL'd ingress-nginx with a bundled Traefik -- the
+// succession ADR-005 predicted, under a name the disable list did not cover.
+// On the preset whose gateway is Cilium it has to go: two controllers fight
+// over the same Gateways, and its CRD chart tries to take Helm ownership of
+// the Gateway API CRDs this tool already installed, which leaves two install
+// jobs crash-looping forever. Found live after the 1.36 upgrade.
+func TestBundledTraefikFollowsThePreset(t *testing.T) {
+	config := func(preset v1alpha1.DataplanePreset) string {
+		return ServerConfig(v1alpha1.NodeSpec{Host: "10.0.0.11"}, v1alpha1.ClusterSpec{
+			Topology:   v1alpha1.TopologySpec{RegistrationAddress: "k8s.acme.internal"},
+			Kubernetes: v1alpha1.KubernetesSpec{Dataplane: v1alpha1.DataplaneSpec{Preset: preset}},
+		}, "")
+	}
+
+	got := config(v1alpha1.DataplaneCiliumGW)
+	// Both names: the CRD chart is its own component, and disabling only the
+	// chart that consumes it leaves the CRD installer crash-looping alone.
+	for _, want := range []string{"rke2-traefik", "rke2-traefik-crd"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("cilium-gw does not disable %s:\n%s", want, got)
+		}
+	}
+	// The *-traefik presets keep it: there, the bundled Traefik is the gateway.
+	for _, preset := range []v1alpha1.DataplanePreset{
+		v1alpha1.DataplaneCiliumTraefik, v1alpha1.DataplaneCanalTraefik,
+	} {
+		if got := config(preset); strings.Contains(got, "rke2-traefik") {
+			t.Errorf("%s disables the Traefik it uses as its gateway:\n%s", preset, got)
+		}
 	}
 }

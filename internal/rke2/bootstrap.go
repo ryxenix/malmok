@@ -374,6 +374,29 @@ func tlsSANs(node v1alpha1.NodeSpec, spec v1alpha1.ClusterSpec) []string {
 func disabled(spec v1alpha1.ClusterSpec) []string {
 	seen := map[string]bool{"rke2-ingress-nginx": true}
 	out := []string{"rke2-ingress-nginx"}
+
+	// RKE2 v1.36 replaced the EOL'd ingress-nginx with a bundled Traefik --
+	// the succession ADR-005 predicted, under a new name the disable list did
+	// not cover. On the preset whose gateway is Cilium it has to go for two
+	// reasons: two gateway controllers fight over the same Gateways (ADR-004
+	// binds the controller to the preset), and its CRD chart tries to take
+	// Helm ownership of the Gateway API CRDs this tool already installed --
+	// which fails with "exists and cannot be imported", leaving two install
+	// jobs crash-looping forever. Found live after the 1.36 upgrade.
+	//
+	// The *-traefik presets keep it: there, the bundled Traefik is the gateway.
+	// On versions that ship no such component the entry matches nothing, which
+	// is what makes it safe to state unconditionally for the preset.
+	// Both names: the CRD chart is its own component, and disabling only the
+	// chart that consumes it leaves the CRD installer crash-looping alone --
+	// verified live, where `disable: rke2-traefik` removed one of the two.
+	if spec.Kubernetes.Dataplane.Preset == v1alpha1.DataplaneCiliumGW {
+		for _, d := range []string{"rke2-traefik", "rke2-traefik-crd"} {
+			seen[d] = true
+			out = append(out, d)
+		}
+	}
+
 	for _, d := range spec.Kubernetes.DisableBundled {
 		d = strings.TrimSpace(d)
 		if d == "" || seen[d] {

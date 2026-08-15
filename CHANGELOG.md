@@ -5,6 +5,26 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.48.1] - 2026-08-16
+
+### Fixed
+
+- RKE2 v1.36 replaced the EOL'd ingress-nginx with a bundled Traefik -- the
+  succession ADR-005 predicted, under a new name the disable list did not
+  cover. After the 1.36 upgrade its two install jobs sat crash-looping: the CRD
+  chart tried to take Helm ownership of the Gateway API CRDs this tool had
+  already installed ("exists and cannot be imported"), and the main chart then
+  failed for the missing CRD release.
+
+  On the preset whose gateway is Cilium both components are now disabled --
+  `rke2-traefik` and `rke2-traefik-crd`, because the CRD chart is its own
+  component and disabling only the consumer left the CRD installer
+  crash-looping alone, verified live. The `*-traefik` presets keep the bundle:
+  there, it is the gateway. On versions that ship no such component the entries
+  match nothing, which is what makes them safe to state for the preset.
+  Verified live: a re-apply rewrote config.yaml, restarted the server, and RKE2
+  removed both charts and their jobs; the Gateway API CRDs stayed ours.
+
 ## [0.48.0] - 2026-08-16
 
 ### Added

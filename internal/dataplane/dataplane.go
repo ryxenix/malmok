@@ -101,7 +101,74 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 		steps = append(steps, add(rke2.ManifestStep(Phase, "l2-announcement", l2PolicyFile, body,
 			"ciliuml2announcementpolicy platformctl", o.timeout())))
 	}
+	// The agents have to run the configuration that was just written. RKE2's
+	// helm controller upgrades the chart, but a Cilium values change lands in
+	// cilium-config and the agents read that at start -- nothing rolls them.
+	// The same defect the rke2 service step closes: an agent that is Running
+	// is not an agent running the current configuration, and every step still
+	// reports success while a feature the document asked for silently does not
+	// exist. Found live: host networking enabled in cilium-config, port 80
+	// bound nowhere, agents five days old.
+	steps = append(steps, add(ciliumCurrentStep(o)))
 	return append(steps, add(gatewayClassStep(o)))
+}
+
+// ciliumCurrentStep restarts the agents when the configuration is newer than
+// they are.
+//
+// The observable is the DaemonSet's own record, not a listing of pods: during
+// and just after a rollout the listing still contains terminating pods whose
+// start time is the old one, and a check that read them called a finished
+// restart unfinished -- found live. `rollout restart` stamps restartedAt on the
+// pod template, so the comparison is the config file's change time against
+// that stamp (the DaemonSet's creation when it has never been restarted),
+// plus `rollout status`, which is the controller saying every node is done.
+//
+// The operator restarts too, and it is not optional: the operator is what
+// turns a Gateway into Envoy configuration, and one still running the old
+// values keeps regenerating the old listeners -- host networking enabled,
+// agents restarted, and the listener still bound to the shared proxy port
+// instead of the node's port 80, found live with a 45-hour-old operator.
+func ciliumCurrentStep(o Options) *engine.ShellStep {
+	// Both stamps, and the older one is the verdict: the agents and the
+	// operator each hold half the configuration -- the agents the datapath,
+	// the operator the Gateway-to-Envoy translation -- and whichever restarted
+	// least recently is the one still running the old half.
+	stamp := `stamp() {
+  ra=$(kubectl -n kube-system get "$1" -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null)
+  [ -n "$ra" ] || ra=$(kubectl -n kube-system get "$1" -o jsonpath='{.metadata.creationTimestamp}' 2>/dev/null)
+  [ -n "$ra" ] || { echo 0; return; }
+  date -d "$ra" +%s 2>/dev/null || echo 0
+}
+agents=$(stamp ds/cilium)
+operator=$(stamp deploy/cilium-operator)
+rat=$agents
+[ "$operator" -lt "$rat" ] && rat=$operator
+[ "$rat" -gt 0 ] || { echo "cilium is not installed"; exit 1; }`
+
+	return &engine.ShellStep{
+		Name: "cilium-current",
+		Check: kubectl + fmt.Sprintf(`cfg=$(stat -c %%Z %s 2>/dev/null || echo 0)
+%s
+[ "$cfg" -le "$rat" ] || { echo "the configuration is newer than the agents' last restart"; exit 1; }
+kubectl -n kube-system rollout status ds/cilium --timeout=10s >/dev/null 2>&1 || {
+  echo "the cilium rollout has not finished"; exit 1; }
+echo "every cilium agent runs the current configuration"`, ciliumCfgFile, stamp),
+
+		Do: kubectl + fmt.Sprintf(`set -e
+kubectl -n kube-system rollout restart deploy/cilium-operator
+kubectl -n kube-system rollout restart ds/cilium ds/cilium-envoy 2>/dev/null || kubectl -n kube-system rollout restart ds/cilium
+kubectl -n kube-system rollout status deploy/cilium-operator --timeout=%ds
+kubectl -n kube-system rollout status ds/cilium --timeout=%ds
+kubectl -n kube-system rollout status ds/cilium-envoy --timeout=%ds 2>/dev/null || true`,
+			int(o.timeout().Seconds()), int(o.timeout().Seconds()), int(o.timeout().Seconds())),
+
+		Satisfied: "%s",
+		Missing:   "%s",
+		DoTimeout: 2*o.timeout() + time.Minute,
+		// The rollout waits on its own deadline.
+		Attempts: 1,
+	}
 }
 
 // isCilium reports whether the document asks for the Cilium dataplane.
@@ -290,7 +357,36 @@ spec:
 		// the API without it produces Gateways that are accepted and never
 		// serve anything.
 		b.WriteString("    gatewayAPI:\n      enabled: true\n")
+		if NodeIPGateways(spec) {
+			// Envoy binds the listener ports in the node's own network
+			// namespace, which is what makes <node>:<port> the endpoint with no
+			// second IP on the segment. The generated Service still exists but
+			// nothing waits on it for an address.
+			//
+			// A subset of nodes is expressed as a label selector; the gateway
+			// phase labels the nodes the document lists.
+			b.WriteString("      hostNetwork:\n        enabled: true\n")
+			if gatewaysNameNodeSubset(spec) {
+				b.WriteString("        nodes:\n          matchLabels:\n")
+				b.WriteString("            " + GatewayNodeLabel + ": \"true\"\n")
+			}
+		}
 		b.WriteString("    envoy:\n      enabled: true\n")
+		if NodeIPGateways(spec) && hasPrivilegedListener(spec) {
+			// A host-networked envoy binding a port below 1024 needs the
+			// capability to do it, and it takes both halves: the container has
+			// to be granted NET_BIND_SERVICE (the list replaces the chart's
+			// defaults, so those are restated), and keepCapNetBindService has
+			// to tell cilium-envoy-starter to retain it -- the starter drops
+			// every capability it was not told to keep, so without the second
+			// half CapBnd holds the bit, CapEff is zero, and envoy NACKs the
+			// listener forever with "cannot bind: Permission denied". Both
+			// halves found live, one after the other.
+			b.WriteString("      securityContext:\n        capabilities:\n")
+			b.WriteString("          keepCapNetBindService: true\n")
+			b.WriteString("          envoy:\n")
+			b.WriteString("            - NET_ADMIN\n            - SYS_ADMIN\n            - NET_BIND_SERVICE\n")
+		}
 		b.WriteString("    l7Proxy: true\n")
 	}
 	if len(spec.Kubernetes.Dataplane.LoadBalancerPool) > 0 && !usesBGP(spec) {
@@ -373,4 +469,44 @@ func yamlString(s string) string {
 
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// GatewayNodeLabel marks the nodes a node-ips gateway answers on, when the
+// document names a subset rather than every node.
+const GatewayNodeLabel = "platformctl.io/gateway"
+
+// NodeIPGateways reports whether any gateway answers on node addresses.
+func NodeIPGateways(spec v1alpha1.ClusterSpec) bool {
+	for _, gw := range spec.Gateway.Gateways {
+		if gw.Exposure == v1alpha1.ExposureNodeIPs {
+			return true
+		}
+	}
+	return false
+}
+
+// gatewaysNameNodeSubset reports whether any node-ips gateway restricts which
+// nodes answer. Cilium's host networking is cluster-wide configuration, so one
+// subset means the selector -- and the labels the gateway phase writes --
+// decide for all of them.
+func gatewaysNameNodeSubset(spec v1alpha1.ClusterSpec) bool {
+	for _, gw := range spec.Gateway.Gateways {
+		if gw.Exposure == v1alpha1.ExposureNodeIPs && len(gw.NodeIPs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// hasPrivilegedListener reports whether any gateway listens below 1024, which
+// is where binding in the host namespace needs NET_BIND_SERVICE.
+func hasPrivilegedListener(spec v1alpha1.ClusterSpec) bool {
+	for _, gw := range spec.Gateway.Gateways {
+		for _, l := range gw.Listeners {
+			if l.Port > 0 && l.Port < 1024 {
+				return true
+			}
+		}
+	}
+	return false
 }

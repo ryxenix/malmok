@@ -485,7 +485,11 @@ func dnsRecords(s v1alpha1.ClusterSpec) []Record {
 	var out []Record
 	seen := map[string]bool{}
 	add := func(rec Record) {
-		key := rec.FQDN + "/" + rec.Type
+		// The value is part of the identity: one name resolving to several
+		// addresses is a real request -- it is exactly how a node-ips gateway
+		// with two nodes is spelled -- and a key without it silently dropped
+		// every A record after the first.
+		key := rec.FQDN + "/" + rec.Type + "/" + rec.Value
 		if rec.FQDN == "" || rec.Value == "" || seen[key] {
 			return
 		}
@@ -504,24 +508,34 @@ func dnsRecords(s v1alpha1.ClusterSpec) []Record {
 	}
 
 	for _, gw := range s.Gateway.Gateways {
-		if gw.Address == "" {
+		// A node-ips gateway's address is the nodes' own, and the sheet asks
+		// for one A record per node under the same name: several answers for
+		// one name is how DNS spreads traffic across them, and a node that
+		// leaves takes exactly its record with it.
+		addrs := []string{gw.Address}
+		if gw.Exposure == v1alpha1.ExposureNodeIPs {
+			addrs = gatewayNodeAddresses(s, gw)
+		}
+		if len(addrs) == 0 || addrs[0] == "" {
 			continue
 		}
-		for _, l := range gw.Listeners {
-			name := strings.TrimSpace(l.Hostname)
-			if name == "" {
-				continue
+		for _, addr := range addrs {
+			for _, l := range gw.Listeners {
+				name := strings.TrimSpace(l.Hostname)
+				if name == "" {
+					continue
+				}
+				why := fmt.Sprintf("gateway %s, listener %s", gw.Name, l.Name)
+				add(Record{FQDN: name, Type: "A", Value: addr, Zone: gw.Zone, Why: why})
 			}
-			why := fmt.Sprintf("gateway %s, listener %s", gw.Name, l.Name)
-			add(Record{FQDN: name, Type: "A", Value: gw.Address, Zone: gw.Zone, Why: why})
-		}
-		// A wildcard for the domain suffix covers whatever the applications
-		// publish later, which is what stops a DNS request per deployment.
-		if s.Gateway.DomainSuffix != "" {
-			add(Record{
-				FQDN: "*." + s.Gateway.DomainSuffix, Type: "A", Value: gw.Address, Zone: gw.Zone,
-				Why: fmt.Sprintf("applications published on gateway %s", gw.Name),
-			})
+			// A wildcard for the domain suffix covers whatever the applications
+			// publish later, which is what stops a DNS request per deployment.
+			if s.Gateway.DomainSuffix != "" {
+				add(Record{
+					FQDN: "*." + s.Gateway.DomainSuffix, Type: "A", Value: addr, Zone: gw.Zone,
+					Why: fmt.Sprintf("applications published on gateway %s", gw.Name),
+				})
+			}
 		}
 	}
 
@@ -675,6 +689,28 @@ func dedupe(in []string) []string {
 			seen[s] = true
 			out = append(out, s)
 		}
+	}
+	return out
+}
+
+// gatewayNodeAddresses resolves which addresses a node-ips gateway answers on.
+//
+// The same resolution the gateway phase uses: the document's list when it gives
+// one, every node otherwise, with the advertised nodeIP winning over the SSH
+// address. Duplicated here rather than imported because report must stay
+// buildable from a run directory alone.
+func gatewayNodeAddresses(s v1alpha1.ClusterSpec, gw v1alpha1.Gateway) []string {
+	if len(gw.NodeIPs) > 0 {
+		return gw.NodeIPs
+	}
+	var out []string
+	for _, n := range append(append([]v1alpha1.NodeSpec{},
+		s.Topology.Servers...), s.Topology.Agents...) {
+		addr := n.NodeIP
+		if addr == "" {
+			addr = n.Host
+		}
+		out = append(out, addr)
 	}
 	return out
 }

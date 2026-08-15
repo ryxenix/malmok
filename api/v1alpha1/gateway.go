@@ -62,6 +62,23 @@ type Gateway struct {
 	// omits this.
 	Address string `yaml:"address,omitempty" json:"address,omitempty"`
 
+	// Exposure is how the gateway gets an address the outside can reach.
+	//
+	//   "" / "loadBalancer" -> LB-IPAM hands it one from loadBalancerPool
+	//   "node-ips"          -> the nodes' own addresses, Service externalIPs
+	//
+	// node-ips exists for the same site acceptNodeRegistration does: a pool
+	// address is one more IP answering on the segment, and IDC and air-gapped
+	// network policy frequently allows only the addresses the nodes already
+	// hold. Traffic to <node>:<port> reaches the gateway on any listed node;
+	// the DNS record points at one or several of them. The cost is the same
+	// shape as ADR-008's: a node that leaves takes its endpoint with it.
+	Exposure GatewayExposure `yaml:"exposure,omitempty" json:"exposure,omitempty"`
+
+	// NodeIPs lists which nodes answer, by the address the document names them
+	// by. Empty with exposure node-ips means every node in the topology.
+	NodeIPs []string `yaml:"nodeIPs,omitempty" json:"nodeIPs,omitempty"`
+
 	Listeners []ListenerSpec `yaml:"listeners" json:"listeners"`
 
 	// RouteNamespaces controls which namespaces may attach HTTPRoutes.
@@ -76,6 +93,14 @@ type Gateway struct {
 	// certificates and different DNS views.
 	Zone string `yaml:"zone,omitempty" json:"zone,omitempty"`
 }
+
+// GatewayExposure names how a gateway is reached from outside the cluster.
+type GatewayExposure string
+
+const (
+	ExposureLoadBalancer GatewayExposure = "loadBalancer"
+	ExposureNodeIPs      GatewayExposure = "node-ips"
+)
 
 // ---------------------------------------------------------------------------
 // Listener

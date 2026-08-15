@@ -390,3 +390,43 @@ func section(report, heading string) string {
 	}
 	return rest
 }
+
+// A node-ips gateway's DNS request is several A records under one name -- that
+// is how DNS spreads traffic across the nodes, and a node that leaves takes
+// exactly its record with it. The dedup key used to be FQDN/Type, which
+// silently dropped every record after the first.
+func TestDNSRecordsForANodeIPGateway(t *testing.T) {
+	s := v1alpha1.ClusterSpec{
+		Topology: v1alpha1.TopologySpec{
+			Servers: []v1alpha1.NodeSpec{{Host: "10.0.0.11"}},
+			Agents:  []v1alpha1.NodeSpec{{Host: "10.0.0.21", NodeIP: "10.0.0.121"}},
+		},
+		Gateway: v1alpha1.GatewaySpec{
+			DomainSuffix: "acme.internal",
+			Gateways: []v1alpha1.Gateway{{
+				Name: "public", Exposure: v1alpha1.ExposureNodeIPs,
+				Listeners: []v1alpha1.ListenerSpec{{
+					Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443,
+					Hostname: "apps.acme.internal",
+				}},
+			}},
+		},
+	}
+
+	var hostRecords, wildcards []string
+	for _, rec := range dnsRecords(s) {
+		switch rec.FQDN {
+		case "apps.acme.internal":
+			hostRecords = append(hostRecords, rec.Value)
+		case "*.acme.internal":
+			wildcards = append(wildcards, rec.Value)
+		}
+	}
+	for name, got := range map[string][]string{
+		"apps.acme.internal": hostRecords, "*.acme.internal": wildcards,
+	} {
+		if len(got) != 2 || got[0] != "10.0.0.11" || got[1] != "10.0.0.121" {
+			t.Errorf("%s resolves to %v, want both node addresses", name, got)
+		}
+	}
+}

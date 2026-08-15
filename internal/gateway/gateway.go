@@ -17,6 +17,7 @@ import (
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/cert"
+	"platform.ryxen.dev/platformctl/internal/dataplane"
 	"platform.ryxen.dev/platformctl/internal/engine"
 	"platform.ryxen.dev/platformctl/internal/exec"
 	"platform.ryxen.dev/platformctl/internal/rke2"
@@ -86,12 +87,160 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 			fmt.Sprintf("configmap -n %s %s", namespaceOf(spec), contractName(spec)), o.timeout())),
 	)
 
-	// Programmed is the end state worth waiting for: it means the controller
-	// has an address and a listener it can actually serve on.
+	// The end state worth waiting for depends on where the address comes from.
+	// A load-balanced gateway is done when the controller reports Programmed
+	// with a pool address. A node-ips gateway gets no pool address and Cilium
+	// will not call it Programmed without one, so the end state is the thing
+	// itself: the generated Service carries the nodes' addresses as
+	// externalIPs, which is what makes <node>:<port> reach the listeners.
+	labelled := false
 	for _, gw := range spec.Gateway.Gateways {
+		if gw.Exposure == v1alpha1.ExposureNodeIPs {
+			if len(gw.NodeIPs) > 0 && !labelled {
+				steps = append(steps, add(nodeLabelStep(spec)))
+				labelled = true
+			}
+			steps = append(steps, add(answersStep(spec, gw, o)))
+			continue
+		}
 		steps = append(steps, add(programmedStep(gw, namespaceOfGateway(gw), o)))
 	}
 	return steps
+}
+
+// gatewayNodeIPs resolves which addresses a node-ips gateway answers on.
+//
+// The document's list when it gives one; every node otherwise. The advertised
+// nodeIP wins over the SSH address, because it is the address the document
+// says the rest of the network reaches this node on.
+func gatewayNodeIPs(spec v1alpha1.ClusterSpec, gw v1alpha1.Gateway) []string {
+	if len(gw.NodeIPs) > 0 {
+		return gw.NodeIPs
+	}
+	var out []string
+	for _, n := range append(append([]v1alpha1.NodeSpec{},
+		spec.Topology.Servers...), spec.Topology.Agents...) {
+		addr := n.NodeIP
+		if addr == "" {
+			addr = n.Host
+		}
+		out = append(out, addr)
+	}
+	return out
+}
+
+// nodeLabelStep marks which nodes answer for the node-ips gateways.
+//
+// Cilium's host networking takes a label selector, so a document that names a
+// subset needs the labels to exist -- and the nodes it does not name need the
+// label gone, or a node removed from the document keeps answering.
+func nodeLabelStep(spec v1alpha1.ClusterSpec) *engine.ShellStep {
+	chosen := map[string]bool{}
+	for _, gw := range spec.Gateway.Gateways {
+		if gw.Exposure != v1alpha1.ExposureNodeIPs {
+			continue
+		}
+		for _, ip := range gw.NodeIPs {
+			chosen[ip] = true
+		}
+	}
+	ips := make([]string, 0, len(chosen))
+	for ip := range chosen {
+		ips = append(ips, ip)
+	}
+	sort.Strings(ips)
+	list := strings.Join(ips, " ")
+
+	// Node names are resolved from addresses at run time, for the same reason
+	// the join phase does it: the address is what the document says, and the
+	// name is whatever the node happened to call itself.
+	byAddr := `kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{"
+"}{end}' 2>/dev/null`
+
+	return &engine.ShellStep{
+		Name: "gateway-nodes",
+		Check: kubectl + fmt.Sprintf(`want=%s
+have=$(kubectl get nodes -l %s -o jsonpath='{range .items[*]}{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{"
+"}{end}' 2>/dev/null | sort | tr '
+' ' ' | sed 's/ $//')
+[ "$have" = "$want" ] || { echo "the gateway answers on '$have', the document says '$want'"; exit 1; }
+echo "the gateway nodes are $want"`, shellQuote(list), dataplane.GatewayNodeLabel),
+
+		Do: kubectl + fmt.Sprintf(`set -e
+%s | while read -r name addr; do
+  case " %s " in
+    *" $addr "*) kubectl label node "$name" %s=true --overwrite >/dev/null ;;
+    *) kubectl label node "$name" %s- >/dev/null 2>&1 || true ;;
+  esac
+done`, byAddr, list, dataplane.GatewayNodeLabel, dataplane.GatewayNodeLabel),
+
+		Satisfied: "%s",
+		Missing:   "%s",
+	}
+}
+
+// answersStep waits until the gateway actually answers on the node addresses.
+//
+// Not the Gateway's Programmed condition, and not the generated Service:
+// Cilium never gives a host-networked gateway a pool address, and it owns the
+// Service too completely to carry anything of ours -- a patched externalIPs is
+// stripped on the next reconcile, verified the hard way. What has to be true is
+// the thing itself: every address the document names answers on the listener
+// port. Any HTTP status counts, because a 404 from a gateway with no routes is
+// the gateway working.
+func answersStep(spec v1alpha1.ClusterSpec, gw v1alpha1.Gateway, o Options) *engine.ShellStep {
+	ips := gatewayNodeIPs(spec, gw)
+	port := 80
+	scheme := "http"
+	for _, l := range gw.Listeners {
+		port = l.Port
+		if l.Protocol != v1alpha1.ListenerHTTP {
+			scheme = "https"
+		}
+		break
+	}
+
+	var probes strings.Builder
+	for _, ip := range ips {
+		fmt.Fprintf(&probes, `code=$(curl -sk -o /dev/null -w '%%{http_code}' --max-time 5 %s://%s:%d/ 2>/dev/null)
+[ -n "$code" ] && [ "$code" != 000 ] || { echo "%s:%d does not answer"; exit 1; }
+`, scheme, ip, port, ip, port)
+	}
+
+	return &engine.ShellStep{
+		Name: "answers-" + gw.Name,
+		Check: probes.String() +
+			fmt.Sprintf(`echo "%s answers on %s port %d"`, gw.Name, strings.Join(ips, ", "), port),
+
+		Do: fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
+while [ "$(date +%%s)" -lt "$deadline" ]; do
+%s
+  exit 0
+done
+echo "the gateway %s never answered on every node address (%s port %d)"
+exit 1`, int(o.timeout().Seconds()),
+			indentProbes(ips, scheme, port), gw.Name, strings.Join(ips, ", "), port),
+
+		Satisfied: "%s",
+		Missing:   "%s",
+		DoTimeout: o.timeout() + time.Minute,
+		Attempts:  1,
+	}
+}
+
+// indentProbes renders the wait-loop body: probe every address, clear ok and
+// pause on the first that does not answer.
+func indentProbes(ips []string, scheme string, port int) string {
+	var b strings.Builder
+	for _, ip := range ips {
+		// `continue`, not `break`: there is exactly one loop here, and break
+		// would leave it -- which turned a probe that had not answered yet into
+		// an instant failure of the whole wait, verified live.
+		fmt.Fprintf(&b, `  code=$(curl -sk -o /dev/null -w '%%{http_code}' --max-time 5 %s://%s:%d/ 2>/dev/null)
+  if [ -z "$code" ] || [ "$code" = 000 ]; then sleep 5; continue; fi
+`, scheme, ip, port)
+	}
+	return b.String()
 }
 
 // Files this phase writes.
@@ -324,6 +473,12 @@ func ContractManifest(spec v1alpha1.ClusterSpec) string {
 		b.WriteString(prefix + "namespace: " + yamlString(namespaceOfGateway(gw)) + "\n")
 		if gw.Address != "" {
 			b.WriteString(prefix + "address: " + yamlString(gw.Address) + "\n")
+		}
+		// A node-ips gateway's address is the nodes' own, and the contract is
+		// where a DNS request or an app chart learns what to point at.
+		if gw.Exposure == v1alpha1.ExposureNodeIPs {
+			b.WriteString(prefix + "address: " +
+				yamlString(strings.Join(gatewayNodeIPs(spec, gw), ",")) + "\n")
 		}
 		if gw.Zone != "" {
 			b.WriteString(prefix + "zone: " + yamlString(gw.Zone) + "\n")

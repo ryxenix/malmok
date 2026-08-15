@@ -9,6 +9,7 @@ import (
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/cert"
+	"platform.ryxen.dev/platformctl/internal/dataplane"
 	"platform.ryxen.dev/platformctl/internal/engine"
 	"platform.ryxen.dev/platformctl/internal/exec"
 )
@@ -374,5 +375,115 @@ func TestStepIDs(t *testing.T) {
 		if !strings.HasPrefix(name, Phase+"/") {
 			t.Errorf("%q is not filed under %s", s.ID(), Phase)
 		}
+	}
+}
+
+// A pool address is one more IP answering on the segment, and IDC and
+// air-gapped network policy frequently allows only the addresses the nodes
+// already hold. node-ips exposure answers there: Cilium's envoy binds the
+// listener ports in the host namespace, so <node>:<port> is the endpoint with
+// no second IP anywhere.
+func TestNodeIPExposure(t *testing.T) {
+	spec := v1alpha1.ClusterSpec{
+		Topology: v1alpha1.TopologySpec{
+			Servers: []v1alpha1.NodeSpec{{Host: "10.0.0.11"}},
+			Agents:  []v1alpha1.NodeSpec{{Host: "10.0.0.21", NodeIP: "10.0.0.121"}},
+		},
+		Gateway: v1alpha1.GatewaySpec{
+			DomainSuffix: "acme.internal",
+			Gateways: []v1alpha1.Gateway{{
+				Name: "public", Exposure: v1alpha1.ExposureNodeIPs,
+				Listeners: []v1alpha1.ListenerSpec{{Name: "http", Protocol: v1alpha1.ListenerHTTP, Port: 80}},
+			}},
+		},
+	}
+
+	var answers *engine.ShellStep
+	for _, s := range Steps(&exec.Fake{}, spec, Options{}) {
+		if st, ok := s.(*engine.ShellStep); ok && st.Name == "answers-public" {
+			answers = st
+		}
+		// Cilium never gives a host-networked gateway a pool address, so
+		// waiting for Programmed would wait forever on a gateway that works.
+		if st, ok := s.(*engine.ShellStep); ok && st.Name == "programmed-public" {
+			t.Error("a node-ips gateway waits on Programmed, which never comes without a pool")
+		}
+	}
+	if answers == nil {
+		t.Fatal("nothing verifies the gateway answers on the node addresses")
+	}
+
+	// The observable is the thing itself: every named address answering on the
+	// listener port. Any HTTP status counts -- a 404 from a gateway with no
+	// routes is the gateway working. A patched Service is not an observable at
+	// all; Cilium strips foreign fields on reconcile, verified live.
+	for _, want := range []string{"http://10.0.0.11:80/", "http://10.0.0.121:80/", "curl"} {
+		if !strings.Contains(answers.Check, want) {
+			t.Errorf("the check does not probe %q:\n%s", want, answers.Check)
+		}
+	}
+
+	// Every node answers when the document names none; a named subset is used
+	// as given, with the advertised nodeIP winning over the SSH address.
+	got := gatewayNodeIPs(spec, spec.Gateway.Gateways[0])
+	if len(got) != 2 || got[0] != "10.0.0.11" || got[1] != "10.0.0.121" {
+		t.Errorf("the default is not every node: %v", got)
+	}
+	spec.Gateway.Gateways[0].NodeIPs = []string{"10.0.0.121"}
+	if got := gatewayNodeIPs(spec, spec.Gateway.Gateways[0]); len(got) != 1 || got[0] != "10.0.0.121" {
+		t.Errorf("the subset was not honoured: %v", got)
+	}
+
+	// A subset needs the label selector's labels to exist -- and to be removed
+	// from the nodes the document stopped naming.
+	var label *engine.ShellStep
+	for _, s := range Steps(&exec.Fake{}, spec, Options{}) {
+		if st, ok := s.(*engine.ShellStep); ok && st.Name == "gateway-nodes" {
+			label = st
+		}
+	}
+	if label == nil {
+		t.Fatal("a named subset writes no node labels")
+	}
+	if !strings.Contains(label.Do, dataplane.GatewayNodeLabel+"=true") ||
+		!strings.Contains(label.Do, dataplane.GatewayNodeLabel+"-") {
+		t.Errorf("the labels are not both set and cleared:\n%s", label.Do)
+	}
+
+	// And the contract publishes what DNS has to point at.
+	if c := ContractManifest(spec); !strings.Contains(c, `gateway.public.address: "10.0.0.121"`) {
+		t.Errorf("the contract does not name the endpoints:\n%s", c)
+	}
+}
+
+// The dataplane side of the same statement: node-ips gateways put envoy in the
+// host namespace, and a named subset becomes the label selector.
+func TestCiliumHostNetworkFollowsExposure(t *testing.T) {
+	spec := v1alpha1.ClusterSpec{
+		Kubernetes: v1alpha1.KubernetesSpec{
+			Dataplane: v1alpha1.DataplaneSpec{Preset: v1alpha1.DataplaneCiliumGW},
+		},
+		Gateway: v1alpha1.GatewaySpec{Gateways: []v1alpha1.Gateway{{
+			Name: "public", Exposure: v1alpha1.ExposureNodeIPs,
+			Listeners: []v1alpha1.ListenerSpec{{Name: "http", Protocol: v1alpha1.ListenerHTTP, Port: 80}},
+		}}},
+	}
+
+	cfg := dataplane.CiliumHelmConfig(spec)
+	if !strings.Contains(cfg, "hostNetwork:") || !strings.Contains(cfg, "enabled: true") {
+		t.Errorf("node-ips exposure does not enable host networking:\n%s", cfg)
+	}
+	if strings.Contains(cfg, dataplane.GatewayNodeLabel) {
+		t.Errorf("no subset is named and a selector exists anyway:\n%s", cfg)
+	}
+
+	spec.Gateway.Gateways[0].NodeIPs = []string{"10.0.0.11"}
+	if cfg := dataplane.CiliumHelmConfig(spec); !strings.Contains(cfg, dataplane.GatewayNodeLabel) {
+		t.Errorf("a named subset produces no selector:\n%s", cfg)
+	}
+
+	spec.Gateway.Gateways[0].Exposure = ""
+	if cfg := dataplane.CiliumHelmConfig(spec); strings.Contains(cfg, "hostNetwork:") {
+		t.Errorf("a load-balanced gateway was moved into the host namespace:\n%s", cfg)
 	}
 }

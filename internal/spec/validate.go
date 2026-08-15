@@ -188,8 +188,11 @@ func validateKubernetes(s *v1alpha1.ClusterSpec) []error {
 	case v1alpha1.DataplaneCiliumGW, v1alpha1.DataplaneCiliumTraefik:
 		// Cilium supplies the load balancer addresses; without a pool the
 		// Gateway comes up with no external IP and looks healthy while being
-		// unreachable.
-		if len(k.Dataplane.LoadBalancerPool) == 0 {
+		// unreachable. Except when every gateway answers on the nodes' own
+		// addresses -- then there is nothing for LB-IPAM to hand out, and
+		// demanding a pool would demand exactly the segment IPs the exposure
+		// mode exists to avoid.
+		if len(k.Dataplane.LoadBalancerPool) == 0 && !allGatewaysOnNodeIPs(s) {
 			errs = append(errs, fmt.Errorf(
 				"kubernetes.dataplane.loadBalancerPool is required with preset %s: "+
 					"Cilium LB-IPAM has nothing to hand the Gateway otherwise (DG-010)",
@@ -371,6 +374,13 @@ func validateGateway(s *v1alpha1.ClusterSpec) []error {
 		if gw.Address != "" && net.ParseIP(gw.Address) == nil {
 			errs = append(errs, fmt.Errorf("gateway.gateways[%d].address %q is not an IP", i, gw.Address))
 		}
+		errs = append(errs, validateGatewayExposure(s, i, gw)...)
+		if i == 0 && mixedExposure(s) {
+			errs = append(errs, errors.New(
+				"gateway: node-ips and load-balanced gateways cannot coexist; Cilium's host "+
+					"networking is cluster-wide, so one node-ips gateway moves every gateway's "+
+					"envoy into the host namespace"))
+		}
 		if gw.RouteNamespaces == "selector" && len(gw.NamespaceSelector) == 0 {
 			errs = append(errs, fmt.Errorf(
 				"gateway.gateways[%d].namespaceSelector is required with routeNamespaces=selector", i))
@@ -475,4 +485,79 @@ func isLoopbackHost(host string) bool {
 	}
 	ip := net.ParseIP(h)
 	return ip != nil && ip.IsLoopback()
+}
+
+// mixedExposure reports whether the gateways disagree about how they are
+// reached. Cilium's host networking is cluster-wide configuration: one node-ips
+// gateway puts every gateway's envoy in the host namespace, so a load-balanced
+// gateway beside it would silently stop being what the document says it is.
+func mixedExposure(s *v1alpha1.ClusterSpec) bool {
+	var lb, node bool
+	for _, gw := range s.Gateway.Gateways {
+		if gw.Exposure == v1alpha1.ExposureNodeIPs {
+			node = true
+		} else {
+			lb = true
+		}
+	}
+	return lb && node
+}
+
+// allGatewaysOnNodeIPs reports whether every gateway answers on node addresses,
+// which is the one case a Cilium preset needs no LB pool.
+func allGatewaysOnNodeIPs(s *v1alpha1.ClusterSpec) bool {
+	if len(s.Gateway.Gateways) == 0 {
+		return false
+	}
+	for _, gw := range s.Gateway.Gateways {
+		if gw.Exposure != v1alpha1.ExposureNodeIPs {
+			return false
+		}
+	}
+	return true
+}
+
+// validateGatewayExposure checks one gateway's exposure statement.
+//
+// The rules mirror acceptNodeRegistration's: the node addresses are a real
+// answer for a site whose policy allows no others, and a half-statement -- a
+// pinned pool address on a gateway that answers from the nodes, or a node the
+// topology does not contain -- is caught here rather than as an unreachable
+// endpoint later.
+func validateGatewayExposure(s *v1alpha1.ClusterSpec, i int, gw v1alpha1.Gateway) []error {
+	var errs []error
+	where := fmt.Sprintf("gateway.gateways[%d]", i)
+
+	switch gw.Exposure {
+	case "", v1alpha1.ExposureLoadBalancer:
+		if len(gw.NodeIPs) > 0 {
+			errs = append(errs, fmt.Errorf(
+				"%s.nodeIPs is set without exposure: node-ips; a load-balanced gateway takes "+
+					"its address from the pool, so the list would be silently ignored", where))
+		}
+	case v1alpha1.ExposureNodeIPs:
+		if gw.Address != "" {
+			errs = append(errs, fmt.Errorf(
+				"%s pins address %s and answers on node IPs; the two contradict -- the address "+
+					"of a node-ips gateway is the nodes' own", where, gw.Address))
+		}
+		nodes := map[string]bool{}
+		for _, n := range append(append([]v1alpha1.NodeSpec{}, s.Topology.Servers...), s.Topology.Agents...) {
+			nodes[n.Host] = true
+			if n.NodeIP != "" {
+				nodes[n.NodeIP] = true
+			}
+		}
+		for _, ip := range gw.NodeIPs {
+			if !nodes[ip] {
+				errs = append(errs, fmt.Errorf(
+					"%s.nodeIPs lists %s, which is no node in this topology; an endpoint on an "+
+						"address nothing holds is a DNS record pointing at silence", where, ip))
+			}
+		}
+	default:
+		errs = append(errs, fmt.Errorf(
+			"%s.exposure %q is not loadBalancer or node-ips", where, gw.Exposure))
+	}
+	return errs
 }

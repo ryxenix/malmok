@@ -5,6 +5,63 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.48.0] - 2026-08-16
+
+### Added
+
+- `gateway.gateways[].exposure: node-ips`. A pool address is one more IP
+  answering on the segment, and IDC and air-gapped network policy frequently
+  allows only the addresses the nodes already hold -- the same site
+  `acceptNodeRegistration` exists for. The gateway answers on the nodes' own
+  addresses instead: every node by default, or the subset `nodeIPs` names.
+  Verified live -- the test cluster's gateway serves on both node IPs at port
+  80 with no LB pool anywhere.
+- Implemented as Cilium's host-networked gateway, because the obvious spelling
+  does not work: the generated Service is owned by the gateway controller,
+  which strips a patched `externalIPs` on the next reconcile (verified live),
+  and its endpoints are eBPF-wired rather than selector-backed, so no parallel
+  Service can reach them. Envoy binds the listener ports in the host namespace
+  instead, which is the thing itself.
+- The verification is the thing itself too: every named address must answer on
+  the listener port. Cilium never calls a host-networked gateway Programmed --
+  there is no pool address to program -- so waiting on that would wait forever
+  on a gateway that works. Any HTTP status counts; a 404 from a gateway with no
+  routes is the gateway working.
+- The contract ConfigMap and the DNS record sheet carry the node addresses: one
+  A record per node under the same name, which is how DNS spreads traffic
+  across them and how a node that leaves takes exactly its record with it.
+- Mixed exposures are refused. Cilium's host networking is cluster-wide, so one
+  node-ips gateway moves every gateway's envoy into the host namespace; a
+  load-balanced gateway beside it would silently stop being what the document
+  says.
+
+### Fixed
+
+Five defects, four of them found live and each invisible until the packet had
+to actually arrive.
+
+- Cilium's agents were never restarted after a values change. RKE2's helm
+  controller upgrades the chart, but a change that lands in cilium-config is
+  read at agent start and nothing rolls the agents -- host networking enabled,
+  port 80 bound nowhere, agents five days old. The dataplane phase now compares
+  the config file's change time against the DaemonSet's restartedAt stamp and
+  rolls when the config is newer: the same defect, and the same fix, as the
+  rke2 service step.
+- The first version of that check listed pods, and a listing taken during a
+  rollout still contains terminating pods with the old start time -- a finished
+  restart read as unfinished. The DaemonSet's own record replaced it.
+- The operator restarts too, and comparing only the agents' stamp skipped it.
+  The operator is what turns a Gateway into Envoy configuration; a stale one
+  keeps regenerating the old listeners, so the agents were current, the
+  configuration was current, and the listener was still on the old proxy port.
+- Binding a privileged port in the host namespace takes both halves of a
+  capability: NET_BIND_SERVICE granted to the container, and
+  `keepCapNetBindService` telling cilium-envoy-starter to retain it. With only
+  the first, CapBnd holds the bit, CapEff is zero, and envoy NACKs the listener
+  forever with "cannot bind: Permission denied".
+- The DNS sheet deduplicated records by name and type, which silently dropped
+  every A record after the first for the one case that needs several.
+
 ## [0.47.0] - 2026-08-13
 
 ### Added

@@ -326,6 +326,12 @@ type Wizard struct {
 	// did.
 	prefsErr string
 
+	// channels is what the RKE2 channel server answered at start, zero when it
+	// did not. Stable is the suggestion; Space on the version field flips to
+	// Latest and back for the operator who wants the newest release without
+	// typing it.
+	channels rke2.Channels
+
 	// menu is the selected start-menu entry; runs is what was found on this
 	// machine and runSel is the highlighted one.
 	menu   int
@@ -456,22 +462,22 @@ func (w *Wizard) Aborted() bool { return w.aborted }
 // tea.Model
 // ---------------------------------------------------------------------------
 
-func (w *Wizard) Init() tea.Cmd { return tea.Batch(spinEvery(), fetchStableVersion) }
+func (w *Wizard) Init() tea.Cmd { return tea.Batch(spinEvery(), fetchChannels) }
 
 // versionMsg carries what the channel server answered.
-type versionMsg struct{ v string }
+type versionMsg struct{ ch rke2.Channels }
 
-// fetchStableVersion asks RKE2 what "current" means.
+// fetchChannels asks RKE2 what "current" means, on both channels.
 //
 // Failure is silent by design: on an air-gapped or proxied site there is no
 // answer, the field stays empty, and the validator asks for it -- which is
 // honest, where a stale default is a suggestion that looks like knowledge.
-func fetchStableVersion() tea.Msg {
-	v, err := rke2.StableVersion(context.Background())
+func fetchChannels() tea.Msg {
+	ch, err := rke2.FetchChannels(context.Background())
 	if err != nil {
 		return nil
 	}
-	return versionMsg{v: v}
+	return versionMsg{ch: ch}
 }
 
 // spinMsg advances the spinner. A step that takes minutes is indistinguishable
@@ -512,10 +518,12 @@ func (w *Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return w, nil
 
 	case versionMsg:
-		// Filled only while empty: an operator who already typed a version has
+		// Kept, so the version field can flip between the two on Space. Filled
+		// only while empty: an operator who already typed a version has
 		// answered the question, and the network must not overrule them.
+		w.channels = msg.ch
 		if w.cfg.Version == "" {
-			w.cfg.Version = msg.v
+			w.cfg.Version = msg.ch.Stable
 		}
 		return w, nil
 
@@ -722,6 +730,21 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 		if cur < len(osFamilies) {
 			w.cfg.OSFamily = osFamilies[cur].id
 			break
+		}
+		// Space on the version field flips between the channel server's two
+		// answers -- stable is upstream's production judgement and the
+		// default, latest is the newest release -- with typing still the
+		// override. Same grammar as every other chooser, zero extra rows.
+		if fi := w.fieldIndex(); fi >= 0 {
+			fs := w.fieldsFor(StepNodes)
+			if fi < len(fs) && fs[fi].labelKey == "nodes.version" && w.channels.Latest != "" {
+				if w.cfg.Version == w.channels.Latest {
+					w.cfg.Version = w.channels.Stable
+				} else {
+					w.cfg.Version = w.channels.Latest
+				}
+				break
+			}
 		}
 		// The addresses of this machine, when it is the one being built on.
 		// A list rather than a field: the machine knows them, and a multi-homed

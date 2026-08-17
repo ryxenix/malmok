@@ -12,6 +12,7 @@ import (
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
 	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/platformctl/internal/rke2"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
@@ -1307,5 +1308,54 @@ func TestTheMenuCarriesTheWordmark(t *testing.T) {
 	o := wizard(t, LangEN, false, 100, 32, StepOptions)
 	if strings.Contains(plain(o.View().Content), "██╗") {
 		t.Error("a working screen carries the wordmark")
+	}
+}
+
+// Stable is the suggestion, latest is one Space away, typing overrides both.
+//
+// Stable is upstream's production judgement (install.sh defaults to it, and it
+// lags the newest release on purpose), so it fills the field; the operator who
+// wants the newest flips to it on the version field with the same key every
+// other chooser uses.
+func TestTheVersionFieldFlipsBetweenChannels(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepNodes)
+	w.setLocal(false)
+	if w.cfg.Version != "v1.35.7+rke2r1" {
+		t.Fatalf("stable did not fill the field: %q", w.cfg.Version)
+	}
+
+	// The version field's row.
+	var row int
+	for i, f := range w.fieldsFor(StepNodes) {
+		if f.labelKey == "nodes.version" {
+			row = len(osFamilies) + i
+		}
+	}
+	w.cursor[StepNodes] = row
+
+	w.selectUnderCursor()
+	if w.cfg.Version != "v1.36.3+rke2r1" {
+		t.Errorf("Space did not flip to latest: %q", w.cfg.Version)
+	}
+	w.selectUnderCursor()
+	if w.cfg.Version != "v1.35.7+rke2r1" {
+		t.Errorf("Space did not flip back to stable: %q", w.cfg.Version)
+	}
+
+	// A typed version is the override; the next flip goes to latest rather
+	// than silently discarding what was typed for a third value.
+	w.cfg.Version = "v1.34.10+rke2r1"
+	w.selectUnderCursor()
+	if w.cfg.Version != "v1.36.3+rke2r1" {
+		t.Errorf("Space from a typed version went to %q", w.cfg.Version)
+	}
+
+	// With no channel answer -- an air-gapped site -- Space does nothing and
+	// the field is typed like any other.
+	w.channels = rke2.Channels{}
+	w.cfg.Version = "typed"
+	w.selectUnderCursor()
+	if w.cfg.Version != "typed" {
+		t.Errorf("Space without a channel answer changed the field to %q", w.cfg.Version)
 	}
 }

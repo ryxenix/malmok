@@ -2,6 +2,7 @@ package rke2
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,43 +17,65 @@ import (
 // authority the install script itself consults; notably its `stable` lags its
 // newest release, which is a judgement no hardcoded string carries.
 
-// channelURL answers with a redirect to the release the channel names.
-const channelURL = "https://update.rke2.io/v1-release/channels/stable"
+// channelsURL lists every channel with the release it currently names.
+const channelsURL = "https://update.rke2.io/v1-release/channels"
 
-// StableVersion asks the channel server for the current stable release.
+// Channels is what the channel server answered.
+type Channels struct {
+	// Stable is what upstream recommends for production, and what install.sh
+	// defaults to. It lags Latest on purpose: a new minor runs in the field
+	// for a while before being promoted.
+	Stable string
+	// Latest is the newest release.
+	Latest string
+}
+
+// FetchChannels asks the channel server for both answers in one request.
 //
 // A short timeout and a plain error: this runs where an operator is waiting,
 // and on an air-gapped or proxied site the answer is "no answer" -- which the
 // caller turns into an empty field the operator fills, not into a guess.
-func StableVersion(ctx context.Context) (string, error) {
+func FetchChannels(ctx context.Context) (Channels, error) {
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, channelURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, channelsURL, nil)
 	if err != nil {
-		return "", err
+		return Channels{}, err
 	}
-	client := &http.Client{
-		// The version is in the redirect's Location; following it would
-		// download a GitHub release page nobody wants.
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	res, err := client.Do(req)
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return Channels{}, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Channels{}, fmt.Errorf("rke2: the channel server answered %d", res.StatusCode)
+	}
 
-	loc := res.Header.Get("Location")
-	i := strings.LastIndex(loc, "/")
-	if res.StatusCode/100 != 3 || i < 0 || i == len(loc)-1 {
-		return "", fmt.Errorf("rke2: the channel server answered %d with location %q", res.StatusCode, loc)
+	var body struct {
+		Data []struct {
+			ID     string `json:"id"`
+			Latest string `json:"latest"`
+		} `json:"data"`
 	}
-	v := loc[i+1:]
-	if !strings.HasPrefix(v, "v") || !strings.Contains(v, "+rke2r") {
-		return "", fmt.Errorf("rke2: %q does not look like an RKE2 version", v)
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return Channels{}, fmt.Errorf("rke2: the channel answer is not what it was: %w", err)
 	}
-	return v, nil
+
+	var ch Channels
+	for _, c := range body.Data {
+		if !strings.HasPrefix(c.Latest, "v") || !strings.Contains(c.Latest, "+rke2r") {
+			continue
+		}
+		switch c.ID {
+		case "stable":
+			ch.Stable = c.Latest
+		case "latest":
+			ch.Latest = c.Latest
+		}
+	}
+	if ch.Stable == "" {
+		return Channels{}, fmt.Errorf("rke2: the channel server named no stable release")
+	}
+	return ch, nil
 }

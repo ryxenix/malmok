@@ -5,6 +5,19 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.49.5] - 2026-08-18
+
+### Added
+
+- The version field offers both channel answers. Stable stays the suggestion --
+  it is upstream's production judgement, what install.sh defaults to, and it
+  lags the newest release on purpose -- and Space on the field flips to the
+  latest release and back, the same key every other chooser uses and no extra
+  rows on the screen. Typing still overrides both, and on an air-gapped site
+  with no channel answer Space does nothing and the field is typed like any
+  other. One request now fetches both channels instead of following a redirect
+  for one.
+
 ## [0.49.4] - 2026-08-18
 
 ### Fixed

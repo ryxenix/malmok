@@ -11,6 +11,7 @@ import (
 
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/platformctl/internal/rke2"
 	"platform.ryxen.dev/platformctl/internal/spec"
 )
 
@@ -27,7 +28,7 @@ func wizard(t *testing.T, lang Lang, ascii bool, w, h int, step Step) *Wizard {
 	m.width, m.height, m.step = w, h, step
 	// What the channel server would have answered. The version is discovered
 	// rather than seeded, and the tests are not on the network.
-	m.Update(versionMsg{v: "v1.35.7+rke2r1"})
+	m.Update(versionMsg{ch: rke2.Channels{Stable: "v1.35.7+rke2r1", Latest: "v1.36.3+rke2r1"}})
 	return m
 }
 
@@ -381,7 +382,7 @@ func TestWizardWalksToTheEnd(t *testing.T) {
 	m.width, m.height = 90, 26
 	// The version is discovered, not seeded, and this test is not on the
 	// network -- answer as the channel server would.
-	m.Update(versionMsg{v: "v1.35.7+rke2r1"})
+	m.Update(versionMsg{ch: rke2.Channels{Stable: "v1.35.7+rke2r1", Latest: "v1.36.3+rke2r1"}})
 
 	seen := map[Step]bool{}
 	for i := 0; i < 40 && m.step != StepDone; i++ {

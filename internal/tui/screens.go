@@ -943,50 +943,41 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 		indexOf(osFamilies, w.cfg.OSFamily), cur, width, w.glyphs))
 	b.WriteString("\n")
 
-	if !w.cfg.Local {
-		if fs := w.fieldsFor(StepNodes); len(fs) > 0 {
-			b.WriteString(w.theme.Fields(w.labels(StepNodes), w.maskedValues(StepNodes),
-				w.fieldIndex(), w.editing, width, w.glyphs))
-		}
-		if h := w.fieldHint(int(StepNodes), w.fieldIndex()); h != "" {
-			b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
-		}
-		hint := "hint.edit"
-		if w.editing {
-			hint = "hint.editing"
-		}
-		return w.cat.T("nodes.heading"), b.String(), w.cat.T(hint)
-	}
-
-	addrs := exec.LocalIPv4s()
-	cur -= len(osFamilies)
-	if len(addrs) == 0 {
-		// Nothing to choose from and nothing to pretend about. The address is
-		// what the cluster advertises, so a machine with none is a machine this
-		// cannot be built on until it has one.
-		b.WriteString(w.theme.Err.Render(w.glyphs.Failed+" "+
-			wrapCells(w.cat.T("where.noaddress"), width)) + "\n\n")
-	} else {
-		b.WriteString(w.theme.Body.Render(w.cat.T("nodes.thismachine")) + "\n")
-		notes := make([]string, len(addrs))
-		if len(addrs) > 1 {
-			// Only worth saying where there is a decision: on a multi-homed
-			// host this is the address the rest of the cluster reaches.
-			for i := range notes {
-				notes[i] = w.cat.T("nodes.advertised")
-			}
-		}
-		b.WriteString(w.theme.Radio(addrs, notes, indexOfString(addrs, w.cfg.Server),
-			cur, width, w.glyphs))
-		b.WriteString("\n")
-	}
-
+	// The fields come before the chooser. They are the work; the chooser is
+	// one confirmation of an address the machine already knows -- and on a
+	// multi-homed box it can be a long list, which must not stand between the
+	// operator and the work. Found live on a box whose docker bridges put
+	// thirty rows above the agent field.
 	if fs := w.fieldsFor(StepNodes); len(fs) > 0 {
 		b.WriteString(w.theme.Fields(w.labels(StepNodes), w.maskedValues(StepNodes),
 			w.fieldIndex(), w.editing, width, w.glyphs))
 	}
 	if h := w.fieldHint(int(StepNodes), w.fieldIndex()); h != "" {
 		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
+	}
+
+	if w.cfg.Local {
+		addrs := exec.LocalIPv4s()
+		cur -= len(osFamilies) + len(w.fieldsFor(StepNodes))
+		if len(addrs) == 0 {
+			// Nothing to choose from and nothing to pretend about. The address
+			// is what the cluster advertises, so a machine with none is a
+			// machine this cannot be built on until it has one.
+			b.WriteString("\n" + w.theme.Err.Render(w.glyphs.Failed+" "+
+				wrapCells(w.cat.T("where.noaddress"), width)) + "\n")
+		} else {
+			b.WriteString("\n" + w.theme.Body.Render(w.cat.T("nodes.thismachine")) + "\n")
+			notes := make([]string, len(addrs))
+			if len(addrs) > 1 {
+				// Only worth saying where there is a decision: on a multi-homed
+				// host this is the address the rest of the cluster reaches.
+				for i := range notes {
+					notes[i] = w.cat.T("nodes.advertised")
+				}
+			}
+			b.WriteString(w.theme.Radio(addrs, notes, indexOfString(addrs, w.cfg.Server),
+				cur, width, w.glyphs))
+		}
 	}
 
 	hint := "hint.edit"

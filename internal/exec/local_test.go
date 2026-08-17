@@ -247,3 +247,20 @@ func (f *fakeRooted) Run(_ context.Context, cmd string) (Result, error) {
 func (f *fakeRooted) Host() string { return "fake" }
 func (f *fakeRooted) Close() error { return nil }
 func (f *fakeRooted) IsRoot() bool { return f.root }
+
+// A development box carries a bridge per docker network, and a chooser that
+// lists thirty 172.x gateways around the one address the LAN reaches is a
+// chooser nobody can use. The filter is about what to offer -- IsLocal still
+// accepts a bridge address, because a document that names one still means this
+// machine.
+func TestLocalIPv4sSkipsVirtualInterfaces(t *testing.T) {
+	for name, virtual := range map[string]bool{
+		"docker0": true, "br-1a2b3c": true, "veth12ab": true, "cilium_host": true,
+		"virbr0": true, "cni0": true, "wg0": true, "tailscale0": true,
+		"eth0": false, "enp6s18": false, "eno1": false, "wlan0": false, "bond0": false,
+	} {
+		if got := virtualInterface(name); got != virtual {
+			t.Errorf("virtualInterface(%q) = %v", name, got)
+		}
+	}
+}

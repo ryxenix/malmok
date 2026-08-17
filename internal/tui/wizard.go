@@ -738,12 +738,14 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 			w.cfg.OSFamily = osFamilies[cur].id
 			break
 		}
-		cur -= len(osFamilies)
 		// The addresses of this machine, when it is the one being built on.
 		// A list rather than a field: the machine knows them, and a multi-homed
 		// host is a real case where the choice matters (PF-609) and typing is
-		// not what should decide it.
-		if w.cfg.Local && cur < len(exec.LocalIPv4s()) {
+		// not what should decide it. It sits below the fields -- the fields
+		// are the work, the chooser is one confirmation, and a list long
+		// enough to scroll must not stand between the operator and the work.
+		cur -= len(osFamilies) + len(w.fieldsFor(StepNodes))
+		if w.cfg.Local && cur >= 0 && cur < len(exec.LocalIPv4s()) {
 			w.cfg.Server = exec.LocalIPv4s()[cur]
 		}
 	case StepOpen:
@@ -1140,7 +1142,7 @@ func (w *Wizard) fieldIndex() int {
 	i := w.cursor[w.step]
 	switch w.step {
 	case StepNodes:
-		i -= len(osFamilies) + w.localAddressCount()
+		i -= len(osFamilies)
 	case StepNetwork:
 		i -= len(networkModes) + 2 + len(routingModes)
 	case StepOptions:

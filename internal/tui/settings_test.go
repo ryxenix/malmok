@@ -879,9 +879,11 @@ func TestTheLocalAddressIsChosenNotTyped(t *testing.T) {
 		t.Error("the address chooser takes no rows, so there is nothing to choose from")
 	}
 
-	// And choosing one takes.
+	// And choosing one takes. The chooser sits below the fields: the fields
+	// are the work, and a long address list must not stand between the
+	// operator and them.
 	addrs := exec.LocalIPv4s()
-	w.cursor[StepNodes] = len(addrs) - 1
+	w.cursor[StepNodes] = len(osFamilies) + len(w.fieldsFor(StepNodes)) + len(addrs) - 1
 	w.selectUnderCursor()
 	if w.cfg.Server != addrs[len(addrs)-1] {
 		t.Errorf("choosing an address left the server at %q", w.cfg.Server)

@@ -5,6 +5,23 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.49.2] - 2026-08-18
+
+### Fixed
+
+Two defects one screenshot showed: a development box put thirty rows of docker
+bridges between the operator and the node fields.
+
+- The local address chooser filters virtual interfaces -- docker, br-*, veth,
+  cni, cilium, virbr, wireguard and the rest -- because a bridge gateway is not
+  an address the LAN routes to this machine, and a chooser listing thirty of
+  them around the one real NIC is a chooser nobody can use. The filter is about
+  what to offer: `IsLocal` still accepts a bridge address, since a document
+  that names one still means this machine.
+- The chooser moved below the node fields. The fields are the work; the chooser
+  is one confirmation of an address the machine already knows, and a list long
+  enough to scroll must not stand between the operator and the work.
+
 ## [0.49.1] - 2026-08-18
 
 ### Fixed

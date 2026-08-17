@@ -198,21 +198,65 @@ func Connect(ctx context.Context, cfg SSHConfig) (Runner, error) {
 // Loopback is left out because it is not an address the cluster can use, and
 // IPv6 with it for now: RKE2's single-stack default is v4, and offering an
 // address the rest of the tool would not advertise is worse than offering none.
+//
+// Virtual interfaces are left out too. A development box carries a bridge per
+// docker network, and a chooser that lists thirty 172.17-31.x gateways around
+// the one address the LAN actually reaches is a chooser nobody can use --
+// found live, on exactly such a box. The filter is by interface name, because
+// that is the only thing a bridge admits about itself.
 func LocalIPv4s() []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
 	seen := map[string]bool{}
 	var out []string
-	for _, ip := range localAddresses() {
-		v4 := ip.To4()
-		if v4 == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 ||
+			virtualInterface(iface.Name) {
 			continue
 		}
-		s := v4.String()
-		if seen[s] {
+		addrs, err := iface.Addrs()
+		if err != nil {
 			continue
 		}
-		seen[s] = true
-		out = append(out, s)
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			v4 := ipnet.IP.To4()
+			if v4 == nil || ipnet.IP.IsLoopback() || ipnet.IP.IsLinkLocalUnicast() {
+				continue
+			}
+			s := v4.String()
+			if seen[s] {
+				continue
+			}
+			seen[s] = true
+			out = append(out, s)
+		}
 	}
 	sort.Strings(out)
 	return out
+}
+
+// virtualInterface reports whether a name belongs to something a container
+// runtime, a hypervisor or an overlay made -- an address the LAN does not
+// route to this machine on.
+//
+// IsLocal deliberately does not use this: a document that names a bridge
+// address still means this machine, and refusing to recognise it would force
+// an SSH connection to ourselves. The filter is about what to offer, not about
+// what to accept.
+func virtualInterface(name string) bool {
+	for _, prefix := range []string{
+		"docker", "br-", "virbr", "veth", "cni", "flannel", "cilium", "lxc",
+		"lxd", "kube", "tailscale", "wg", "tun", "tap", "zt", "vnet", "podman",
+	} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }

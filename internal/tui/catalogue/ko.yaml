@@ -156,6 +156,8 @@ summary:
   heading: 설치 요약
   help: 변경 전 마지막 확인입니다. 아직 어떤 노드에도 쓰지 않았습니다.
   warnings: 사전 검사 지적사항
+  cluster: 클러스터
+  platform: 플랫폼
   valid: 문서가 유효합니다
   profile: 프로파일
   invalid: 문서에 문제가 있습니다

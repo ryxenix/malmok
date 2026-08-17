@@ -157,6 +157,8 @@ summary:
   heading: Summary
   help: Review before anything is changed. Nothing has been written to a node yet.
   warnings: findings from preflight
+  cluster: Cluster
+  platform: Platform
   valid: The document is valid
   profile: Matches profile
   invalid: The document has problems

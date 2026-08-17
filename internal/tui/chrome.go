@@ -34,6 +34,9 @@ const (
 	minChromeH   = 18
 	gutter       = 2
 	buttonMargin = 2
+	// maxContentW caps the content column. A form is not a table: fields that
+	// stretch across a wide terminal put the value a head-turn from its label.
+	maxContentW = 84
 )
 
 // Theme holds the styles the chrome draws with.
@@ -414,6 +417,17 @@ func (t Theme) Radio(labels, notes []string, chosen, cursor, w int, g Glyphs) st
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// Section draws a group heading: an accent tick, the title, and a rule to the
+// edge. Screens that stack several groups -- the dataplane, the storage, the
+// downgrade policy -- read as one undifferentiated column without it; the rule
+// is what makes a group scannable without reading it.
+func (t Theme) Section(title string, w int, g Glyphs) string {
+	head := g.SectionTick + " " + title + " "
+	rule := max(w-cells(head), 0)
+	return t.FocusBar.Render(g.SectionTick) + " " + t.Heading.Render(title) + " " +
+		t.Divider.Render(strings.Repeat(g.Rule, rule))
 }
 
 // Fields renders labelled inputs, the way a form does in a graphical installer.

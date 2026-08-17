@@ -5,6 +5,24 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.50.0] - 2026-08-18
+
+### Changed
+
+A layout pass over the content pane.
+
+- The content column is capped at 84 cells. A form is not a table: fields that
+  stretch across a wide terminal put the value a head-turn from its label, and
+  a 160-column window now gets a calmer column instead of longer brackets.
+- Every group of choices sits under a section header -- an accent tick, the
+  title, a rule to the edge. Screens that stack four radio groups read as one
+  undifferentiated column without it; the rule is what makes a group scannable
+  without reading it. The tick is deliberately thinner than the cursor bar,
+  because the two share a column and a section wearing the cursor's bar reads
+  as a row somebody selected.
+- The summary is grouped into Cluster and Platform sections and drops empty
+  rows; the final screen's result and artifact groups take the same shape.
+
 ## [0.49.5] - 2026-08-18
 
 ### Added

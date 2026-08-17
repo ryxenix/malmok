@@ -178,10 +178,15 @@ func (w *Wizard) View() tea.View {
 }
 
 func (w *Wizard) contentWidth() int {
+	width := w.width - gutter*2
 	if w.width >= minChromeW {
-		return w.width - railWidth - 3 - gutter
+		width = w.width - railWidth - 3 - gutter
 	}
-	return w.width - gutter*2
+	// Capped, because a form is not a table. Fields that stretch to 160 cells
+	// put the value a head-turn away from its label, and every guide on
+	// reading width says the same thing the eye does. Wide terminals get a
+	// calmer column, not longer brackets.
+	return min(width, maxContentW)
 }
 
 func (w *Wizard) rail() []RailItem {
@@ -329,11 +334,11 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 
 	cur := w.cursor[StepOptions]
 
-	b.WriteString(w.theme.Body.Render(w.cat.T("options.dataplane")) + "\n")
+	b.WriteString(w.theme.Section(w.cat.T("options.dataplane"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(dataplanes), notesOf(w.cat, dataplanes),
 		indexOf(dataplanes, w.cfg.Dataplane), cur, width, w.glyphs))
 
-	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("options.storage")) + "\n")
+	b.WriteString("\n" + w.theme.Section(w.cat.T("options.storage"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(storages), notesOf(w.cat, storages),
 		indexOf(storages, w.cfg.Storage), cur-len(dataplanes), width, w.glyphs))
 
@@ -341,12 +346,12 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	// beside the dataplane because that is what it is usually about, and it was
 	// the profile's alone -- so an air-gapped build could not be told to refuse
 	// a downgrade rather than confirm one.
-	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("options.downgrade")) + "\n")
+	b.WriteString("\n" + w.theme.Section(w.cat.T("options.downgrade"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(downgradePolicies), notesOf(w.cat, downgradePolicies),
 		indexOf(downgradePolicies, w.cfg.DowngradePolicy),
 		cur-len(dataplanes)-len(storages), width, w.glyphs))
 
-	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("options.fallback")) + "\n")
+	b.WriteString("\n" + w.theme.Section(w.cat.T("options.fallback"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(fallbacks), notesOf(w.cat, fallbacks),
 		indexOf(fallbacks, w.cfg.Fallback),
 		cur-len(dataplanes)-len(storages)-len(downgradePolicies), width, w.glyphs))
@@ -393,10 +398,23 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 
 	var b strings.Builder
 	b.WriteString(w.dim(w.cat.T("summary.help"), width) + "\n\n")
-	for _, r := range rows {
-		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
-			w.theme.Body.Render(truncCells(r[1], width-20)) + "\n")
+	// Grouped the way the screens asked: what the cluster is, then what runs
+	// on it. A summary that lists nine rows in one block makes the reader do
+	// the grouping the screen already knows.
+	writeRows := func(section string, group [][2]string) {
+		b.WriteString(w.theme.Section(section, width, w.glyphs) + "\n")
+		for _, r := range group {
+			if r[1] == "" {
+				continue
+			}
+			b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
+				w.theme.Body.Render(truncCells(r[1], width-20)) + "\n")
+		}
+		b.WriteString("\n")
 	}
+	split := len(rows) - 3
+	writeRows(w.cat.T("summary.cluster"), rows[:split])
+	writeRows(w.cat.T("summary.platform"), rows[split:])
 	if n := len(w.failures); n > 0 {
 		b.WriteString("\n" + w.theme.Err.Render(
 			fmt.Sprintf("%s %s (%d)", w.glyphs.Failed, w.cat.T("summary.warnings"), n)))
@@ -540,20 +558,20 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 
 	// What was built, where it went, and what to run next. A final screen that
 	// says only "finished" leaves the operator to guess all three.
-	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("done.cluster")) + "\n")
+	b.WriteString("\n" + w.theme.Section(w.cat.T("done.cluster"), width, w.glyphs) + "\n")
 	for _, r := range w.builtRows() {
 		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
 			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
 	}
 
-	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("done.artifacts")) + "\n")
+	b.WriteString("\n" + w.theme.Section(w.cat.T("done.artifacts"), width, w.glyphs) + "\n")
 	for _, r := range w.artifactRows() {
 		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
 			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
 	}
 
 	if failed {
-		b.WriteString("\n" + w.theme.Err.Render(w.cat.T("done.problems")) + "\n")
+		b.WriteString("\n" + w.theme.Err.Render(w.glyphs.SectionTick+" "+w.cat.T("done.problems")) + "\n")
 		for _, e := range w.failures {
 			// The node first, because it is the subject and the phase is the
 			// stage. The column is fixed, so whichever comes second is what a
@@ -718,7 +736,7 @@ func (w *Wizard) pkiScreen(width int) (string, string, string) {
 	// cluster built without it has a CA the nodes trust and the pods do not,
 	// and the failure is an opaque x509 error from inside a container.
 	if w.pkiExtraRows() > 0 {
-		b.WriteString("\n" + w.theme.Body.Render(w.cat.T("pki.trust")) + "\n")
+		b.WriteString("\n" + w.theme.Section(w.cat.T("pki.trust"), width, w.glyphs) + "\n")
 		b.WriteString(w.theme.Radio(
 			[]string{w.cat.T("pki.trust.bundle"), w.cat.T("pki.trust.nodes")},
 			[]string{w.cat.T("pki.trust.bundle.note"), w.cat.T("pki.trust.nodes.note")},
@@ -761,7 +779,7 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 	// decision a security review will ask about should show both answers and
 	// which was taken.
 	if w.registryHasAddress() {
-		b.WriteString("\n" + w.theme.Body.Render(w.cat.T("reg.tls")) + "\n")
+		b.WriteString("\n" + w.theme.Section(w.cat.T("reg.tls"), width, w.glyphs) + "\n")
 		b.WriteString(w.theme.Radio(
 			[]string{w.cat.T("reg.tls.verify"), w.cat.T("reg.tls.insecure")},
 			[]string{w.cat.T("reg.tls.verify.note"), w.cat.T("reg.tls.insecure.note")},
@@ -938,7 +956,7 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 	// default and the honest one: PF-101 reads /etc/os-release, and a document
 	// that states a family the node does not have fails a check it need not
 	// have run.
-	b.WriteString(w.theme.Body.Render(w.cat.T("nodes.os")) + "\n")
+	b.WriteString(w.theme.Section(w.cat.T("nodes.os"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(osFamilies), notesOf(w.cat, osFamilies),
 		indexOf(osFamilies, w.cfg.OSFamily), cur, width, w.glyphs))
 	b.WriteString("\n")
@@ -966,7 +984,7 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 			b.WriteString("\n" + w.theme.Err.Render(w.glyphs.Failed+" "+
 				wrapCells(w.cat.T("where.noaddress"), width)) + "\n")
 		} else {
-			b.WriteString("\n" + w.theme.Body.Render(w.cat.T("nodes.thismachine")) + "\n")
+			b.WriteString("\n" + w.theme.Section(w.cat.T("nodes.thismachine"), width, w.glyphs) + "\n")
 			notes := make([]string, len(addrs))
 			if len(addrs) > 1 {
 				// Only worth saying where there is a decision: on a multi-homed
@@ -1011,17 +1029,17 @@ func (w *Wizard) networkScreen(width int) (string, string, string) {
 
 	cur := w.cursor[StepNetwork]
 
-	b.WriteString(w.theme.Body.Render(w.cat.T("net.mode")) + "\n")
+	b.WriteString(w.theme.Section(w.cat.T("net.mode"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(networkModes), notesOf(w.cat, networkModes),
 		indexOf(networkModes, string(w.networkMode())), cur, width, w.glyphs))
 
-	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("net.encrypt")) + "\n")
+	b.WriteString("\n" + w.theme.Section(w.cat.T("net.encrypt"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(
 		[]string{w.cat.T("net.encrypt.on"), w.cat.T("net.encrypt.off")},
 		[]string{w.cat.T("net.encrypt.on.note"), w.cat.T("net.encrypt.off.note")},
 		boolIndex(w.cfg.Encrypt), cur-len(networkModes), width, w.glyphs))
 
-	b.WriteString("\n" + w.theme.Body.Render(w.cat.T("net.routing")) + "\n")
+	b.WriteString("\n" + w.theme.Section(w.cat.T("net.routing"), width, w.glyphs) + "\n")
 	b.WriteString(w.theme.Radio(labelsOf(routingModes), notesOf(w.cat, routingModes),
 		indexOf(routingModes, w.cfg.Routing), cur-len(networkModes)-2, width, w.glyphs))
 

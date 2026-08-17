@@ -39,6 +39,11 @@ type Glyphs struct {
 	// legible when colour is gone.
 	Focus string
 
+	// SectionTick marks a group heading. Deliberately thinner than Focus: the
+	// two sit in the same column, and a section that wears the cursor's bar
+	// reads as a row somebody selected.
+	SectionTick string
+
 	// Partial fills a progress bar between whole cells, so a bar of ten cells
 	// moves in eighty steps rather than ten. Empty when the character set
 	// cannot draw them.
@@ -66,7 +71,7 @@ type Glyphs struct {
 var unicodeGlyphs = Glyphs{
 	OK: "✓", Running: "▸", Failed: "✗", Skipped: "–", Pending: " ", Warn: "!",
 	BarFull: "█", BarEmpty: "░", Rule: "─", VRule: "│", Dot: "·",
-	Focus:   "▌",
+	Focus: "▌", SectionTick: "▎",
 	Partial: []string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"},
 	TopLeft: "╭", TopRight: "╮", BottomLeft: "╰", BottomRight: "╯",
 	Server: "◉", Agent: "○", Address: "◈",
@@ -77,7 +82,7 @@ var unicodeGlyphs = Glyphs{
 var asciiGlyphs = Glyphs{
 	OK: "+", Running: ">", Failed: "x", Skipped: "-", Pending: " ", Warn: "!",
 	BarFull: "#", BarEmpty: ".", Rule: "-", VRule: "|", Dot: "-",
-	Focus:   ">",
+	Focus: ">", SectionTick: "=",
 	Partial: nil, // whole cells only
 	TopLeft: "+", TopRight: "+", BottomLeft: "+", BottomRight: "+",
 	Server: "S", Agent: "a", Address: "*",

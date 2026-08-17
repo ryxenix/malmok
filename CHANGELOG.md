@@ -5,6 +5,32 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.49.4] - 2026-08-18
+
+### Fixed
+
+The empty-field wizard flow was driven end to end through the real TUI (a pty,
+keystrokes, no shortcuts) against the live node: menu, remote server, every
+field left empty except the address, the account and the version, preflight,
+summary valid, install, finished, back to the menu. The run completed; the
+cluster survived. Getting there surfaced one deep defect:
+
+- `cilium-applied` was satisfied by the previous configuration. It checked two
+  keys that are true on every build, so the phase moved on -- and restarted
+  cilium -- before the helm controller had applied the new values. The pods
+  came back running the old configuration under a config that said otherwise:
+  the operator started with hostnetwork=false, generated addressless Envoy
+  listeners, and the gateway never answered. It now waits for cilium-config to
+  carry the values this document implies, including the ones that differ
+  between documents.
+- `cilium-current` measures the sentence it always meant: every running,
+  non-terminating cilium pod started after cilium-config was last written (the
+  API server's own managedFields stamp). The rollout-restart annotation it
+  used before knows nothing about the rollouts the helm controller performs,
+  so a pod rolled before the values landed looked current while running the
+  old configuration. Third observable for this step; the first two each
+  survived until the live cluster found the case they missed.
+
 ## [0.49.3] - 2026-08-18
 
 ### Fixed

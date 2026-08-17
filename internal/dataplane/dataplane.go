@@ -91,7 +91,7 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 		add(gatewayCRDStep(spec, o)),
 		add(rke2.ManifestStep(Phase, "cilium-values", ciliumCfgFile, CiliumHelmConfig(spec),
 			"helmchartconfig -n kube-system rke2-cilium", o.timeout())),
-		add(ciliumAppliedStep(o)),
+		add(ciliumAppliedStep(spec, o)),
 	}
 	if body := LoadBalancerPool(spec); body != "" {
 		steps = append(steps, add(rke2.ManifestStep(Phase, "lb-pool", lbPoolFile, body,
@@ -113,47 +113,42 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 	return append(steps, add(gatewayClassStep(o)))
 }
 
-// ciliumCurrentStep restarts the agents when the configuration is newer than
-// they are.
-//
-// The observable is the DaemonSet's own record, not a listing of pods: during
-// and just after a rollout the listing still contains terminating pods whose
-// start time is the old one, and a check that read them called a finished
-// restart unfinished -- found live. `rollout restart` stamps restartedAt on the
-// pod template, so the comparison is the config file's change time against
-// that stamp (the DaemonSet's creation when it has never been restarted),
-// plus `rollout status`, which is the controller saying every node is done.
-//
-// The operator restarts too, and it is not optional: the operator is what
-// turns a Gateway into Envoy configuration, and one still running the old
-// values keeps regenerating the old listeners -- host networking enabled,
-// agents restarted, and the listener still bound to the shared proxy port
-// instead of the node's port 80, found live with a 45-hour-old operator.
+// ciliumCurrentStep restarts cilium when its pods predate the configuration
+// they read.
 func ciliumCurrentStep(o Options) *engine.ShellStep {
-	// Both stamps, and the older one is the verdict: the agents and the
-	// operator each hold half the configuration -- the agents the datapath,
-	// the operator the Gateway-to-Envoy translation -- and whichever restarted
-	// least recently is the one still running the old half.
-	stamp := `stamp() {
-  ra=$(kubectl -n kube-system get "$1" -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null)
-  [ -n "$ra" ] || ra=$(kubectl -n kube-system get "$1" -o jsonpath='{.metadata.creationTimestamp}' 2>/dev/null)
-  [ -n "$ra" ] || { echo 0; return; }
-  date -d "$ra" +%s 2>/dev/null || echo 0
-}
-agents=$(stamp ds/cilium)
-operator=$(stamp deploy/cilium-operator)
-rat=$agents
-[ "$operator" -lt "$rat" ] && rat=$operator
-[ "$rat" -gt 0 ] || { echo "cilium is not installed"; exit 1; }`
+	// "Every pod started after the configuration it reads was written" --
+	// measured as exactly that sentence. Two earlier attempts measured
+	// something adjacent and were wrong twice on this live cluster: a pod
+	// listing includes terminating pods, whose old start time read a finished
+	// rollout as unfinished; and the rollout-restart stamp knows nothing about
+	// the rollouts the helm controller performs, so a pod rolled before the
+	// new values landed carried a stamp newer than the config file while
+	// running the old configuration -- the operator started with
+	// hostnetwork=false under a config that said true, and generated
+	// addressless listeners.
+	//
+	// The moment the configuration was applied is cilium-config's own
+	// managedFields time: the API server stamps every write, and the helm
+	// job's write is the one that matters. The pods are the running,
+	// non-terminating agents, envoys and operators -- go-template, because
+	// jsonpath cannot express "has no deletionTimestamp". The operator is in
+	// the comparison because it holds half the configuration: it is what turns
+	// a Gateway into Envoy configuration, and a stale one regenerates old
+	// listeners under a current everything-else.
+	applied := `kubectl -n kube-system get cm cilium-config -o jsonpath='{range .metadata.managedFields[*]}{.time}{"\n"}{end}' 2>/dev/null | sort | tail -1`
+	oldest := `kubectl -n kube-system get pods -l app.kubernetes.io/part-of=cilium -o go-template='{{range .items}}{{if not .metadata.deletionTimestamp}}{{.status.startTime}}{{"\n"}}{{end}}{{end}}' 2>/dev/null | sort | head -1`
 
 	return &engine.ShellStep{
 		Name: "cilium-current",
-		Check: kubectl + fmt.Sprintf(`cfg=$(stat -c %%Z %s 2>/dev/null || echo 0)
-%s
-[ "$cfg" -le "$rat" ] || { echo "the configuration is newer than the agents' last restart"; exit 1; }
+		Check: kubectl + fmt.Sprintf(`at=$(%s)
+[ -n "$at" ] || { echo "cilium-config does not exist"; exit 1; }
+old=$(%s)
+[ -n "$old" ] || { echo "no cilium pod is running"; exit 1; }
+[ "$(date -d "$old" +%%s)" -ge "$(date -d "$at" +%%s)" ] || {
+  echo "a cilium pod predates the configuration it reads"; exit 1; }
 kubectl -n kube-system rollout status ds/cilium --timeout=10s >/dev/null 2>&1 || {
   echo "the cilium rollout has not finished"; exit 1; }
-echo "every cilium agent runs the current configuration"`, ciliumCfgFile, stamp),
+echo "every cilium pod started after its configuration was applied"`, applied, oldest),
 
 		Do: kubectl + fmt.Sprintf(`set -e
 kubectl -n kube-system rollout restart deploy/cilium-operator
@@ -264,36 +259,54 @@ exit 1`,
 // install job, which rolls every Cilium pod, and the phases after this one
 // assume the new configuration is live -- a Gateway created against an agent
 // that has not restarted stays Programmed=False for reasons nothing reports.
-func ciliumAppliedStep(o Options) *engine.ShellStep {
-	read := `kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.kube-proxy-replacement}{" "}{.data.enable-gateway-api}' 2>/dev/null`
+func ciliumAppliedStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
+	// The observable is that cilium-config carries what THIS document's values
+	// imply -- including the values that change between documents. The first
+	// version checked two keys that are true on every build, so it was
+	// satisfied by the previous configuration and the phase moved on before
+	// the helm controller had applied the new one: a re-apply that turned host
+	// networking on restarted the pods into the old config, found live when
+	// the gateway never answered.
+	hostnet := "false"
+	if NodeIPGateways(spec) {
+		hostnet = "true"
+	}
+	read := `kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.kube-proxy-replacement}{" "}{.data.enable-gateway-api}{" "}{.data.gateway-api-hostnetwork-enabled}' 2>/dev/null`
+	// An absent key reads as empty; a document that wants it off accepts both.
+	want := `"true true ` + hostnet + `"`
+	if hostnet == "false" {
+		want = `"true true false"|"true true "|"true true"`
+	}
 
 	return &engine.ShellStep{
 		Name: "cilium-applied",
-		Check: kubectl + fmt.Sprintf(`v=$(%s)
+		Check: kubectl + fmt.Sprintf(`v="$(%s)"
 case "$v" in
-  "true true") ;;
-  *) echo "cilium-config reports kube-proxy-replacement/enable-gateway-api as '$v'"; exit 1 ;;
+  %s) ;;
+  *) echo "cilium-config carries '$v', the document implies 'true true %s'"; exit 1 ;;
 esac
 kubectl -n kube-system rollout status ds/cilium --timeout=10s >/dev/null 2>&1 || {
   echo "cilium is reconfigured and its pods have not finished rolling"; exit 1; }
-echo "cilium runs with kube-proxy replacement and the Gateway API enabled"`, read),
+echo "cilium-config carries the configuration this document implies"`, read, want, hostnet),
 
 		Do: kubectl + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
-  v=$(%s)
-  if [ "$v" = "true true" ] && kubectl -n kube-system rollout status ds/cilium --timeout=20s >/dev/null 2>&1; then
-    exit 0
-  fi
+  v="$(%s)"
+  case "$v" in
+    %s)
+      kubectl -n kube-system rollout status ds/cilium --timeout=20s >/dev/null 2>&1 && exit 0 ;;
+  esac
   sleep 10
 done
 echo "cilium did not take the new configuration within %ds. The install job reports:"
-kubectl -n kube-system get pods -l job-name --no-headers 2>&1 | grep -i cilium | tail -5
 kubectl -n kube-system logs -l job-name=helm-install-rke2-cilium --tail=40 2>&1 | tail -40
-exit 1`, int(o.timeout().Seconds()), read, int(o.timeout().Seconds())),
+exit 1`, int(o.timeout().Seconds()), read, want, int(o.timeout().Seconds())),
 
 		Satisfied: "%s",
 		Missing:   "%s",
 		DoTimeout: o.timeout() + time.Minute,
+		// The wait inside Apply is already bounded.
+		Attempts: 1,
 	}
 }
 

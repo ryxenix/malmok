@@ -1350,7 +1350,7 @@ func TestEveryButtonIsWired(t *testing.T) {
 	for _, key := range []string{
 		"btn.back", "btn.quit", "btn.abort", "btn.close", "btn.logs",
 		"btn.check", "btn.fix", "btn.next", "btn.install", "btn.open",
-		"btn.load", "btn.save", "btn.upgrade", "btn.done",
+		"btn.load", "btn.save", "btn.upgrade", "btn.done", "btn.menu",
 	} {
 		m := wizard(t, LangEN, false, 96, 30, StepMenu)
 		known[m.cat.T(key)] = true

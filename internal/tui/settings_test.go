@@ -1225,3 +1225,45 @@ func TestAnEmptyJoinAddressRegistersOnTheServer(t *testing.T) {
 		t.Errorf("read back as %q, which would validate as a foreign address", c.Registration)
 	}
 }
+
+// The final screens return to the menu; quitting is the bottom-left exit.
+//
+// The tool used to quit from Done -- left over from when the installer was the
+// whole program -- which threw the operator out at exactly the moment they
+// want the run list, the settings, or a second cluster.
+func TestTheFinalScreensReturnToTheMenu(t *testing.T) {
+	w := wizard(t, LangEN, false, 96, 30, StepDone)
+	w.fold(event.Event{Kind: event.KindPhase, Phase: "l1-bootstrap", Status: event.StatusOK})
+	w.fold(event.Event{Kind: event.KindStep, Phase: "l1-bootstrap", Step: "install",
+		Node: "10.0.0.11", Status: event.StatusFailed, Code: "PF-601"})
+
+	w.next()
+	if w.step != StepMenu {
+		t.Fatalf("Done went to %v instead of the menu", w.step)
+	}
+	// The run's view state went with it: a second install folding its events on
+	// top of the last run's would draw two runs as one.
+	if len(w.order) != 0 || len(w.failures) != 0 || len(w.phases) != 0 {
+		t.Error("the previous run's view survived into the menu")
+	}
+	// What the operator collected stays: walking the flow again with the same
+	// answers is the common case, not an accident to be wiped.
+	if w.cfg.Server == "" {
+		t.Error("returning to the menu wiped the configuration")
+	}
+
+	// A written document returns the same way.
+	w.step, w.mode, w.saved = StepSave, modeSettings, "/tmp/cluster.yaml"
+	w.next()
+	if w.step != StepMenu {
+		t.Errorf("a written document went to %v instead of the menu", w.step)
+	}
+	if w.saved != "" {
+		t.Error("the saved marker survived, so reopening the flow would claim a write that has not happened")
+	}
+
+	// And quitting is still there, as the exit rather than the way forward.
+	if w.step = StepDone; w.exitButton() == nil {
+		t.Error("the Done screen has no way to quit at all")
+	}
+}

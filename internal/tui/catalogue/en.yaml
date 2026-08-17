@@ -195,6 +195,7 @@ btn:
   fix: Go and fix
   logs: Logs
   close: Close
+  menu: Menu
   load: Load
   save: Save
   upgrade: Start the upgrade

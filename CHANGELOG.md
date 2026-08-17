@@ -5,6 +5,22 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.48.4] - 2026-08-17
+
+### Fixed
+
+- The final screens quit the program. Left over from when the installer was the
+  whole program: pressing the button on Finished -- or on a saved document --
+  exited, throwing the operator out at exactly the moment they want the run
+  list, the settings, or a second cluster. Both return to the start menu now,
+  and Quit stays on the bottom-left exit, where leaving is a choice rather than
+  the only way forward.
+- Returning clears the run's view state -- the phase list, the log tail, the
+  failures -- because a second install folding its events on top of the last
+  run's would draw two runs as one. The collected configuration stays: walking
+  the flow again with the same answers is the common case, not an accident to
+  be wiped.
+
 ## [0.48.3] - 2026-08-16
 
 ### Changed

@@ -235,7 +235,7 @@ func (w *Wizard) buttons() []Button {
 		// operator opened this to correct one, and saving it broken is the one
 		// outcome nobody asked for.
 		if w.saved != "" {
-			return []Button{{Label: w.cat.T("btn.close"), Primary: true}}
+			return []Button{{Label: w.cat.T("btn.menu"), Primary: true}}
 		}
 		if _, broken := w.firstProblemStep(); broken {
 			return []Button{back, {Label: w.cat.T("btn.fix"), Primary: true}}
@@ -273,7 +273,12 @@ func (w *Wizard) buttons() []Button {
 		}
 		return []Button{{Label: w.cat.T("btn.next"), Primary: true}}
 	default:
-		return []Button{{Label: w.cat.T("btn.close"), Primary: true}}
+		// The final screens return to the menu. The tool used to quit here --
+		// left over from when the installer was the whole program -- which
+		// threw the operator out at exactly the moment they want the run list,
+		// the settings, or a second cluster. Quit stays on the bottom-left
+		// exit, where leaving is a choice rather than the only way forward.
+		return []Button{{Label: w.cat.T("btn.menu"), Primary: true}}
 	}
 }
 
@@ -783,9 +788,6 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 // "abort" while work is running and "quit" otherwise, because those are
 // different promises.
 func (w *Wizard) exitButton() *Button {
-	if w.step == StepDone {
-		return nil
-	}
 	label := w.cat.T("btn.quit")
 	if w.busy {
 		label = w.cat.T("btn.abort")

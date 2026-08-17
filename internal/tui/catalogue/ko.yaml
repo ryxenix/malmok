@@ -194,6 +194,7 @@ btn:
   fix: 고치러 가기
   logs: 로그
   close: 닫기
+  menu: 메뉴로
   load: 불러오기
   save: 저장
   upgrade: 업그레이드 시작

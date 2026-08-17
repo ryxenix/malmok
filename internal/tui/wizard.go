@@ -774,6 +774,9 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 		return w, tea.Quit
 	case w.cat.T("btn.close"):
 		return w, tea.Quit
+	case w.cat.T("btn.menu"):
+		w.returnToMenu()
+		return w, nil
 	case w.cat.T("btn.logs"):
 		return w, nil
 	case w.cat.T("btn.check"):
@@ -906,7 +909,8 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 		// Written once. Pressing the button again on a screen that already says
 		// where the file went should not rewrite it.
 		if w.saved != "" {
-			return w, tea.Quit
+			w.returnToMenu()
+			return w, nil
 		}
 		if _, broken := w.firstProblemStep(); broken {
 			return w, nil
@@ -945,7 +949,8 @@ func (w *Wizard) next() (tea.Model, tea.Cmd) {
 		w.focus = focusButtons
 		return w, w.start(w.install)
 	case StepDone:
-		return w, tea.Quit
+		w.returnToMenu()
+		return w, nil
 	default:
 		w.advance()
 		if w.step == StepPreflight {
@@ -1123,4 +1128,21 @@ func (w *Wizard) fieldIndex() int {
 func (w *Wizard) cursorIsField() bool {
 	i := w.fieldIndex()
 	return i >= 0 && i < len(w.fieldsFor(w.step))
+}
+
+// returnToMenu goes back to where the operator arrived from.
+//
+// The run's view state is cleared with it: the phase list, the log tail and
+// the failures belong to the run that just ended, and a second install folding
+// its events on top of them would draw two runs as one. What the operator
+// collected -- the configuration -- stays, because walking the flow again with
+// the same answers is the common case, not an accident to be wiped.
+func (w *Wizard) returnToMenu() {
+	w.step, w.mode = StepMenu, modeInstall
+	w.order, w.phases = nil, map[string]*phaseView{}
+	w.logs, w.failures = nil, nil
+	w.runStat = event.StatusPending
+	w.startedAt, w.finishedAt = time.Time{}, time.Time{}
+	w.workErr, w.saved, w.openErr, w.saveErr = nil, "", "", ""
+	w.enter()
 }

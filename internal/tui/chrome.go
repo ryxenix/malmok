@@ -38,12 +38,21 @@ const (
 
 // Theme holds the styles the chrome draws with.
 type Theme struct {
+	// mono is remembered so render-time decisions (the gradient rule) can
+	// refuse colour the same way the styles already do.
+	mono bool
+
 	TitleBar lipgloss.Style
-	Rail     lipgloss.Style
-	RailNow  lipgloss.Style
-	RailDone lipgloss.Style
-	RailNext lipgloss.Style
-	Divider  lipgloss.Style
+	// HeaderChip is the product name block at the left of the title bar, and
+	// HeaderCtx the context badge at its right. The bar between them stays
+	// quiet: a header that is one solid colour band reads as a warning.
+	HeaderChip lipgloss.Style
+	HeaderCtx  lipgloss.Style
+	Rail       lipgloss.Style
+	RailNow    lipgloss.Style
+	RailDone   lipgloss.Style
+	RailNext   lipgloss.Style
+	Divider    lipgloss.Style
 
 	Heading lipgloss.Style
 	Body    lipgloss.Style
@@ -80,17 +89,20 @@ func NewTheme(mono bool) Theme {
 	plain := lipgloss.NewStyle()
 	if mono {
 		return Theme{
-			TitleBar: plain.Reverse(true).Bold(true),
-			Rail:     plain,
-			RailNow:  plain.Bold(true),
-			RailDone: plain,
-			RailNext: plain.Faint(true),
-			Divider:  plain,
-			Heading:  plain.Bold(true),
-			Body:     plain,
-			Dim:      plain.Faint(true),
-			Accent:   plain.Bold(true),
-			Err:      plain.Bold(true),
+			mono:       true,
+			TitleBar:   plain,
+			HeaderChip: plain.Reverse(true).Bold(true),
+			HeaderCtx:  plain.Reverse(true),
+			Rail:       plain,
+			RailNow:    plain.Bold(true),
+			RailDone:   plain,
+			RailNext:   plain.Faint(true),
+			Divider:    plain,
+			Heading:    plain.Bold(true),
+			Body:       plain,
+			Dim:        plain.Faint(true),
+			Accent:     plain.Bold(true),
+			Err:        plain.Bold(true),
 
 			Choice: plain, ChoiceSel: plain.Reverse(true),
 			Field: plain, FieldSel: plain.Reverse(true),
@@ -117,12 +129,14 @@ func NewTheme(mono bool) Theme {
 	base := lipgloss.NewStyle().Foreground(ink)
 
 	return Theme{
-		TitleBar: lipgloss.NewStyle().Background(accent).Foreground(white).Bold(true),
-		Rail:     base,
-		RailNow:  lipgloss.NewStyle().Foreground(white).Bold(true),
-		RailDone: lipgloss.NewStyle().Foreground(ok),
-		RailNext: lipgloss.NewStyle().Foreground(faint),
-		Divider:  lipgloss.NewStyle().Foreground(faint),
+		TitleBar:   lipgloss.NewStyle().Foreground(faint),
+		HeaderChip: lipgloss.NewStyle().Background(accent).Foreground(white).Bold(true),
+		HeaderCtx:  lipgloss.NewStyle().Background(lipgloss.Color("#2a2a2a")).Foreground(ink),
+		Rail:       base,
+		RailNow:    lipgloss.NewStyle().Foreground(white).Bold(true),
+		RailDone:   lipgloss.NewStyle().Foreground(ok),
+		RailNext:   lipgloss.NewStyle().Foreground(faint),
+		Divider:    lipgloss.NewStyle().Foreground(faint),
 
 		Heading: lipgloss.NewStyle().Foreground(white).Bold(true),
 		Body:    base,
@@ -170,8 +184,15 @@ const (
 
 // Frame is everything the chrome needs to draw one screen.
 type Frame struct {
-	Title   string
-	Context string // right side of the title bar
+	Title string
+	// Crumb is where the operator is, drawn beside the product chip the way a
+	// path is: "설치 › 노드".
+	Crumb   string
+	Context string // right side of the title bar, drawn as a badge
+
+	// Truecolor lets the chrome draw gradients. The terminal said so
+	// (tea.ColorProfileMsg); the chrome never guesses.
+	Truecolor bool
 
 	Rail []RailItem
 
@@ -211,7 +232,7 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	b.WriteString("\n")
 	// A rule under the title separates the chrome from the work, which is what
 	// makes a terminal window read as an application rather than as output.
-	b.WriteString(t.Divider.Render(g.Line(w)))
+	b.WriteString(t.blendRule(w, f.Truecolor, g))
 	b.WriteString("\n")
 
 	// The rail is dropped on a narrow terminal: knowing which choice is in
@@ -244,9 +265,40 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 }
 
 func (t Theme) titleBar(f Frame, w int) string {
-	left := " " + f.Title
-	right := f.Context + " "
-	return t.TitleBar.Render(padCells(spread(left, right, w), w))
+	// The product is a chip, not a band. k9s, lazygit and btop all mark the
+	// product at the top-left and leave the rest of the row to information;
+	// a full-width solid bar spends the strongest colour on the screen saying
+	// nothing.
+	chip := t.HeaderChip.Render(" " + f.Title + " ")
+	crumb := ""
+	if f.Crumb != "" {
+		crumb = " " + t.TitleBar.Render(f.Crumb)
+	}
+	right := ""
+	if f.Context != "" {
+		right = t.HeaderCtx.Render(" " + f.Context + " ")
+	}
+
+	gap := w - cells(chip) - cells(crumb) - cells(right)
+	if gap < 1 {
+		gap = 1
+	}
+	return chip + crumb + strings.Repeat(" ", gap) + right
+}
+
+// blendRule draws the rule under the header: a gradient where the terminal can
+// show one, the divider colour where it cannot -- sixteen colours cannot
+// blend, and the same rule the topology box and the wordmark follow.
+func (t Theme) blendRule(w int, truecolor bool, g Glyphs) string {
+	if !truecolor || t.mono {
+		return t.Divider.Render(g.Line(w))
+	}
+	ramp := lipgloss.Blend1D(max(w, 2), lipgloss.Color("#1e6fd9"), lipgloss.Color("#252525"))
+	var b strings.Builder
+	for i := 0; i < w; i++ {
+		b.WriteString(lipgloss.NewStyle().Foreground(ramp[i]).Render(g.Rule))
+	}
+	return b.String()
 }
 
 func (t Theme) rail(items []RailItem, g Glyphs) string {
@@ -258,7 +310,7 @@ func (t Theme) rail(items []RailItem, g Glyphs) string {
 		case RailDone:
 			b.WriteString(t.RailNext.Render(num) + t.RailDone.Render(g.OK+" ") + t.Rail.Render(it.Label))
 		case RailCurrent:
-			b.WriteString(t.RailNow.Render(num + g.Running + " " + it.Label))
+			b.WriteString(t.FocusBar.Render(g.Focus) + t.RailNow.Render(num+" "+it.Label))
 		default:
 			b.WriteString(t.RailNext.Render(num + "  " + it.Label))
 		}

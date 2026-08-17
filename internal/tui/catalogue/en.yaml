@@ -33,6 +33,7 @@ prefs:
 menu:
   heading: Start
   help: "What would you like to do?"
+  tagline: RKE2 platforms, staked to the ground
   install: Install a cluster
   install.help: Build a new RKE2 cluster from scratch, or re-run against one this tool already built.
   upgrade: Upgrade

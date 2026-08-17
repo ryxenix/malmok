@@ -57,6 +57,10 @@ type Glyphs struct {
 	// glance on a monochrome console, so they differ in shape rather than
 	// colour.
 	Server, Agent, Address string
+
+	// Menu icons, one per start-menu entry. Shape only -- the label carries
+	// the meaning, the icon makes the list scannable.
+	IconInstall, IconUpgrade, IconDoc, IconPrefs, IconRuns, IconQuit string
 }
 
 var unicodeGlyphs = Glyphs{
@@ -66,7 +70,8 @@ var unicodeGlyphs = Glyphs{
 	Partial: []string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"},
 	TopLeft: "╭", TopRight: "╮", BottomLeft: "╰", BottomRight: "╯",
 	Server: "◉", Agent: "○", Address: "◈",
-	Spinner: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+	Spinner:     []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+	IconInstall: "▣", IconUpgrade: "▲", IconDoc: "✎", IconPrefs: "◇", IconRuns: "≡", IconQuit: "⏻",
 }
 
 var asciiGlyphs = Glyphs{
@@ -76,7 +81,8 @@ var asciiGlyphs = Glyphs{
 	Partial: nil, // whole cells only
 	TopLeft: "+", TopRight: "+", BottomLeft: "+", BottomRight: "+",
 	Server: "S", Agent: "a", Address: "*",
-	Spinner: []string{"-", "\\", "|", "/"},
+	Spinner:     []string{"-", "\\", "|", "/"},
+	IconInstall: "#", IconUpgrade: "^", IconDoc: "e", IconPrefs: "o", IconRuns: "=", IconQuit: "q",
 }
 
 // GlyphsFor picks a set. ascii forces the fallback.

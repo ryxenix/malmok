@@ -21,6 +21,10 @@ type MenuItem struct {
 	// TitleKey and HelpKey are catalogue keys.
 	TitleKey, HelpKey string
 
+	// Icon picks the entry's glyph from the active set, so the ASCII fallback
+	// is decided where every other glyph decides it.
+	Icon func(Glyphs) string
+
 	// Enter is where choosing this entry goes. StepMenu means it goes nowhere,
 	// which is what an unimplemented entry does.
 	Enter Step
@@ -41,34 +45,51 @@ type MenuItem struct {
 // wants, and Logs last because it is what somebody opening it for the twentieth
 // time wants and they already know where it is.
 var menuItems = []MenuItem{
-	{TitleKey: "menu.install", HelpKey: "menu.install.help", Enter: StepWhere},
-	{TitleKey: "menu.upgrade", HelpKey: "menu.upgrade.help", Enter: StepOpen, Mode: modeUpgrade},
-	{TitleKey: "menu.document", HelpKey: "menu.document.help", Enter: StepOpen, Mode: modeSettings},
-	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepPrefs},
-	{TitleKey: "menu.logs", HelpKey: "menu.logs.help", Enter: StepRuns},
-	{TitleKey: "menu.quit", HelpKey: "menu.quit.help", Enter: StepMenu},
+	{TitleKey: "menu.install", HelpKey: "menu.install.help", Enter: StepWhere,
+		Icon: func(g Glyphs) string { return g.IconInstall }},
+	{TitleKey: "menu.upgrade", HelpKey: "menu.upgrade.help", Enter: StepOpen, Mode: modeUpgrade,
+		Icon: func(g Glyphs) string { return g.IconUpgrade }},
+	{TitleKey: "menu.document", HelpKey: "menu.document.help", Enter: StepOpen, Mode: modeSettings,
+		Icon: func(g Glyphs) string { return g.IconDoc }},
+	{TitleKey: "menu.settings", HelpKey: "menu.settings.help", Enter: StepPrefs,
+		Icon: func(g Glyphs) string { return g.IconPrefs }},
+	{TitleKey: "menu.logs", HelpKey: "menu.logs.help", Enter: StepRuns,
+		Icon: func(g Glyphs) string { return g.IconRuns }},
+	{TitleKey: "menu.quit", HelpKey: "menu.quit.help", Enter: StepMenu,
+		Icon: func(g Glyphs) string { return g.IconQuit }},
 }
 
 // menuScreen renders the start menu.
 func (w *Wizard) menuScreen(width int) (string, string, string) {
 	var b strings.Builder
 	if banner := w.renderBanner(width, w.height); banner != "" {
-		b.WriteString("\n" + banner + "\n")
+		b.WriteString("\n" + banner)
+		tagline := w.cat.T("menu.tagline")
+		pad := strings.Repeat(" ", max((width-cells(tagline))/2, 0))
+		b.WriteString(pad + w.theme.Dim.Render(tagline) + "\n\n")
 	}
 	b.WriteString(w.dim(w.cat.T("menu.help"), width) + "\n\n")
 
 	for i, item := range menuItems {
 		selected := i == w.menu
 
+		icon := " "
+		if item.Icon != nil {
+			icon = item.Icon(w.glyphs)
+		}
+
 		// The label is padded before it is styled: colour codes are not cells,
 		// and padding a styled string makes every row a different width.
 		marker := "  "
-		label := w.theme.Body.Render(padCells(w.cat.T(item.TitleKey), 22))
+		line := ""
 		if selected {
 			marker = w.theme.Accent.Render(w.glyphs.Focus) + " "
-			label = w.theme.ChoiceSel.Render(padCells(w.cat.T(item.TitleKey), 22))
+			line = marker + w.theme.Accent.Render(padCells(icon, 3)) +
+				w.theme.ChoiceSel.Render(padCells(w.cat.T(item.TitleKey), 22))
+		} else {
+			line = marker + w.theme.Dim.Render(padCells(icon, 3)) +
+				w.theme.Body.Render(padCells(w.cat.T(item.TitleKey), 22))
 		}
-		line := marker + label
 
 		// An entry that cannot be used says so on its own line rather than
 		// failing after it is chosen.
@@ -82,7 +103,7 @@ func (w *Wizard) menuScreen(width int) (string, string, string) {
 			if item.Missing != "" {
 				help = item.Missing
 			}
-			b.WriteString("  " + w.dim(wrapCells(w.cat.T(help), width-4), width) + "\n")
+			b.WriteString("     " + w.dim(wrapCells(w.cat.T(help), width-7), width) + "\n")
 		}
 		b.WriteString("\n")
 	}

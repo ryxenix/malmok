@@ -5,6 +5,29 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.49.0] - 2026-08-18
+
+### Changed
+
+A visual pass over the chrome, in the direction terminal tools have settled on
+(k9s, lazygit, btop) without copying their table-first layout -- this is an
+installer, not a browser.
+
+- The header is a product chip, a breadcrumb and a badge instead of a solid
+  colour band: `Malmok · 클러스터 설치 ▸ 노드 · 2/10`. A full-width bar spends
+  the strongest colour on the screen saying nothing; the crumb answers the
+  glance ("which flow, which screen") and the screen's own heading answers the
+  read. The rule below it takes a horizontal gradient where the terminal is
+  truecolor.
+- The rail marks the current step with the same focus bar every list uses,
+  instead of a third marker style of its own.
+- The menu entries carry icons (shape-only, with ASCII fallbacks decided where
+  every other glyph decides them), the selected entry's icon takes the accent,
+  and the wordmark gains a centred tagline.
+
+Everything still degrades: mono keeps weight and reverse video, ASCII keeps
+plain characters, sixteen colours get no gradients.
+
 ## [0.48.5] - 2026-08-18
 
 ### Added

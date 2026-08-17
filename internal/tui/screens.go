@@ -107,13 +107,15 @@ func (w *Wizard) View() tea.View {
 		context = fmt.Sprintf("%d/%d", w.railIndex()+1, len(w.flow()))
 	}
 	f := Frame{
-		Title:    w.cat.T("app.title"),
-		Context:  context,
-		Rail:     w.rail(),
-		Buttons:  w.buttons(),
-		Focused:  w.btn,
-		Exit:     w.exitButton(),
-		HideRail: w.hideRail,
+		Title:     w.cat.T("app.title"),
+		Crumb:     w.crumb(),
+		Context:   context,
+		Truecolor: w.truecolor,
+		Rail:      w.rail(),
+		Buttons:   w.buttons(),
+		Focused:   w.btn,
+		Exit:      w.exitButton(),
+		HideRail:  w.hideRail,
 	}
 	if w.focus == focusButtons {
 		f.Focused = w.btn
@@ -1054,4 +1056,31 @@ func boolIndex(on bool) int {
 		return 0
 	}
 	return 1
+}
+
+// crumb is where the operator is, as a path beside the product chip.
+//
+// The screen's own heading repeats below it, and that repetition is the point:
+// the crumb is for the glance ("which flow, which screen"), the heading for
+// the read. The menu gets none -- it is where paths start.
+func (w *Wizard) crumb() string {
+	var flow string
+	switch {
+	case w.step == StepMenu:
+		return ""
+	case w.step == StepRuns:
+		return w.cat.T("menu.logs")
+	case w.step == StepPrefs:
+		return w.cat.T("menu.settings")
+	case w.mode == modeSettings:
+		flow = w.cat.T("menu.document")
+	case w.mode == modeUpgrade:
+		flow = w.cat.T("menu.upgrade")
+	default:
+		flow = w.cat.T("menu.install")
+	}
+	if key, ok := stepKeys[w.step]; ok {
+		return flow + " " + w.glyphs.Running + " " + w.cat.T(key)
+	}
+	return flow
 }

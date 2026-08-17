@@ -32,6 +32,7 @@ prefs:
 menu:
   heading: 시작
   help: "무엇을 하시겠습니까?"
+  tagline: RKE2 플랫폼 구축 · 업그레이드 · 운영
   install: 클러스터 설치
   install.help: RKE2 클러스터를 새로 구축하거나, 이 도구가 이미 만든 클러스터에 다시 적용합니다.
   upgrade: 업그레이드

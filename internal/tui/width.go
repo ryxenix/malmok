@@ -62,15 +62,6 @@ func truncCells(s string, n int) string {
 	return b.String() + suffix
 }
 
-// spread places left and right at opposite ends of a line n columns wide.
-func spread(left, right string, n int) string {
-	gap := n - cells(left) - cells(right)
-	if gap < 1 {
-		return truncCells(left, max(n-cells(right)-1, 1)) + " " + right
-	}
-	return left + strings.Repeat(" ", gap) + right
-}
-
 // wrapCells breaks s into lines of at most n columns, on word boundaries.
 //
 // Help text is written as prose in the catalogue, and a translator has no way

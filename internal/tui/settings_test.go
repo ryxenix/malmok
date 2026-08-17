@@ -1359,3 +1359,36 @@ func TestTheVersionFieldFlipsBetweenChannels(t *testing.T) {
 		t.Errorf("Space without a channel answer changed the field to %q", w.cfg.Version)
 	}
 }
+
+// The frame is a block, and the block is centred.
+//
+// Capping the content column without moving it left everything hugging the
+// top-left of a large window, with the primary button stranded at the far
+// right of a 180-column footer. The offsets come from the frame's fixed
+// capacity, not from what a screen happens to contain, so the block does not
+// jump when a cursor movement grows a help line.
+func TestTheFrameIsCentredInALargeWindow(t *testing.T) {
+	w := wizard(t, LangEN, false, 180, 70, StepMenu)
+	lines := strings.Split(w.View().Content, "\n")
+
+	top := -1
+	for i, l := range lines {
+		if strings.TrimSpace(l) != "" {
+			top = i
+			break
+		}
+	}
+	if top < 5 {
+		t.Errorf("the frame starts at row %d of 70; nothing was centred vertically", top)
+	}
+	if indent := len(lines[top]) - len(strings.TrimLeft(lines[top], " ")); indent < 20 {
+		t.Errorf("the frame starts at column %d of 180; nothing was centred horizontally", indent)
+	}
+
+	// A small window keeps every cell: centring is what the slack is for.
+	s := wizard(t, LangEN, false, 80, 24, StepMenu)
+	small := strings.Split(s.View().Content, "\n")
+	if strings.TrimSpace(small[0]) == "" {
+		t.Error("a small window wastes rows on vertical padding")
+	}
+}

@@ -5,6 +5,20 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.50.1] - 2026-08-18
+
+### Fixed
+
+- The frame is centred. Capping the content column without moving it (0.50.0)
+  left everything hugging the top-left of a large window, with the primary
+  button stranded at the far right of a 180-column footer -- the cap and the
+  position are one decision, not two. The whole block -- header, rail, content,
+  footer -- now sits centred both ways, its height capped so the buttons stay
+  within reach of the content they act on. The offsets come from the frame's
+  fixed capacity rather than from what a screen happens to contain, so the
+  block does not jump when a cursor movement grows a help line; a small window
+  keeps every cell, exactly as before.
+
 ## [0.50.0] - 2026-08-18
 
 ### Changed

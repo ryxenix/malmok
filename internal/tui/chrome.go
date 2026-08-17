@@ -37,6 +37,10 @@ const (
 	// maxContentW caps the content column. A form is not a table: fields that
 	// stretch across a wide terminal put the value a head-turn from its label.
 	maxContentW = 84
+	// maxFrameH caps the frame's height for the same reason: on a 70-row
+	// window an uncapped frame pins the buttons to the floor, two screens away
+	// from the content they act on.
+	maxFrameH = 44
 )
 
 // Theme holds the styles the chrome draws with.
@@ -230,6 +234,22 @@ type Button struct {
 func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	w, h = max(w, 20), max(h, 8)
 
+	// The frame is a block, and the block is centred. Capping the content
+	// column without moving it left everything hugging the top-left corner of
+	// a large window, with the primary button stranded at the far right edge
+	// of a 180-column footer -- the cap and the position are one decision,
+	// not two. The offsets come from the frame's fixed capacity rather than
+	// from what this screen happens to contain, so the block does not jump
+	// when a cursor movement grows a help line.
+	outerW, outerH := w, h
+	cols := gutter * 2
+	if len(f.Rail) > 0 && !f.HideRail && w >= minChromeW {
+		cols = railWidth + 3 + gutter
+	}
+	w = min(w, cols+maxContentW)
+	h = min(h, maxFrameH)
+	offX, offY := (outerW-w)/2, (outerH-h)/2
+
 	var b strings.Builder
 	b.WriteString(t.titleBar(f, w))
 	b.WriteString("\n")
@@ -264,7 +284,20 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 		}
 	}
 	b.WriteString(footer)
-	return b.String()
+
+	if offX == 0 && offY == 0 {
+		return b.String()
+	}
+	var out strings.Builder
+	out.WriteString(strings.Repeat("\n", offY))
+	indent := strings.Repeat(" ", offX)
+	for _, line := range strings.Split(b.String(), "\n") {
+		if line != "" {
+			out.WriteString(indent)
+		}
+		out.WriteString(line + "\n")
+	}
+	return strings.TrimSuffix(out.String(), "\n")
 }
 
 func (t Theme) titleBar(f Frame, w int) string {

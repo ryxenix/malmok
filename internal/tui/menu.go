@@ -131,6 +131,12 @@ func (w *Wizard) runsScreen(width int) (string, string, string) {
 	var b strings.Builder
 	b.WriteString(w.inlineHelp(w.cat.T("runs.help"), width))
 
+	// Column captions, because three unlabelled columns make the reader work
+	// out from the values what each one is.
+	b.WriteString("  " + w.theme.Dim.Render(
+		padCells(w.cat.T("runs.col_id"), 28)+
+			padCells(w.cat.T("runs.col_when"), 22)+
+			w.cat.T("runs.col_summary")) + "\n")
 	for i, r := range w.runs {
 		marker := "  "
 		if i == w.runSel {

@@ -82,6 +82,9 @@ runs:
   help: "이 도구가 남긴 실행 기록입니다. 최신순이며, 열면 그때 일어난 일을 재생합니다."
   none: 아직 기록된 실행이 없습니다. `platformctl apply` 가 한 번 돌면 나타납니다.
   count: 건
+  col_id: 실행
+  col_when: 시각
+  col_summary: 결과
 where:
   heading: 설치 위치
   help: "이 클러스터를 어디에 설치할까요? 이 서버를 고르면 SSH 접속 없이 여기서 바로 설치하고, 주소도 서버에서 직접 읽어옵니다."
@@ -150,6 +153,7 @@ st:
   path: 공유 경로
 progress:
   stopped: 시작도 못 하고 멈췄습니다
+  logs: 로그
 preflight:
   heading: 사전 검사
 summary:

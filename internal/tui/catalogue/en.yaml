@@ -83,6 +83,9 @@ runs:
   help: "Every run this tool recorded, newest first. Opening one replays what happened."
   none: No run has been recorded here yet. A run appears once `platformctl apply` has written one.
   count: run(s)
+  col_id: run
+  col_when: when
+  col_summary: what happened
 where:
   heading: Where to build
   help: "Which machine is this cluster being built on? The first server can be this machine, in which case nothing is connected to and its address is taken from the machine itself."
@@ -151,6 +154,7 @@ st:
   path: Export path
 progress:
   stopped: It stopped before anything ran
+  logs: Logs
 preflight:
   heading: Preflight checks
 summary:

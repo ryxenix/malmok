@@ -522,6 +522,11 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 	if node := w.currentNode(); node != "" {
 		b.WriteString("\n" + w.theme.Dim.Render(node) + "\n")
 	}
+	// The tail under its own header, so the eye can tell where the verdicts
+	// end and the narration begins without reading either.
+	if tail := w.tailLogs(4); len(tail) > 0 {
+		b.WriteString("\n" + w.theme.Section(w.cat.T("progress.logs"), width, w.glyphs) + "\n")
+	}
 	for _, e := range w.tailLogs(4) {
 		mark := " "
 		if e.Level == event.LevelWarn || e.Level == event.LevelError {
@@ -532,8 +537,13 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 	}
 
 	heading := w.cat.T("install.heading")
-	if kind == "preflight" {
+	switch kind {
+	case "preflight":
 		heading = w.cat.T("preflight.heading")
+	case "upgrade":
+		// The screen an operator watches for twenty minutes should name the
+		// thing that is happening; "Installing" over an upgrade does not.
+		heading = w.cat.T("upgrade.heading")
 	}
 	status := w.cat.T("hint.working")
 	if !w.busy {

@@ -5,6 +5,21 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.51.1] - 2026-08-18
+
+### Fixed
+
+- The upgrade progress screen was headed "Installing" -- the screen an
+  operator watches for twenty minutes now names the thing that is happening.
+
+### Changed
+
+- The progress screens' log tail sits under its own "Logs" section header,
+  so the eye can tell where the verdicts end and the narration begins.
+- The run list gained dim column captions (run / when / what happened);
+  three unlabelled columns made the reader work out from the values what
+  each one was.
+
 ## [0.51.0] - 2026-08-18
 
 ### Added

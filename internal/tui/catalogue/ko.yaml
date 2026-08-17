@@ -203,6 +203,7 @@ key:
   retry: 재시도
 hint:
   password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 SSH 키나 ssh-agent 를 씁니다
+  version: 네트워크가 되면 RKE2 채널 서버의 현재 안정판이 자동으로 채워집니다. 폐쇄망이면 번들이 담고 있는 버전을 입력하십시오
   registration: VIP 또는 DNS 이름. 비우면 이 서버 자신의 주소를 씁니다 — VIP 도 DNS 도 정책상 못 쓰는 환경용이며, 나중에 HA 로 가면 전 노드 재조인이 비용입니다
   lbpool: 게이트웨이가 외부 주소를 받아갈 CIDR
   noproxy: pod·service CIDR 을 넣지 않으면 클러스터 내부 통신이 프록시를 탑니다

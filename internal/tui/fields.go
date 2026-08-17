@@ -100,7 +100,7 @@ func (w *Wizard) fieldsFor(step Step) []field {
 			field{labelKey: "nodes.registration", hint: "hint.registration",
 				get: func(c *Config) string { return c.Registration },
 				set: func(c *Config, v string) { c.Registration = v }},
-			field{labelKey: "nodes.version",
+			field{labelKey: "nodes.version", hint: "hint.version",
 				get: func(c *Config) string { return c.Version },
 				set: func(c *Config, v string) { c.Version = v }},
 			field{labelKey: "nodes.domain",

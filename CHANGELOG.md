@@ -5,6 +5,20 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.49.1] - 2026-08-18
+
+### Fixed
+
+- The wizard suggested RKE2 v1.34.5 -- a version three minors old, hardcoded
+  when the wizard was written. No seeded version survives upstream's release
+  cadence, so none is seeded: the current stable is asked from RKE2's own
+  channel server when the program starts (the same authority the install
+  script consults -- whose `stable` currently lags its newest release, a
+  judgement no hardcoded string carries). An air-gapped or proxied site gets no
+  answer, an empty field, and a validator that asks for it -- which is honest,
+  where a stale default is a suggestion that looks like knowledge. A version
+  the operator already typed is never overwritten by the network.
+
 ## [0.49.0] - 2026-08-18
 
 ### Changed

@@ -11,6 +11,7 @@ import (
 	"platform.ryxen.dev/platformctl/api/v1alpha1"
 	"platform.ryxen.dev/platformctl/internal/event"
 	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/platformctl/internal/rke2"
 )
 
 // The wizard is the whole application: a sequence of steps with a rail showing
@@ -389,8 +390,13 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			Agents:  []string{"10.10.20.21", "10.10.0.22"},
 			SSHUser: "root", SSHPort: "22",
 			Registration: "k8s-api.acme.internal",
-			Version:      "v1.34.5+rke2r1",
-			Domain:       "acme.internal",
+			// No version is seeded. Any version written here goes stale the
+			// day upstream releases -- a default of v1.34.5 was found
+			// suggesting a version three minors old -- so the current stable
+			// is asked from RKE2's own channel server when the program starts,
+			// and an air-gapped site gets an empty field and fills it from its
+			// bundle.
+			Domain: "acme.internal",
 			// Starting values, not a profile. Each is the answer most builds
 			// want, and every one is a screen away; what they match is derived
 			// (MatchedProfile) rather than chosen.
@@ -465,7 +471,23 @@ func (w *Wizard) Aborted() bool { return w.aborted }
 // tea.Model
 // ---------------------------------------------------------------------------
 
-func (w *Wizard) Init() tea.Cmd { return spinEvery() }
+func (w *Wizard) Init() tea.Cmd { return tea.Batch(spinEvery(), fetchStableVersion) }
+
+// versionMsg carries what the channel server answered.
+type versionMsg struct{ v string }
+
+// fetchStableVersion asks RKE2 what "current" means.
+//
+// Failure is silent by design: on an air-gapped or proxied site there is no
+// answer, the field stays empty, and the validator asks for it -- which is
+// honest, where a stale default is a suggestion that looks like knowledge.
+func fetchStableVersion() tea.Msg {
+	v, err := rke2.StableVersion(context.Background())
+	if err != nil {
+		return nil
+	}
+	return versionMsg{v: v}
+}
 
 // spinMsg advances the spinner. A step that takes minutes is indistinguishable
 // from one that has hung unless something on screen keeps moving.
@@ -501,6 +523,14 @@ func (w *Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// an animation of something that already happened.
 		for _, e := range msg.events {
 			w.fold(e)
+		}
+		return w, nil
+
+	case versionMsg:
+		// Filled only while empty: an operator who already typed a version has
+		// answered the question, and the network must not overrule them.
+		if w.cfg.Version == "" {
+			w.cfg.Version = msg.v
 		}
 		return w, nil
 

@@ -5,6 +5,22 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.48.5] - 2026-08-18
+
+### Added
+
+- The start menu opens under a block-letter MALMOK wordmark, centred, with a
+  vertical gradient where the terminal is truecolor -- the accent colour where
+  it is not, because sixteen colours cannot blend and a gradient there is a
+  band of noise. A bare list reads as a fragment of something; the wordmark is
+  how a terminal tool says it is a product (k9s, lazygit, btop -- the
+  convention is old enough to be an expectation).
+- It knows when to leave: a plain-letter form for the ASCII charset (a serial
+  console rendering U+2588 as mojibake is worse than plain letters), and
+  nothing at all on a short or narrow window -- those are the terminals where
+  every row is spoken for, and they get the menu entries instead. The working
+  screens never carry it; they spend their rows on work.
+
 ## [0.48.4] - 2026-08-17
 
 ### Fixed

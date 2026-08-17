@@ -1267,3 +1267,43 @@ func TestTheFinalScreensReturnToTheMenu(t *testing.T) {
 		t.Error("the Done screen has no way to quit at all")
 	}
 }
+
+// The wordmark on the start menu, and only there.
+//
+// A start menu that opens as a bare list reads as a fragment of something; the
+// block-letter name is how a terminal tool says it is a product. The working
+// screens spend their rows on work.
+func TestTheMenuCarriesTheWordmark(t *testing.T) {
+	w := wizard(t, LangEN, false, 100, 32, StepMenu)
+	if !strings.Contains(plain(w.View().Content), "██") {
+		t.Error("the menu has no wordmark")
+	}
+
+	// The ASCII charset exists for consoles that cannot draw U+2588; the name
+	// as mojibake would be worse than plain letters.
+	a := wizard(t, LangEN, true, 100, 32, StepMenu)
+	body := plain(a.View().Content)
+	if strings.Contains(body, "█") || strings.Contains(body, "╗") {
+		t.Error("the ASCII menu draws block characters")
+	}
+	if !strings.Contains(body, "AAA") {
+		t.Error("the ASCII menu has no wordmark at all")
+	}
+
+	// A short window shows the menu entries, not the decoration above them.
+	s := wizard(t, LangEN, false, 100, 18, StepMenu)
+	if strings.Contains(plain(s.View().Content), "██") {
+		t.Error("a short terminal spends its rows on the wordmark")
+	}
+	// And a narrow one: a wordmark that wraps is noise.
+	n := wizard(t, LangEN, false, 50, 32, StepMenu)
+	if strings.Contains(plain(n.View().Content), "██") {
+		t.Error("a narrow terminal wraps the wordmark")
+	}
+
+	// The working screens do not carry it.
+	o := wizard(t, LangEN, false, 100, 32, StepOptions)
+	if strings.Contains(plain(o.View().Content), "██╗") {
+		t.Error("a working screen carries the wordmark")
+	}
+}

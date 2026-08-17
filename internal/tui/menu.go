@@ -52,6 +52,9 @@ var menuItems = []MenuItem{
 // menuScreen renders the start menu.
 func (w *Wizard) menuScreen(width int) (string, string, string) {
 	var b strings.Builder
+	if banner := w.renderBanner(width, w.height); banner != "" {
+		b.WriteString("\n" + banner + "\n")
+	}
 	b.WriteString(w.dim(w.cat.T("menu.help"), width) + "\n\n")
 
 	for i, item := range menuItems {

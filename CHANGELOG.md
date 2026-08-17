@@ -5,6 +5,18 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.50.2] - 2026-08-18
+
+### Fixed
+
+- 0.50.1 shrank the whole frame into a floating block, which reads as a dialog
+  somebody forgot to maximise -- wrong, and said so. The chrome fills the
+  terminal again: header, rules, rail and footer go edge to edge like every
+  full-screen tool's. What is centred is the content -- the capped column sits
+  in the middle of its pane horizontally, and in the middle of the window
+  vertically. Both, not either: full-bleed with a left-hugging column wastes a
+  wide window on emptiness, and a shrunken frame wastes the window itself.
+
 ## [0.50.1] - 2026-08-18
 
 ### Fixed

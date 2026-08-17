@@ -1360,35 +1360,54 @@ func TestTheVersionFieldFlipsBetweenChannels(t *testing.T) {
 	}
 }
 
-// The frame is a block, and the block is centred.
+// The chrome fills the terminal; the content is centred within it.
 //
-// Capping the content column without moving it left everything hugging the
-// top-left of a large window, with the primary button stranded at the far
-// right of a 180-column footer. The offsets come from the frame's fixed
-// capacity, not from what a screen happens to contain, so the block does not
-// jump when a cursor movement grows a help line.
-func TestTheFrameIsCentredInALargeWindow(t *testing.T) {
+// Both, not either: a shrunken floating frame reads as a dialog somebody
+// forgot to maximise, and a full-bleed pane with a left-hugging column wastes
+// a wide window on emptiness. The header and footer go edge to edge, the
+// capped content column sits in the middle of its pane, and a menu on a
+// 70-row window sits in the middle of that too.
+func TestTheChromeFillsAndTheContentCentres(t *testing.T) {
 	w := wizard(t, LangEN, false, 180, 70, StepMenu)
 	lines := strings.Split(w.View().Content, "\n")
 
-	top := -1
-	for i, l := range lines {
-		if strings.TrimSpace(l) != "" {
-			top = i
+	// Full-bleed: the header rule spans the terminal, and the frame owns the
+	// first row and the last.
+	if got := cells(plain(lines[1])); got < 170 {
+		t.Errorf("the header rule spans %d of 180 cells", got)
+	}
+	if strings.TrimSpace(plain(lines[0])) == "" {
+		t.Error("the first row is empty; the chrome does not fill the window")
+	}
+
+	// The wordmark is centred in the window, not hugging the left.
+	for _, l := range lines {
+		if !strings.Contains(l, "██") {
+			continue
+		}
+		if indent := len(plain(l)) - len(strings.TrimLeft(plain(l), " ")); indent < 40 {
+			t.Errorf("the wordmark starts at column %d of 180", indent)
+		}
+		break
+	}
+
+	// And vertically: a short menu on a 70-row window is not pinned under the
+	// header.
+	first := -1
+	for i, l := range lines[2:] {
+		if strings.TrimSpace(plain(l)) != "" {
+			first = i + 2
 			break
 		}
 	}
-	if top < 5 {
-		t.Errorf("the frame starts at row %d of 70; nothing was centred vertically", top)
-	}
-	if indent := len(lines[top]) - len(strings.TrimLeft(lines[top], " ")); indent < 20 {
-		t.Errorf("the frame starts at column %d of 180; nothing was centred horizontally", indent)
+	if first >= 0 && first < 6 {
+		t.Errorf("the content starts at row %d of 70; the slack all sits below it", first)
 	}
 
-	// A small window keeps every cell: centring is what the slack is for.
-	s := wizard(t, LangEN, false, 80, 24, StepMenu)
-	small := strings.Split(s.View().Content, "\n")
-	if strings.TrimSpace(small[0]) == "" {
-		t.Error("a small window wastes rows on vertical padding")
+	// A small window keeps every cell.
+	sm := wizard(t, LangEN, false, 80, 24, StepMenu)
+	small := strings.Split(sm.View().Content, "\n")
+	if strings.TrimSpace(plain(small[0])) == "" {
+		t.Error("a small window wastes rows on padding")
 	}
 }

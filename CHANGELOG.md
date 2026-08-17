@@ -5,6 +5,27 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.51.0] - 2026-08-18
+
+### Added
+
+- Explanations move to a right-hand pane on wide windows. Screen help,
+  mode notes and the focused field's hint used to open every screen and trail
+  every field inline, spending the column's vertical rows on prose. When the
+  window affords it (pane >= content cap + 38 + rule), the chrome carves an
+  "About" pane on the right: the screen's help, the mode-specific notes and
+  the hint for whatever the cursor is on render there, and the inline copies
+  disappear -- the same sentence twice on one screen is noise. Narrow windows
+  keep the old inline layout untouched; the pane is a use of spare width, not
+  a requirement. Progress screens (preflight, install, upgrade) never get a
+  pane: the log tail is the explanation there.
+
+### Fixed
+
+- The topology sketch drew an empty server address as a node on an
+  unresolvable segment ("not an address"). An empty host is a question not
+  yet answered, not a bad answer, so it is skipped.
+
 ## [0.50.2] - 2026-08-18
 
 ### Fixed

@@ -109,6 +109,7 @@ func (w *Wizard) View() tea.View {
 	f := Frame{
 		Title:     w.cat.T("app.title"),
 		Crumb:     w.crumb(),
+		Info:      w.frameInfo(),
 		Context:   context,
 		Truecolor: w.truecolor,
 		Rail:      w.rail(),
@@ -299,10 +300,10 @@ func (w *Wizard) buttons() []Button {
 // asks for a value should not also be a place where the layout can differ.
 func (w *Wizard) formScreen(step Step, headingKey, helpKey string, width int) (string, string, string) {
 	cur := w.cursor[step]
-	body := w.dim(w.cat.T(helpKey), width) + "\n\n" +
+	body := w.inlineHelp(w.cat.T(helpKey), width) +
 		w.theme.Fields(w.labels(step), w.maskedValues(step), cur, w.editing, width, w.glyphs)
 
-	if h := w.fieldHint(int(step), cur); h != "" {
+	if h := w.inlineHint(int(step), cur); h != "" {
 		body += "\n" + w.dim(w.glyphs.Dot+" "+h, width)
 	}
 
@@ -330,7 +331,7 @@ func (w *Wizard) maskedValues(step Step) []string {
 
 func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	var b strings.Builder
-	b.WriteString(w.dim(w.cat.T("options.help"), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("options.help"), width))
 
 	cur := w.cursor[StepOptions]
 
@@ -362,7 +363,9 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 			w.fieldIndex(), w.editing, width, w.glyphs))
 	}
 
-	b.WriteString("\n" + w.dim(w.cat.T("note.options"), width))
+	if note := w.inlineHelp(w.cat.T("note.options"), width); note != "" {
+		b.WriteString("\n" + strings.TrimSuffix(note, "\n\n"))
+	}
 	return w.cat.T("options.heading"), b.String(), w.cat.T("hint.select")
 }
 
@@ -397,7 +400,7 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 	)
 
 	var b strings.Builder
-	b.WriteString(w.dim(w.cat.T("summary.help"), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("summary.help"), width))
 	// Grouped the way the screens asked: what the cluster is, then what runs
 	// on it. A summary that lists nine rows in one block makes the reader do
 	// the grouping the screen already knows.
@@ -728,7 +731,7 @@ func (w *Wizard) pkiScreen(width int) (string, string, string) {
 	cur := w.cursor[StepPKI]
 	var b strings.Builder
 
-	b.WriteString(w.dim(w.cat.T("pki.help_mode"), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("pki.help_mode"), width))
 	b.WriteString(w.theme.Radio(labelsOf(pkiModes), notesOf(w.cat, pkiModes),
 		indexOf(pkiModes, w.cfg.PKIMode), cur, width, w.glyphs))
 
@@ -747,11 +750,11 @@ func (w *Wizard) pkiScreen(width int) (string, string, string) {
 		b.WriteString("\n")
 		b.WriteString(w.theme.Fields(w.labels(StepPKI), w.maskedValues(StepPKI),
 			w.fieldIndex(), w.editing, width, w.glyphs))
-		if isCA(w.cfg.PKIMode) {
+		if isCA(w.cfg.PKIMode) && w.frameInfo() == "" {
 			b.WriteString("\n" + w.dim(
 				w.glyphs.Warn+" "+w.cat.T("pki.note_rootkey")+" (PF-706)", width))
 		}
-	} else {
+	} else if w.frameInfo() == "" {
 		// Nothing is being issued, so there is no account and no CA to
 		// describe. Saying what happens instead beats an empty pane.
 		b.WriteString("\n" + w.dim(w.cat.T("pki.note_later"), width))
@@ -770,7 +773,7 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 	cur := w.cursor[StepRegistry]
 	var b strings.Builder
 
-	b.WriteString(w.dim(w.cat.T("reg.help"), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("reg.help"), width))
 	b.WriteString(w.theme.Radio(labelsOf(registryModes), notesOf(w.cat, registryModes),
 		indexOf(registryModes, w.cfg.RegistryMode), cur, width, w.glyphs))
 
@@ -790,7 +793,7 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 		b.WriteString("\n")
 		b.WriteString(w.theme.Fields(w.labels(StepRegistry), w.maskedValues(StepRegistry),
 			w.fieldIndex(), w.editing, width, w.glyphs))
-		if h := w.fieldHint(int(StepRegistry), w.fieldIndex()); h != "" {
+		if h := w.inlineHint(int(StepRegistry), w.fieldIndex()); h != "" {
 			b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
 		}
 	} else {
@@ -931,7 +934,7 @@ func (w *Wizard) whereScreen(width int) (string, string, string) {
 	if w.cfg.Local {
 		chosen = 0
 	}
-	body := w.dim(wrapCells(w.cat.T("where.help"), width), width) + "\n\n" +
+	body := w.inlineHelp(w.cat.T("where.help"), width) +
 		w.theme.Radio(
 			[]string{w.cat.T("where.here"), w.cat.T("where.remote")},
 			[]string{here, w.cat.T("where.remote.note")},
@@ -948,7 +951,7 @@ func (w *Wizard) whereScreen(width int) (string, string, string) {
 // matters (PF-609) and typing is not what should decide it.
 func (w *Wizard) nodesScreen(width int) (string, string, string) {
 	var b strings.Builder
-	b.WriteString(w.dim(wrapCells(w.cat.T(w.nodesHelp()), width), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T(w.nodesHelp()), width))
 
 	cur := w.cursor[StepNodes]
 
@@ -970,7 +973,7 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 		b.WriteString(w.theme.Fields(w.labels(StepNodes), w.maskedValues(StepNodes),
 			w.fieldIndex(), w.editing, width, w.glyphs))
 	}
-	if h := w.fieldHint(int(StepNodes), w.fieldIndex()); h != "" {
+	if h := w.inlineHint(int(StepNodes), w.fieldIndex()); h != "" {
 		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
 	}
 
@@ -1025,7 +1028,7 @@ func indexOfString(list []string, want string) int {
 // stay reachable.
 func (w *Wizard) networkScreen(width int) (string, string, string) {
 	var b strings.Builder
-	b.WriteString(w.dim(wrapCells(w.cat.T("net.help"), width), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("net.help"), width))
 
 	cur := w.cursor[StepNetwork]
 
@@ -1048,7 +1051,7 @@ func (w *Wizard) networkScreen(width int) (string, string, string) {
 		b.WriteString(w.theme.Fields(w.labels(StepNetwork), w.maskedValues(StepNetwork),
 			w.fieldIndex(), w.editing, width, w.glyphs))
 	}
-	if h := w.fieldHint(int(StepNetwork), w.fieldIndex()); h != "" {
+	if h := w.inlineHint(int(StepNetwork), w.fieldIndex()); h != "" {
 		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
 	}
 
@@ -1092,4 +1095,36 @@ func (w *Wizard) crumb() string {
 		return flow + " " + w.glyphs.Running + " " + w.cat.T(key)
 	}
 	return flow
+}
+
+// frameInfo fills the explanation pane when the window can afford one.
+//
+// Empty otherwise, and empty for the progress screens: while phases run, the
+// pane's width is better spent on the log tail, and the running step already
+// explains itself.
+func (w *Wizard) frameInfo() string {
+	if !w.infoActive() {
+		return ""
+	}
+	switch w.step {
+	case StepPreflight, StepInstall, StepUpgrade, StepDone:
+		return ""
+	}
+	return w.infoPane()
+}
+
+// inlineHelp renders a screen's help text where there is no pane to hold it.
+func (w *Wizard) inlineHelp(text string, width int) string {
+	if w.frameInfo() != "" {
+		return ""
+	}
+	return w.dim(wrapCells(text, width), width) + "\n\n"
+}
+
+// inlineHint is the focused field's hint where there is no pane to hold it.
+func (w *Wizard) inlineHint(step, i int) string {
+	if w.frameInfo() != "" {
+		return ""
+	}
+	return w.fieldHint(step, i)
 }

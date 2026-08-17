@@ -93,7 +93,7 @@ func (w *Wizard) openScreen(width int) (string, string, string) {
 	}
 
 	var b strings.Builder
-	b.WriteString(w.dim(wrapCells(w.cat.T(help), width), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T(help), width))
 
 	// The path field first, because typing one is always available even when
 	// nothing was found to list.
@@ -146,7 +146,7 @@ func (w *Wizard) saveScreen(width int) (string, string, string) {
 		return w.cat.T("save.heading"), b.String(), ""
 	}
 
-	b.WriteString(w.dim(wrapCells(w.cat.T("save.help"), width), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("save.help"), width))
 	for _, r := range append(w.builtRows(), [2]string{w.cat.T("save.path"), w.cfg.DocPath}) {
 		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
 			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
@@ -248,7 +248,7 @@ func (w *Wizard) writeDocument() error {
 // the storage driver would invite a change this flow has no way to apply.
 func (w *Wizard) targetScreen(width int) (string, string, string) {
 	var b strings.Builder
-	b.WriteString(w.dim(wrapCells(w.cat.T("target.help"), width), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("target.help"), width))
 
 	from := w.doc.Kubernetes.Version
 	if from == "" {
@@ -267,14 +267,16 @@ func (w *Wizard) targetScreen(width int) (string, string, string) {
 	b.WriteString(w.theme.Fields(
 		w.labels(StepTarget), w.maskedValues(StepTarget), cur, w.editing, width, w.glyphs))
 
-	if h := w.fieldHint(int(StepTarget), cur); h != "" {
+	if h := w.inlineHint(int(StepTarget), cur); h != "" {
 		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
 	}
 
 	// Said before it happens rather than after. Every node restarts, one at a
 	// time, and an operator who did not expect that finds out from a workload
 	// rather than from this screen.
-	b.WriteString("\n\n" + w.dim(wrapCells(w.cat.T("target.note"), width), width))
+	if note := w.inlineHelp(w.cat.T("target.note"), width); note != "" {
+		b.WriteString("\n\n" + strings.TrimSuffix(note, "\n\n"))
+	}
 
 	hint := "hint.edit"
 	if w.editing {

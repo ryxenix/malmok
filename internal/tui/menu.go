@@ -68,7 +68,7 @@ func (w *Wizard) menuScreen(width int) (string, string, string) {
 		pad := strings.Repeat(" ", max((width-cells(tagline))/2, 0))
 		b.WriteString(pad + w.theme.Dim.Render(tagline) + "\n\n")
 	}
-	b.WriteString(w.dim(w.cat.T("menu.help"), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("menu.help"), width))
 
 	for i, item := range menuItems {
 		selected := i == w.menu
@@ -98,7 +98,7 @@ func (w *Wizard) menuScreen(width int) (string, string, string) {
 		}
 		b.WriteString(line + "\n")
 
-		if selected {
+		if selected && w.frameInfo() == "" {
 			help := item.HelpKey
 			if item.Missing != "" {
 				help = item.Missing
@@ -129,7 +129,7 @@ func (w *Wizard) runsScreen(width int) (string, string, string) {
 	}
 
 	var b strings.Builder
-	b.WriteString(w.dim(w.cat.T("runs.help"), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("runs.help"), width))
 
 	for i, r := range w.runs {
 		marker := "  "

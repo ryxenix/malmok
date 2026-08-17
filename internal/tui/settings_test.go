@@ -1392,10 +1392,12 @@ func TestTheChromeFillsAndTheContentCentres(t *testing.T) {
 	}
 
 	// And vertically: a short menu on a 70-row window is not pinned under the
-	// header.
+	// header. The rail and info-pane separators run every row, so a row is
+	// "empty" when nothing but chrome is on it.
 	first := -1
 	for i, l := range lines[2:] {
-		if strings.TrimSpace(plain(l)) != "" {
+		bare := strings.NewReplacer("│", "", "|", "").Replace(plain(l))
+		if strings.TrimSpace(bare) != "" {
 			first = i + 2
 			break
 		}
@@ -1409,5 +1411,59 @@ func TestTheChromeFillsAndTheContentCentres(t *testing.T) {
 	small := strings.Split(sm.View().Content, "\n")
 	if strings.TrimSpace(plain(small[0])) == "" {
 		t.Error("a small window wastes rows on padding")
+	}
+}
+
+// On a wide window the explanation moves to the pane and out of the column.
+//
+// Help text opened every screen and hints trailed every focused field, which
+// spent the content column's vertical rows on prose. The pane holds the
+// screen's help and the focused item's hint; the inline copies disappear,
+// because the same sentence twice on one screen is noise. A narrow window
+// keeps the inline copies and no pane: the pane is a use of spare width, not
+// a requirement.
+func TestExplanationsMoveToThePaneOnAWideWindow(t *testing.T) {
+	wide := wizard(t, LangEN, false, 170, 40, StepOptions)
+	if !wide.infoActive() {
+		t.Fatal("a 170-column window affords no pane")
+	}
+	if info := wide.frameInfo(); !strings.Contains(info, "atomic choice") {
+		t.Errorf("the pane does not carry the screen's help:\n%s", info)
+	}
+	// The inline copy is gone from the column.
+	_, body, _ := wide.optionsScreen(wide.contentWidth())
+	if strings.Contains(plain(body), "atomic choice") {
+		t.Error("the help is both in the pane and in the column")
+	}
+
+	narrow := wizard(t, LangEN, false, 90, 30, StepOptions)
+	if narrow.infoActive() {
+		t.Fatal("a 90-column window claims to afford a pane")
+	}
+	if narrow.frameInfo() != "" {
+		t.Error("a narrow window filled a pane it cannot draw")
+	}
+	_, body, _ = narrow.optionsScreen(narrow.contentWidth())
+	if !strings.Contains(plain(body), "atomic choice") {
+		t.Error("a narrow window lost the help entirely")
+	}
+
+	// The focused field's hint rides along.
+	nodes := wizard(t, LangEN, false, 170, 40, StepNodes)
+	nodes.setLocal(false)
+	nodes.cfg.Server = "10.0.0.11"
+	for i, f := range nodes.fieldsFor(StepNodes) {
+		if f.labelKey == "nodes.registration" {
+			nodes.cursor[StepNodes] = len(osFamilies) + i
+		}
+	}
+	if info := nodes.frameInfo(); !strings.Contains(info, "VIP or DNS") {
+		t.Errorf("the pane does not carry the focused field's hint:\n%s", info)
+	}
+
+	// The progress screens keep the full pane for the log tail.
+	run := wizard(t, LangEN, false, 170, 40, StepInstall)
+	if run.frameInfo() != "" {
+		t.Error("a progress screen spends width on an explanation pane")
 	}
 }

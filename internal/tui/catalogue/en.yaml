@@ -186,6 +186,8 @@ status:
   skipped: skipped
   failed: failed
   blocked: blocked
+info:
+  title: About
 btn:
   next: Continue
   done: Done

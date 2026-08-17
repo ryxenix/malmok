@@ -147,7 +147,7 @@ var prefsRows = []prefsRow{
 // prefsScreen renders the settings.
 func (w *Wizard) prefsScreen(width int) (string, string, string) {
 	var b strings.Builder
-	b.WriteString(w.dim(wrapCells(w.cat.T("prefs.help"), width), width) + "\n\n")
+	b.WriteString(w.inlineHelp(w.cat.T("prefs.help"), width))
 
 	cur := w.cursor[StepPrefs]
 	for i, row := range prefsRows {

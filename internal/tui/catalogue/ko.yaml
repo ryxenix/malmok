@@ -185,6 +185,8 @@ status:
   skipped: 건너뜀
   failed: 실패
   blocked: 차단
+info:
+  title: 설명
 btn:
   next: 계속
   done: 완료

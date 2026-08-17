@@ -48,6 +48,11 @@ func (w *Wizard) topology() []segment {
 	order := []netip.Prefix{}
 
 	add := func(host, marker, role, shown string, bad bool) {
+		// An empty host is a question not yet answered, not a node on an
+		// unresolvable segment.
+		if strings.TrimSpace(host) == "" {
+			return
+		}
 		// shown overrides what is printed: a load balancer pool is grouped by
 		// its first address but displayed as the range, which is what the
 		// operator entered and what the gateway takes from.

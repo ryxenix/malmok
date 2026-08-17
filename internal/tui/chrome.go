@@ -37,6 +37,9 @@ const (
 	// maxContentW caps the content column. A form is not a table: fields that
 	// stretch across a wide terminal put the value a head-turn from its label.
 	maxContentW = 84
+	// infoW is the right-hand explanation pane. Fixed rather than fluid: prose
+	// has a readable width the same way a form does.
+	infoW = 38
 )
 
 // Theme holds the styles the chrome draws with.
@@ -214,6 +217,13 @@ type Frame struct {
 	// way both Proxmox and the Ubuntu server installer place it.
 	Status string
 
+	// Info is the explanation pane down the right side: the screen's help, the
+	// focused item's hint, the notes. On a wide window it takes what the
+	// content cannot use, so a description no longer costs the content column
+	// vertical rows. Empty means no pane -- the wizard only fills it when the
+	// window can afford one, and puts the same text inline when it cannot.
+	Info string
+
 	// HideRail drops the step list. Proxmox and the Ubuntu server installer
 	// have none; only the desktop installer does.
 	HideRail bool
@@ -249,6 +259,10 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	if showRail {
 		paneW = w - railWidth - 3 - gutter
 	}
+	showInfo := f.Info != "" && paneW >= maxContentW+infoW+3
+	if showInfo {
+		paneW -= infoW + 3
+	}
 	contentW := min(paneW, maxContentW)
 	contentOff := strings.Repeat(" ", max((paneW-contentW)/2, 0))
 
@@ -259,20 +273,41 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	// height: a menu on a 70-row window belongs in the middle of it, not
 	// pinned under the header with fifty blank rows below.
 	bodyH := h - 2 - lines(footer)
-	if slack := bodyH - lines(body); slack > 1 {
+	slack := bodyH - lines(body)
+	if slack > 1 {
 		body = strings.Repeat("\n", slack/2) + body
 	}
 	bodyLines := strings.Split(padTo(body, bodyH), "\n")
+
+	var infoLines []string
+	if showInfo {
+		info := f.Info
+		// The pane starts where the content starts, so the explanation reads
+		// as belonging to what it explains.
+		if slack > 1 {
+			info = strings.Repeat("\n", slack/2) + info
+		}
+		infoLines = strings.Split(padTo(info, bodyH), "\n")
+	}
+
+	row := func(i, pad int) string {
+		line := padCells(bodyLines[i], pad)
+		if showInfo {
+			line += t.Divider.Render(g.VRule) + " " + infoLines[i]
+		}
+		return line
+	}
 
 	if showRail {
 		rail := strings.Split(padTo(t.rail(f.Rail, g), bodyH), "\n")
 		for i := range bodyLines {
 			left := padCells(rail[i], railWidth)
-			b.WriteString(t.Rail.Render(" "+left) + t.Divider.Render(g.VRule) + " " + contentOff + bodyLines[i] + "\n")
+			b.WriteString(t.Rail.Render(" "+left) + t.Divider.Render(g.VRule) + " " +
+				contentOff + row(i, paneW-len(contentOff)-1) + "\n")
 		}
 	} else {
-		for _, line := range bodyLines {
-			b.WriteString("  " + contentOff + line + "\n")
+		for i := range bodyLines {
+			b.WriteString("  " + contentOff + row(i, paneW-len(contentOff)) + "\n")
 		}
 	}
 	b.WriteString(footer)

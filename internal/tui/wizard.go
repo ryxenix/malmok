@@ -386,42 +386,27 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 		// so the wizard opens on the screen that has something to show.
 		step: startStep(preflight, install),
 		cfg: Config{
-			Lang: lang, Server: "10.10.0.11",
-			Agents:  []string{"10.10.20.21", "10.10.0.22"},
+			Lang: lang,
+			// The SSH convention, not an example: root on 22 is what a fresh
+			// machine answers, and both are one field away.
 			SSHUser: "root", SSHPort: "22",
-			Registration: "k8s-api.acme.internal",
-			// No version is seeded. Any version written here goes stale the
-			// day upstream releases -- a default of v1.34.5 was found
-			// suggesting a version three minors old -- so the current stable
-			// is asked from RKE2's own channel server when the program starts,
-			// and an air-gapped site gets an empty field and fills it from its
-			// bundle.
-			Domain: "acme.internal",
-			// Starting values, not a profile. Each is the answer most builds
-			// want, and every one is a screen away; what they match is derived
-			// (MatchedProfile) rather than chosen.
+			// Everything else that used to be seeded here -- example nodes,
+			// a proxy at acme.local, a Harbor, CA references, an ACME account
+			// -- is gone. An example value in an editable field reads as a
+			// real one, gets accepted by habit, and produces a document that
+			// names machines nobody owns; an empty field is a question, and
+			// the validator asks it at the summary if it goes unanswered. The
+			// server address comes from the machine itself (setLocal), the
+			// version from the channel server, and an empty join address
+			// already means "this server, trade stated".
+			//
+			// What stays seeded are defaults with defined meaning, each the
+			// answer most builds want and each one screen away; what they
+			// match is derived (MatchedProfile) rather than chosen.
 			OSFamily: "auto", Routing: "overlay",
 			NetworkMode: "online", DowngradePolicy: "confirm",
 			Dataplane: "cilium-gw", Fallback: "canal-traefik", Storage: "local-path",
 			PKIMode: "none", RegistryMode: "embedded",
-			ProxyHTTP:  "http://proxy.acme.local:3128",
-			ProxyHTTPS: "http://proxy.acme.local:3128",
-			NoProxy:    []string{"10.0.0.0/8", ".acme.internal"},
-			LBPool:     []string{"10.10.20.240/29"},
-
-			RegistryHost: "harbor.acme.internal",
-			RegistryUser: "env://REGISTRY_USER",
-			RegistryPass: "env://REGISTRY_PASSWORD",
-
-			NFSServer: "10.10.0.30", NFSPath: "/export/rke2",
-
-			CARoot:         "file://./pki/root.crt",
-			CAIntermediate: "file://./pki/intermediate.crt",
-			CAKey:          "env://CA_INTERMEDIATE_KEY",
-
-			ACMEEmail:    "ops@acme.co.kr",
-			ACMEProvider: "cloudflare",
-			ACMEToken:    "env://ACME_API_TOKEN",
 		},
 	}
 	// And the machine in front of the operator is the default target. An

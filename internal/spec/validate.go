@@ -192,7 +192,13 @@ func validateKubernetes(s *v1alpha1.ClusterSpec) []error {
 		// addresses -- then there is nothing for LB-IPAM to hand out, and
 		// demanding a pool would demand exactly the segment IPs the exposure
 		// mode exists to avoid.
-		if len(k.Dataplane.LoadBalancerPool) == 0 && !allGatewaysOnNodeIPs(s) {
+		// The rule fires only when a gateway will actually ask: none at all
+		// means nothing requests an address, and every gateway on the nodes'
+		// own addresses means there is nothing for LB-IPAM to hand out --
+		// demanding a pool in either case would demand exactly the segment
+		// IPs a first build may not have.
+		if len(k.Dataplane.LoadBalancerPool) == 0 &&
+			len(s.Gateway.Gateways) > 0 && !allGatewaysOnNodeIPs(s) {
 			errs = append(errs, fmt.Errorf(
 				"kubernetes.dataplane.loadBalancerPool is required with preset %s: "+
 					"Cilium LB-IPAM has nothing to hand the Gateway otherwise (DG-010)",

@@ -5,6 +5,27 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.49.3] - 2026-08-18
+
+### Fixed
+
+- Every example value is gone from the wizard: the placeholder nodes, the proxy
+  at acme.local, the Harbor host, the CA references, the ACME account. An
+  example in an editable field reads as a real value, gets accepted by habit,
+  and produces a document that names machines nobody owns. An empty field is a
+  question, and the validator asks it at the summary if it goes unanswered.
+  What still arrives filled genuinely is known: the server address from the
+  machine itself, the RKE2 version from the channel server, root/22 as the SSH
+  convention, and the axis defaults whose profile match is derived.
+- DG-010 fires only when a gateway will actually request a pool address. With
+  no gateways nothing asks, and demanding a pool anyway made the emptied
+  default flow un-completable -- requiring exactly the segment IPs a first
+  build may not have.
+- The profile-composition test was asserting that fake data validates: it
+  passed on the seeded CA references and the seeded Harbor. It now fills the
+  material the way an operator would, per baseline, which also documents what
+  each baseline genuinely demands.
+
 ## [0.49.2] - 2026-08-18
 
 ### Fixed

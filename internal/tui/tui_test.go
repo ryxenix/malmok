@@ -550,6 +550,38 @@ func TestEveryProfileIsReachableByComposing(t *testing.T) {
 			if got := m.cfg.MatchedProfile(); got != name {
 				t.Errorf("composing the %s baseline matched %s", name, got)
 			}
+
+			// The material an operator types. It used to come from example
+			// seeds -- a Harbor at acme.internal, CA references to files
+			// nobody has -- which meant this test was asserting that fake
+			// data validates. These are the fields each baseline genuinely
+			// demands, filled the way an operator would fill them.
+			if b.PKIMode != v1alpha1.PKINone {
+				m.cfg.Domain = "acme.internal"
+			}
+			if b.PKIMode == v1alpha1.PKIPrivateCA {
+				m.cfg.CARoot = "file://./pki/root.crt"
+				m.cfg.CAIntermediate = "file://./pki/inter.crt"
+				m.cfg.CAKey = "env://CA_KEY"
+			}
+			if b.PKIMode == v1alpha1.PKIACMEDNS01 {
+				m.cfg.ACMEEmail = "ops@acme.co.kr"
+				m.cfg.ACMEProvider = "cloudflare"
+				m.cfg.ACMEToken = "env://ACME_API_TOKEN"
+			}
+			if b.Storage == v1alpha1.StorageNFS {
+				m.cfg.NFSServer, m.cfg.NFSPath = "10.0.0.30", "/export"
+			}
+			if b.NetworkMode == v1alpha1.NetworkProxy {
+				m.cfg.ProxyHTTP = "http://proxy.acme.local:3128"
+			}
+			if b.NetworkMode == v1alpha1.NetworkAirgap {
+				m.cfg.RegistryBundle = "/srv/bundle.tar.zst"
+			}
+			if b.RegistryMode == v1alpha1.RegistryExternal || b.RegistryMode == v1alpha1.RegistryInternal {
+				m.cfg.RegistryHost = "harbor.acme.internal"
+			}
+
 			if problems := m.validateConfig(); len(problems) > 0 {
 				t.Errorf("%s cannot be completed:\n  %s",
 					name, strings.Join(problems, "\n  "))
@@ -602,6 +634,11 @@ func TestScreensAdaptToTheProfile(t *testing.T) {
 // read over somebody's shoulder.
 func TestSecretFieldsAreMaskedUntilEdited(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepRegistry)
+	// The seeds are gone -- an example credential in an editable field reads
+	// as a real one -- so the masking is exercised with a value the operator
+	// would have typed.
+	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
+	m.cfg.RegistryPass = "env://REGISTRY_PASSWORD"
 	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal) // the mode with credentials
 
 	secret := m.masked(StepRegistry)
@@ -670,14 +707,14 @@ func TestProblemsAreRoutedToTheScreenThatFixesThem(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepSummary)
 	m.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
 	m.cfg.RegistryHost = ""
-	m.cfg.LBPool = nil
+	m.cfg.Storage = string(v1alpha1.StorageNFS)
 
 	ps := m.problems()
 	if len(ps) < 2 {
 		t.Fatalf("expected several problems, got %d", len(ps))
 	}
 
-	want := map[Step]string{StepRegistry: "systemDefaultRegistry", StepNetwork: "loadBalancerPool"}
+	want := map[Step]string{StepRegistry: "systemDefaultRegistry", StepOptions: "storage.nfs"}
 	for step, needle := range want {
 		var found bool
 		for _, p := range ps {

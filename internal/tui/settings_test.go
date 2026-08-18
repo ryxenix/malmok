@@ -1467,3 +1467,36 @@ func TestExplanationsMoveToThePaneOnAWideWindow(t *testing.T) {
 		t.Error("a progress screen spends width on an explanation pane")
 	}
 }
+
+// Space flips the version between the channel server's two answers, and the
+// two version strings are just strings -- the value carries its channel's
+// name so the flip is legible. The menu, meanwhile, is the front door: no
+// explanation pane there, however wide the window.
+func TestTheVersionWearsItsChannelAndTheMenuHasNoPane(t *testing.T) {
+	w := wizard(t, LangEN, false, 140, 30, StepNodes)
+	w.channels.Stable, w.channels.Latest = "v1.35.7+rke2r1", "v1.36.3+rke2r1"
+
+	show := func() string {
+		_, body, _ := w.nodesScreen(w.contentWidth())
+		return plain(body)
+	}
+	w.cfg.Version = "v1.35.7+rke2r1"
+	if !strings.Contains(show(), "stable") {
+		t.Error("the stable channel's version is not tagged")
+	}
+	w.cfg.Version = "v1.36.3+rke2r1"
+	if !strings.Contains(show(), "latest") {
+		t.Error("the latest channel's version is not tagged")
+	}
+	// A hand-typed version belongs to no channel; tagging it would label a
+	// guess.
+	w.cfg.Version = "v1.34.5+rke2r1"
+	if s := show(); strings.Contains(s, "stable") || strings.Contains(s, "latest") {
+		t.Error("a hand-typed version was given a channel tag")
+	}
+
+	menu := wizard(t, LangEN, false, 200, 45, StepMenu)
+	if menu.frameInfo() != "" {
+		t.Error("the menu carries an explanation pane")
+	}
+}

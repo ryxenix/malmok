@@ -5,6 +5,20 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.52.1] - 2026-08-18
+
+### Fixed
+
+- The start screen carried the explanation pane on wide windows -- a wordmark,
+  six choices and an explanation column beside them reads as clutter, not
+  help. The menu keeps its inline one-liner under the selected item; the pane
+  belongs to the screens with real fields.
+- The version field's Space toggle flipped between two version strings nobody
+  can tell apart. The value now wears its channel's name -- `v1.35.7+rke2r1
+  · stable` / `v1.36.3+rke2r1 · latest`, the channel server's own words.
+  Display only, never written to the document, and absent on a hand-typed
+  version because that belongs to no channel.
+
 ## [0.52.0] - 2026-08-18
 
 ### Added

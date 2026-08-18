@@ -1186,3 +1186,19 @@ func (w *Wizard) returnToMenu() {
 	w.workErr, w.saved, w.openErr, w.saveErr = nil, "", "", ""
 	w.enter()
 }
+
+// channelTag names the channel a version came from -- "stable" or "latest",
+// the channel server's own words, untranslated like every other upstream
+// identifier. Empty for a hand-typed version: it belongs to no channel, and
+// saying otherwise would be labelling a guess.
+func (w *Wizard) channelTag(version string) string {
+	switch {
+	case version == "":
+		return ""
+	case version == w.channels.Stable:
+		return "stable"
+	case version == w.channels.Latest:
+		return "latest"
+	}
+	return ""
+}

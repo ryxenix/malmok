@@ -980,7 +980,21 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 	// operator and the work. Found live on a box whose docker bridges put
 	// thirty rows above the agent field.
 	if fs := w.fieldsFor(StepNodes); len(fs) > 0 {
-		b.WriteString(w.theme.Fields(w.labels(StepNodes), w.maskedValues(StepNodes),
+		vals := w.maskedValues(StepNodes)
+		// The channel tag: Space flips the version between the channel
+		// server's two answers, and without a word beside the value the two
+		// version strings are just strings -- nobody memorises which one is
+		// stable. Display only, never part of the document, and absent on a
+		// hand-typed version because calling that a channel would be false.
+		for i, f := range fs {
+			if f.labelKey != "nodes.version" || (w.editing && w.fieldIndex() == i) {
+				continue
+			}
+			if tag := w.channelTag(w.cfg.Version); tag != "" {
+				vals[i] += "  " + w.glyphs.Dot + " " + tag
+			}
+		}
+		b.WriteString(w.theme.Fields(w.labels(StepNodes), vals,
 			w.fieldIndex(), w.editing, width, w.glyphs))
 	}
 	if h := w.inlineHint(int(StepNodes), w.fieldIndex()); h != "" {
@@ -1117,7 +1131,10 @@ func (w *Wizard) frameInfo() string {
 		return ""
 	}
 	switch w.step {
-	case StepPreflight, StepInstall, StepUpgrade, StepDone:
+	// The menu is the front door: a wordmark, six choices and an empty
+	// explanation column beside them reads as clutter, not help. The progress
+	// screens have the log tail, and the done screen is its own summary.
+	case StepMenu, StepPreflight, StepInstall, StepUpgrade, StepDone:
 		return ""
 	}
 	return w.infoPane()

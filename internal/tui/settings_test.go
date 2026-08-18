@@ -609,15 +609,15 @@ func TestTheDocumentScreenSaysWhichFlowItIsIn(t *testing.T) {
 	w := wizard(t, LangEN, false, 96, 30, StepOpen)
 
 	w.mode = modeSettings
-	_, settings, _ := w.openScreen(80)
+	settings := w.frameInfo()
 
 	w.mode = modeUpgrade
-	_, upgrade, _ := w.openScreen(80)
+	upgrade := w.frameInfo()
 
 	if settings == upgrade {
 		t.Error("both flows show the same explanation")
 	}
-	// Matched on the unwrapped part: the pane wraps, so a phrase that spans a
+	// Matched on the unwrapped part: the strip wraps, so a phrase that spans a
 	// line break is not a phrase this can look for.
 	if !strings.Contains(upgrade, "read, not") {
 		t.Errorf("the upgrade screen does not say the file is only read:\n%s", upgrade)
@@ -1414,42 +1414,42 @@ func TestTheChromeFillsAndTheContentCentres(t *testing.T) {
 	}
 }
 
-// On a wide window the explanation moves to the pane and out of the column.
+// The explanations live in a strip above the footer.
 //
 // Help text opened every screen and hints trailed every focused field, which
-// spent the content column's vertical rows on prose. The pane holds the
-// screen's help and the focused item's hint; the inline copies disappear,
-// because the same sentence twice on one screen is noise. A narrow window
-// keeps the inline copies and no pane: the pane is a use of spare width, not
-// a requirement.
-func TestExplanationsMoveToThePaneOnAWideWindow(t *testing.T) {
-	wide := wizard(t, LangEN, false, 170, 40, StepOptions)
+// spent the content column's vertical rows on prose. The strip holds the
+// focused item's hint and the screen's help, and the inline copies disappear
+// -- the same sentence twice on one screen is noise. A window below the
+// chrome's minimum keeps the inline copies and no strip.
+func TestExplanationsMoveToTheStrip(t *testing.T) {
+	wide := wizard(t, LangEN, false, 120, 40, StepOptions)
 	if !wide.infoActive() {
-		t.Fatal("a 170-column window affords no pane")
+		t.Fatal("a 120-column window affords no strip")
 	}
 	if info := wide.frameInfo(); !strings.Contains(info, "atomic choice") {
-		t.Errorf("the pane does not carry the screen's help:\n%s", info)
+		t.Errorf("the strip does not carry the screen's help:\n%s", info)
 	}
 	// The inline copy is gone from the column.
 	_, body, _ := wide.optionsScreen(wide.contentWidth())
 	if strings.Contains(plain(body), "atomic choice") {
-		t.Error("the help is both in the pane and in the column")
+		t.Error("the help is both in the strip and in the column")
 	}
 
-	narrow := wizard(t, LangEN, false, 90, 30, StepOptions)
-	if narrow.infoActive() {
-		t.Fatal("a 90-column window claims to afford a pane")
+	tiny := wizard(t, LangEN, false, 60, 24, StepOptions)
+	if tiny.infoActive() {
+		t.Fatal("a 60-column window claims to afford a strip")
 	}
-	if narrow.frameInfo() != "" {
-		t.Error("a narrow window filled a pane it cannot draw")
+	if tiny.frameInfo() != "" {
+		t.Error("a tiny window filled a strip it cannot draw")
 	}
-	_, body, _ = narrow.optionsScreen(narrow.contentWidth())
+	_, body, _ = tiny.optionsScreen(tiny.contentWidth())
 	if !strings.Contains(plain(body), "atomic choice") {
-		t.Error("a narrow window lost the help entirely")
+		t.Error("a tiny window lost the help entirely")
 	}
 
-	// The focused field's hint rides along.
-	nodes := wizard(t, LangEN, false, 170, 40, StepNodes)
+	// The focused field's hint leads the strip: "what goes here" is the
+	// pressing question.
+	nodes := wizard(t, LangEN, false, 120, 40, StepNodes)
 	nodes.setLocal(false)
 	nodes.cfg.Server = "10.0.0.11"
 	for i, f := range nodes.fieldsFor(StepNodes) {
@@ -1458,13 +1458,13 @@ func TestExplanationsMoveToThePaneOnAWideWindow(t *testing.T) {
 		}
 	}
 	if info := nodes.frameInfo(); !strings.Contains(info, "VIP or DNS") {
-		t.Errorf("the pane does not carry the focused field's hint:\n%s", info)
+		t.Errorf("the strip does not carry the focused field's hint:\n%s", info)
 	}
 
-	// The progress screens keep the full pane for the log tail.
-	run := wizard(t, LangEN, false, 170, 40, StepInstall)
+	// The progress screens keep every row for the log tail.
+	run := wizard(t, LangEN, false, 120, 40, StepInstall)
 	if run.frameInfo() != "" {
-		t.Error("a progress screen spends width on an explanation pane")
+		t.Error("a progress screen spends rows on an explanation strip")
 	}
 }
 

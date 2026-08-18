@@ -5,6 +5,19 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.53.0] - 2026-08-18
+
+### Changed
+
+- The explanations moved from the right-hand pane to a strip above the
+  footer. The side pane read as clutter -- a second body competing with the
+  first. The strip is a fixed place the eye learns once, full width so two
+  lines hold what the pane needed a column for, and outside the content pane
+  so the controls keep their rows. The focused field's hint leads, the
+  screen's help follows; windows below the chrome's minimum keep the old
+  inline layout, and the progress screens still keep every row for the log
+  tail.
+
 ## [0.52.1] - 2026-08-18
 
 ### Fixed

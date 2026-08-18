@@ -2,44 +2,53 @@ package tui
 
 import "strings"
 
-// The explanation pane.
+// The explanation strip.
 //
 // Help text used to open every screen and hints trailed every focused field,
-// which spent the content column's vertical rows on prose. On a window wide
-// enough to afford it, all of that moves to a fixed column on the right --
-// the screen's help, the focused item's hint, the notes -- and the content
-// keeps its rows for the controls. On a narrow window the same text stays
-// inline, exactly where it was: the pane is a use of spare width, not a
-// requirement.
+// which spent the content column's vertical rows on prose. All of that now
+// lives in a strip above the footer: a fixed place the eye learns once, full
+// width so two lines hold what a side pane needed a column for. (The side
+// pane was tried and read as clutter -- a second body competing with the
+// first.) On a window too narrow for the chrome the same text stays inline,
+// exactly where it was.
 
-// infoActive reports whether the current window carries the pane.
-//
-// Computed the way the chrome computes it, so the wizard and the renderer
-// cannot disagree about whether the inline copy should be shown.
+// stripWrap caps the strip's line length. Full-bleed prose at 170 cells is a
+// line the eye loses on the way back; the cap is the same judgement as
+// maxContentW, a little wider because the strip is one thought, not a form.
+const stripWrap = 108
+
+// stripLines caps the strip's height so a wordy screen cannot push the
+// content off the window. Three lines at stripWrap hold every current text.
+const stripLines = 3
+
+// infoActive reports whether the strip is drawn. One condition, shared with
+// nothing: below the chrome's own minimum the window is in survival mode and
+// the text stays inline.
 func (w *Wizard) infoActive() bool {
-	paneW := w.width - gutter*2
-	if len(w.rail()) > 0 && !w.hideRail && w.width >= minChromeW {
-		paneW = w.width - railWidth - 3 - gutter
-	}
-	return paneW >= maxContentW+infoW+3
+	return w.width >= minChromeW
 }
 
-// infoPane renders the explanation for the current screen, or nothing for the
-// screens that have none.
+// infoPane renders the strip: the focused item's hint first -- "what goes
+// here" is the pressing question -- then the screen's help and its notes,
+// joined into one flowing text.
 func (w *Wizard) infoPane() string {
 	paras := w.infoParas()
 	if len(paras) == 0 {
 		return ""
 	}
 
-	wrap := infoW - 2
+	sep := " " + w.glyphs.Dot + " "
+	wrap := min(w.width-4, stripWrap)
+	text := wrapCells(strings.Join(paras, sep), wrap)
+	if ls := strings.Split(text, "\n"); len(ls) > stripLines {
+		text = strings.Join(ls[:stripLines], "\n")
+	}
 	var b strings.Builder
-	b.WriteString(w.theme.Section(w.cat.T("info.title"), infoW-1, w.glyphs) + "\n\n")
-	for i, p := range paras {
+	for i, line := range strings.Split(text, "\n") {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString(w.dim(wrapCells(p, wrap), wrap) + "\n")
+		b.WriteString(" " + w.dim(line, wrap))
 	}
 	return b.String()
 }
@@ -51,6 +60,14 @@ func (w *Wizard) infoParas() []string {
 	add := func(s string) {
 		if strings.TrimSpace(s) != "" {
 			out = append(out, s)
+		}
+	}
+
+	// The focused field's own hint leads: on a strip read left to right,
+	// "what goes here" comes before "what this screen is".
+	if w.cursorIsField() {
+		if h := w.fieldHint(int(w.step), w.fieldIndex()); h != "" {
+			add(h)
 		}
 	}
 
@@ -101,12 +118,5 @@ func (w *Wizard) infoParas() []string {
 		return nil
 	}
 
-	// The focused field's own hint, under the screen's text: what the pane is
-	// for is answering "what goes here" without costing the form a row.
-	if w.cursorIsField() {
-		if h := w.fieldHint(int(w.step), w.fieldIndex()); h != "" {
-			add(h)
-		}
-	}
 	return out
 }

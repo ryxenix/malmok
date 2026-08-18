@@ -227,6 +227,13 @@ type NodeSpec struct {
 
 	// GPU marks the node for device-plugin / RuntimeClass installation.
 	GPU *GPUSpec `yaml:"gpu,omitempty" json:"gpu,omitempty"`
+
+	// Annotations are opaque, like Metadata.Annotations: a caller that knows
+	// this node by another name (a Proxmox VMID, an asset tag) writes it here
+	// and reads it back out of the handoff. Nothing in the engine interprets
+	// them -- an interpreted field would be schema, and external identifiers
+	// do not deserve schema.
+	Annotations map[string]string `yaml:"annotations,omitempty" json:"annotations,omitempty"`
 }
 
 type GPUSpec struct {

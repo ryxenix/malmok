@@ -83,6 +83,12 @@ var preflightCodes = []Code{
 		Message:  "Nodes report differing CPU architectures; images must exist for every one of them",
 		Severity: SeverityWarn,
 	},
+	{
+		ID: "PF-109", Family: FamilyPreflight, Category: catBase,
+		Summary:  "Machine UUID",
+		Message:  "Machine UUID recorded for the handoff; it is the node's durable identity across reinstalls",
+		Severity: SeverityInfo,
+	},
 
 	// --- PF-2xx · eBPF / dataplane capability ----------------------------
 	{

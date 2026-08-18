@@ -40,6 +40,7 @@ type buildFlags struct {
 	timeout time.Duration
 	quiet   bool
 	verbose bool
+	output  string
 
 	screen *tuiFlags
 }
@@ -181,6 +182,14 @@ func runBuild(cmd *cobra.Command, f buildFlags) error {
 	<-done
 
 	if runErr != nil {
+		// The artifacts are written for the failure too. An inventory needs
+		// "this run failed" at least as much as a success, and the handoff's
+		// run.result carries exactly that; suppressing the report because the
+		// build stopped would leave the machine-readable record only for runs
+		// nobody has questions about.
+		if _, err := writeArtifacts(runDir, f.output); err != nil {
+			fmt.Fprintf(out, "the run failed and its artifacts could not be written either: %v\n", err)
+		}
 		return runErr
 	}
 
@@ -207,7 +216,7 @@ func runBuild(cmd *cobra.Command, f buildFlags) error {
 	// Built from the run directory rather than from the cluster: what a customer
 	// receives has to be the record of what happened, not a view of what is
 	// true at the moment somebody asks.
-	artifacts, err := writeArtifacts(runDir)
+	artifacts, err := writeArtifacts(runDir, f.output)
 	if err != nil {
 		return err
 	}
@@ -219,13 +228,30 @@ func runBuild(cmd *cobra.Command, f buildFlags) error {
 	return nil
 }
 
-// writeArtifacts produces the audit report and the DNS record sheet.
-func writeArtifacts(runDir string) ([]string, error) {
+// writeArtifacts produces the audit report, the DNS record sheet and the
+// machine-readable handoff. When output names a path, the handoff is copied
+// there additionally -- the run directory stays the single source of truth,
+// and the copy is a convenience for the caller that wants it at a known place.
+func writeArtifacts(runDir, output string) ([]string, error) {
 	run, err := report.Load(runDir)
 	if err != nil {
 		return nil, err
 	}
-	return report.Write(run)
+	written, err := report.Write(run)
+	if err != nil {
+		return nil, err
+	}
+	if output != "" {
+		body, err := os.ReadFile(filepath.Join(runDir, report.ArtifactsDir, report.HandoffFile))
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(output, body, 0o644); err != nil {
+			return nil, fmt.Errorf("write the handoff to %s: %w", output, err)
+		}
+		written = append(written, output)
+	}
+	return written, nil
 }
 
 // preflightRun measures every node using the connections the build already

@@ -319,7 +319,7 @@ func TestNoRecordsWithoutAPinnedAddress(t *testing.T) {
 // Artifacts
 // ---------------------------------------------------------------------------
 
-func TestWriteProducesBothArtifacts(t *testing.T) {
+func TestWriteProducesEveryArtifact(t *testing.T) {
 	dir := writeRun(t, testSpec(), []event.Event{
 		probe("PF-101", "10.10.0.11", event.StatusOK, "Ubuntu"),
 	}, nil)
@@ -328,7 +328,8 @@ func TestWriteProducesBothArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(written) != 2 {
+	// The report, the DNS sheet and the machine-readable handoff.
+	if len(written) != 3 {
 		t.Fatalf("wrote %v", written)
 	}
 	for _, p := range written {

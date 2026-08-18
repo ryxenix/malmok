@@ -131,6 +131,11 @@ type Facts struct {
 	// PF-606 needs them: an address a node is already carrying is this
 	// cluster's own rather than somebody else's.
 	Addresses []string
+	// MachineUUID is the DMI product UUID -- on a Proxmox VM it is the
+	// smbios1.uuid the hypervisor stamped in, which makes it the one
+	// identifier that survives reinstalls and renames. The handoff carries
+	// it so an inventory tool can bind node to VM without guessing.
+	MachineUUID string
 }
 
 // Collect gathers the identity every other probe and the plan generator need.
@@ -150,6 +155,10 @@ func (n *Node) Collect(ctx context.Context) Facts {
 	f.Arch = n.run(ctx, "uname -m").Out()
 	f.Hostname = n.run(ctx, "hostname").Out()
 	f.FQDN = n.run(ctx, "hostname -f 2>/dev/null || hostname").Out()
+	// Root-only file, which the elevated runner can read. Lower-cased because
+	// DMI reports it upper-case and Proxmox configures it lower-case, and the
+	// consumer matches them byte for byte.
+	f.MachineUUID = strings.ToLower(n.run(ctx, "cat /sys/class/dmi/id/product_uuid 2>/dev/null").Out())
 
 	if r := n.run(ctx, "nproc"); r.OK() {
 		f.CPUs, _ = strconv.Atoi(r.Out())
@@ -229,6 +238,18 @@ func (n *Node) CheckKernel(f Facts) ProbeResult {
 		return unmeasured("PF-103", "uname -r returned nothing")
 	}
 	return passf("PF-103", "kernel %s; what it can actually do is measured by PF-201 through PF-204", f.Kernel)
+}
+
+// CheckMachineUUID implements PF-109.
+//
+// Recorded rather than judged, like PF-103: there is no wrong UUID, only a
+// missing one -- a container or an exotic board without DMI. Missing is a
+// skip, because a node without the file has not been shown to be broken.
+func (n *Node) CheckMachineUUID(f Facts) ProbeResult {
+	if f.MachineUUID == "" {
+		return unmeasured("PF-109", "/sys/class/dmi/id/product_uuid could not be read")
+	}
+	return passf("PF-109", "%s", f.MachineUUID)
 }
 
 // CheckCgroup implements PF-104.

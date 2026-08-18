@@ -29,10 +29,11 @@ import (
 // ArtifactsDir is where a run keeps what it produced (docs/11-execute.md §1.1).
 const ArtifactsDir = "artifacts"
 
-// FileNames of the two artifacts this phase writes.
+// FileNames of the artifacts this phase writes.
 const (
 	AuditReportFile = "audit-report.md"
 	DNSRecordFile   = "dns-records.md"
+	HandoffFile     = "handoff.json"
 	PlanFile        = "plan.json"
 )
 
@@ -128,6 +129,14 @@ func Write(r *Run) ([]string, error) {
 		}
 		written = append(written, p)
 	}
+	// The handoff is the third artifact and the only one a machine reads.
+	// Written unconditionally: a failed run's handoff says the run failed,
+	// which an inventory needs to hear at least as much as a success.
+	p, err := WriteHandoff(r)
+	if err != nil {
+		return nil, err
+	}
+	written = append(written, p)
 	sort.Strings(written)
 	return written, nil
 }

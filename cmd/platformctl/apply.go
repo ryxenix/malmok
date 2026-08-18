@@ -36,6 +36,7 @@ func newApplyCmd() *cobra.Command {
 		resume   string
 		quiet    bool
 		verbose  bool
+		output   string
 		screen   tuiFlags
 
 		allowLiteral bool
@@ -54,7 +55,7 @@ starting over. See docs/11-execute.md.`,
   platformctl apply --demo
 
   # simulated run that fails, to look at the failure path
-  platformctl apply --demo --fail-at l1-bootstrap/rke2-server-ready
+  platformctl apply --demo --fail-at rke2-server-ready
 
   # resume an interrupted run
   platformctl apply --demo --resume 01JBQ8F2K3M5N7P9R1S3T5V7W9`,
@@ -65,7 +66,7 @@ starting over. See docs/11-execute.md.`,
 					specFile: specFile, bundle: bundle, resume: resume, recheck: recheck,
 					allowLiteral: allowLiteral, insecureHost: insecureHost,
 					timeout: timeout, quiet: quiet, verbose: verbose,
-					approve: approve, screen: &screen,
+					approve: approve, output: output, screen: &screen,
 				})
 			}
 			if !isDemo && !screen.enabled {
@@ -150,7 +151,13 @@ starting over. See docs/11-execute.md.`,
 						return sess.Install(c, cfg.ToSpec(), cfg.SSHPassword,
 							events.Writer, runDir, st, recheck)
 					}
-					return runner.Run(c, phases[1:])
+					if err := runner.Run(c, phases[1:]); err != nil {
+						return err
+					}
+					// Same artifacts as the real path, which writes them
+					// inside sess.Install.
+					_, err := writeArtifacts(runDir, output)
+					return err
 				}
 				// The upgrade reads the document the operator chose on screen
 				// rather than the one this command was given: an upgrade is a
@@ -207,12 +214,21 @@ starting over. See docs/11-execute.md.`,
 			runErr := runner.Run(ctx, phases)
 			<-done
 
+			// A simulated run leaves the same artifacts a real one does --
+			// including a schema-valid handoff whose spec annotation says no
+			// node was touched -- so a consumer can be developed against
+			// --demo output and believe what it reads.
+			if _, err := writeArtifacts(runDir, output); err != nil && runErr == nil {
+				return err
+			}
 			return runErr
 		},
 	}
 
 	fl := cmd.Flags()
 	fl.StringVarP(&specFile, "file", "f", "", "cluster.yaml to apply")
+	fl.StringVar(&output, "output", "",
+		"also write the machine-readable handoff to this path (artifacts/handoff.json is always written)")
 	fl.StringVar(&bundle, "bundle", "./out", "bundle path; runs are written under <bundle>/runs/")
 	fl.BoolVar(&isDemo, "demo", false, "simulate a run without contacting any node")
 	fl.Float64Var(&speed, "speed", 1, "scale simulated delays; higher is faster")

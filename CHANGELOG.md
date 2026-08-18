@@ -5,6 +5,74 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.52.0] - 2026-08-18
+
+### Added
+
+- The machine-readable handoff: every run now writes `artifacts/handoff.json`
+  (schema `platform.ryxen.dev/handoff/v1alpha1`) naming the cluster, its
+  nodes, the run's verdict, the kubeconfig's location and the dataplane that
+  actually carries traffic -- so an inventory tool can bind what was built to
+  the machines it runs on without parsing markdown. Written for failed runs
+  too, with `run.result: "failed"`: an inventory needs the failure at least
+  as much as the success. Nothing secret leaves through it (pinned by test),
+  and nothing unmeasured is invented -- absent is absent.
+- `apply --output <path>` additionally copies the handoff to a path of the
+  caller's choosing; the run directory stays the single source of truth.
+- PF-109 (info): the DMI product UUID, measured once per node during
+  preflight. On a VM it is the identity the hypervisor stamped in
+  (Proxmox `smbios1.uuid`), which makes it the durable fingerprint that
+  survives reinstalls; the handoff carries it per node.
+- `NodeSpec.Annotations`: an opaque map, like `Metadata.Annotations`, for a
+  caller that knows the machine by another name (a Proxmox VMID, an asset
+  tag). Passed through to the handoff untouched; nothing interprets it.
+
+### Fixed
+
+- A failed build now still writes its artifacts. Both the headless and the
+  wizard path returned before `report.Write`, so the runs with questions to
+  answer were exactly the ones without an audit report.
+- Simulated runs (`--demo`) now leave the same artifacts a real run does,
+  headless and wizard alike, so a consumer can be developed against `--demo`
+  output.
+
+## [0.52.0] - 2026-08-18
+
+### Added
+
+- The machine-readable handoff: every run writes `artifacts/handoff.json`
+  (schema `platform.ryxen.dev/handoff/v1alpha1`), the document an inventory
+  tool reads to learn what cluster now exists, on which machines, built by
+  which run -- without parsing markdown. `apply --output <path>` copies it to
+  a caller-chosen path additionally; the run directory stays the single
+  source of truth. Nothing secret is in it (no passwords, no resolved
+  SourceRefs, no kubeconfig contents -- the kubeconfig is named by server
+  and path only), and nothing is invented: what was not measured is omitted.
+- PF-109 measures each node's DMI product UUID
+  (`/sys/class/dmi/id/product_uuid`) -- on a Proxmox VM, the `smbios1.uuid`
+  the hypervisor stamped in, which makes it the one identifier that binds a
+  node to the VM an inventory knows, across reinstalls and renames.
+  Lower-cased on collection; recorded, not judged; a machine without DMI
+  skips rather than fails and the handoff omits the field.
+- `NodeSpec.Annotations`: an opaque map like `Metadata.Annotations`. A
+  caller that knows a node by another name (a Proxmox VMID, an asset tag)
+  writes it into the document and reads it back out of the handoff; nothing
+  in the engine interprets it.
+
+### Changed
+
+- Artifacts are now written for failed runs too, on every path (headless,
+  TUI, `--demo`): the handoff's `run.result` -- succeeded / failed /
+  incomplete -- is how the next tool hears that a build stopped, and
+  suppressing the record because the build failed left the machine-readable
+  trail only for runs nobody has questions about.
+
+### Fixed
+
+- The `--fail-at` example in `apply --help` named a step id format
+  (`l1-bootstrap/rke2-server-ready`) that validation rejects; step ids are
+  bare (`rke2-server-ready`).
+
 ## [0.51.1] - 2026-08-18
 
 ### Fixed

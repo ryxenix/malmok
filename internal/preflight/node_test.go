@@ -29,6 +29,7 @@ ID=ubuntu
 ID_LIKE=debian
 `},
 		"uname -r":                              {Stdout: "6.8.0-107-generic\n"},
+		"product_uuid":                          {Stdout: "9E107D9D-372B-4A6E-B2F8-4C6E1B2F8C6E\n"},
 		"uname -m":                              {Stdout: "x86_64\n"},
 		"hostname":                              {Stdout: "rke2-server-03\n"},
 		"nproc":                                 {Stdout: "16\n"},
@@ -497,4 +498,33 @@ func TestPortMatrixDistinguishesRefusedFromDropped(t *testing.T) {
 			t.Errorf("PF-601 is %s, want skip", got.Status)
 		}
 	})
+}
+
+// PF-109 records the DMI product UUID -- the identity a hypervisor stamps
+// into a VM, and the one field the handoff has for binding a node to the
+// machine an inventory tool knows. Lower-cased on collection, because DMI
+// reports upper-case, Proxmox configures lower-case, and the consumer
+// compares byte for byte.
+func TestMachineUUIDIsRecordedLowerCase(t *testing.T) {
+	n, _ := ubuntuProber(t, nil)
+	f := n.Collect(t.Context())
+	r := n.CheckMachineUUID(f)
+	if r.Status != StatusPass {
+		t.Fatalf("PF-109 on a machine with DMI: %+v", r)
+	}
+	if want := "9e107d9d-372b-4a6e-b2f8-4c6e1b2f8c6e"; r.Detail != want {
+		t.Errorf("detail = %q, want the lower-cased UUID %q", r.Detail, want)
+	}
+}
+
+// A machine without the file -- a container, an exotic board -- has not been
+// shown to be broken; PF-109 skips rather than fails, and the handoff simply
+// omits the field.
+func TestMachineUUIDMissingIsASkipNotAFailure(t *testing.T) {
+	n, _ := ubuntuProber(t, map[string]exec.Result{"product_uuid": {ExitCode: 1}})
+	f := n.Collect(t.Context())
+	r := n.CheckMachineUUID(f)
+	if r.Status != StatusSkip {
+		t.Fatalf("PF-109 without DMI should skip, got %+v", r)
+	}
 }

@@ -14,14 +14,14 @@ outlive releases.
 
 | Family | Codes | block | degrade | warn | info |
 |---|--:|--:|--:|--:|--:|
-| `PF` | 67 | 35 | 11 | 18 | 3 |
+| `PF` | 68 | 35 | 11 | 18 | 4 |
 | `PV` | 8 | 4 | — | 3 | 1 |
 | `UP` | 8 | 6 | — | 1 | 1 |
 | `EX` | 9 | 8 | — | 1 | — |
 | `MC` | 42 | — | — | — | — |
 | `DG` | 5 | — | — | — | — |
 
-Total: 139 codes.
+Total: 140 codes.
 
 ---
 
@@ -41,6 +41,7 @@ Source: docs/10-preflight-plan.md, docs/20-cert.md §4
 | `PF-106` | block | systemd version is 245 or newer | systemd is older than the required version 245 |
 | `PF-107` | warn | CPU and memory meet the minimum | Node is below the recommended minimum of 2 cores and 4 GB of memory |
 | `PF-108` | warn | Node architectures are homogeneous | Nodes report differing CPU architectures; images must exist for every one of them |
+| `PF-109` | info | Machine UUID | Machine UUID recorded for the handoff; it is the node's durable identity across reinstalls |
 
 ### eBPF / dataplane capability
 

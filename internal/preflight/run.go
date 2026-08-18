@@ -34,6 +34,7 @@ func (n *Node) Probe(ctx context.Context) NodeCapability {
 		n.CheckOS(f),
 		n.CheckArch(f),
 		n.CheckKernel(f),
+		n.CheckMachineUUID(f),
 		n.CheckCgroup(ctx),
 		n.CheckSwap(ctx),
 		n.CheckSystemd(ctx),

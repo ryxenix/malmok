@@ -199,17 +199,17 @@ func (s *Session) Install(ctx context.Context, spec v1alpha1.ClusterSpec,
 		StatePath: state.Path(runDir),
 		Resume:    state.Options{Recheck: recheck},
 	}
-	if err := runner.Run(ctx, phases); err != nil {
-		return err
-	}
+	runErr := runner.Run(ctx, phases)
 
 	// The artifacts are the point of having a run directory. Produced here
 	// rather than by the operator afterwards, because the one time somebody is
-	// certain to have them is when the build just finished.
-	if _, err := report.Write(mustLoadRun(runDir)); err != nil {
+	// certain to have them is when the build just finished -- and produced for
+	// a failed run too, because the handoff's run.result is how the next tool
+	// hears that the build stopped.
+	if _, err := report.Write(mustLoadRun(runDir)); err != nil && runErr == nil {
 		return err
 	}
-	return nil
+	return runErr
 }
 
 // downgradeAllowed applies the document's own policy.

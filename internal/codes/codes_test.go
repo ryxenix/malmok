@@ -24,7 +24,7 @@ func TestRegistryValid(t *testing.T) {
 func TestPreflightInventory(t *testing.T) {
 	want := []string{
 		// base
-		"PF-101", "PF-102", "PF-103", "PF-104", "PF-105", "PF-106", "PF-107", "PF-108",
+		"PF-101", "PF-102", "PF-103", "PF-104", "PF-105", "PF-106", "PF-107", "PF-108", "PF-109",
 		// eBPF / dataplane
 		"PF-201", "PF-202", "PF-203", "PF-204", "PF-205", "PF-206", "PF-207", "PF-208", "PF-209",
 		// security
@@ -118,9 +118,10 @@ func TestOtherInventories(t *testing.T) {
 
 // TestTotalInventory pins the overall count. The collection pass over the three
 // design documents found 121 defined codes; PF-908 was referenced without a
-// definition and became PF-612, and the EX family added 9 for the phase runner.
+// definition and became PF-612, the EX family added 9 for the phase runner,
+// and PF-109 (machine UUID) arrived with the handoff.
 func TestTotalInventory(t *testing.T) {
-	const want = 139
+	const want = 140
 	if got := len(All()); got != want {
 		t.Errorf("registry holds %d codes, want %d", got, want)
 	}

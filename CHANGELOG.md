@@ -5,6 +5,16 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.53.1] - 2026-08-19
+
+### Changed
+
+- The content column hugs the left of its pane, the way the Ubuntu
+  installer's does, instead of floating in the middle of a wide window --
+  where it read as small and far away. The column keeps its width cap and
+  its vertical centring; what changed is where reading starts. (The glyph
+  size itself is the terminal's font setting, which no TUI can change.)
+
 ## [0.53.0] - 2026-08-18
 
 ### Changed

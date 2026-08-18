@@ -246,18 +246,18 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	b.WriteString("\n")
 
 	// The chrome fills the terminal -- header, rules, rail and footer go edge
-	// to edge, the way every full-screen tool's do. What is centred is the
-	// content: the column is capped at maxContentW because a form is not a
-	// table, and the capped column sits in the middle of its pane rather than
-	// hugging the left of a wide one. Both, not either: a shrunken floating
-	// frame reads as a dialog somebody forgot to maximise.
+	// to edge, the way every full-screen tool's do. The content column hugs
+	// the left of its pane, the way the Ubuntu installer's does: reading
+	// starts where the eye starts, and a column floating in the middle of a
+	// wide window reads as small and far away. It is still capped at
+	// maxContentW, because a form is not a table and brackets that stretch to
+	// 160 cells put the value a head-turn from its label.
 	showRail := w >= minChromeW && len(f.Rail) > 0 && !f.HideRail
 	paneW := w - gutter*2
 	if showRail {
 		paneW = w - railWidth - 3 - gutter
 	}
 	contentW := min(paneW, maxContentW)
-	contentOff := strings.Repeat(" ", max((paneW-contentW)/2, 0))
 
 	body := t.content(f, contentW, g)
 	footer := t.footer(f, w, g)
@@ -287,11 +287,11 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 		for i := range bodyLines {
 			left := padCells(rail[i], railWidth)
 			b.WriteString(t.Rail.Render(" "+left) + t.Divider.Render(g.VRule) + " " +
-				contentOff + bodyLines[i] + "\n")
+				bodyLines[i] + "\n")
 		}
 	} else {
 		for i := range bodyLines {
-			b.WriteString("  " + contentOff + bodyLines[i] + "\n")
+			b.WriteString("  " + bodyLines[i] + "\n")
 		}
 	}
 	b.WriteString(strip)

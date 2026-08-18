@@ -1360,14 +1360,14 @@ func TestTheVersionFieldFlipsBetweenChannels(t *testing.T) {
 	}
 }
 
-// The chrome fills the terminal; the content is centred within it.
+// The chrome fills the terminal; the content hugs the left of its pane.
 //
-// Both, not either: a shrunken floating frame reads as a dialog somebody
-// forgot to maximise, and a full-bleed pane with a left-hugging column wastes
-// a wide window on emptiness. The header and footer go edge to edge, the
-// capped content column sits in the middle of its pane, and a menu on a
-// 70-row window sits in the middle of that too.
-func TestTheChromeFillsAndTheContentCentres(t *testing.T) {
+// The header and footer go edge to edge, and the capped content column
+// starts where the eye starts -- the way the Ubuntu installer lays out --
+// rather than floating in the middle of a wide window, where it reads as
+// small and far away. Vertically the content is still centred: a menu on a
+// 70-row window belongs in the middle of it.
+func TestTheChromeFillsAndTheContentHugsLeft(t *testing.T) {
 	w := wizard(t, LangEN, false, 180, 70, StepMenu)
 	lines := strings.Split(w.View().Content, "\n")
 
@@ -1380,13 +1380,14 @@ func TestTheChromeFillsAndTheContentCentres(t *testing.T) {
 		t.Error("the first row is empty; the chrome does not fill the window")
 	}
 
-	// The wordmark is centred in the window, not hugging the left.
+	// The content column starts at the pane's left edge: the wordmark sits
+	// within the first half of a 180-cell window, not floated to its middle.
 	for _, l := range lines {
 		if !strings.Contains(l, "██") {
 			continue
 		}
-		if indent := len(plain(l)) - len(strings.TrimLeft(plain(l), " ")); indent < 40 {
-			t.Errorf("the wordmark starts at column %d of 180", indent)
+		if indent := len(plain(l)) - len(strings.TrimLeft(plain(l), " ")); indent > 60 {
+			t.Errorf("the wordmark starts at column %d of 180; the column is centred, not left", indent)
 		}
 		break
 	}

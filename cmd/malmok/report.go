@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/platformctl/internal/report"
+	"platform.ryxen.dev/malmok/internal/report"
 )
 
 func newReportCmd() *cobra.Command {
@@ -29,9 +29,9 @@ Nothing is read from the cluster. A report generated from live state would say
 something different every time it ran, and what a customer receives has to be
 the record of what happened -- which is also why it can be produced again from
 an old run, on a machine that never touched the cluster.`,
-		Example: `  platformctl report
-  platformctl report --run 01JBQ8F2K3M5N7P9R1S3T5V7W9
-  platformctl report --stdout | less`,
+		Example: `  malmok report
+  malmok report --run 01JBQ8F2K3M5N7P9R1S3T5V7W9
+  malmok report --stdout | less`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := findRun(bundle, runID)

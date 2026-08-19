@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/plan"
-	"platform.ryxen.dev/platformctl/internal/spec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/plan"
+	"platform.ryxen.dev/malmok/internal/spec"
 )
 
 func testSpec() v1alpha1.ClusterSpec {

@@ -1,9 +1,22 @@
 # Changelog
 
-All notable changes to platformctl are recorded here.
+All notable changes to malmok are recorded here.
 
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
+
+## [0.55.0] - 2026-08-19
+
+### Changed
+
+- The product's working name is the name: `platformctl` is now `malmok`
+  everywhere -- the binary (`bin/malmok`), the CLI command, the Go module
+  (`platform.ryxen.dev/malmok`), the docs and every message that says its
+  own name. The display name stays Malmok. Schema identifiers
+  (`platform.ryxen.dev/v1alpha1`, the handoff's
+  `platform.ryxen.dev/handoff/v1alpha1`) are domain-based and unchanged, so
+  documents and handoff consumers keep working. Preferences move to
+  `~/.config/malmok/`; a prefs.yaml under the old name is not migrated.
 
 ## [0.54.0] - 2026-08-19
 
@@ -356,8 +369,8 @@ plain characters, sixteen colours get no gradients.
 - The product has a working name: **Malmok (말목)** -- a stake driven into the
   ground, which is what this tool does to a cluster. The TUI title bar, README
   and CLAUDE.md carry it. The CLI, the binary and the module path stay
-  `platformctl`: a rename there touches every import and every document that
-  says `platformctl apply`, and a working title is not the moment for that.
+  `malmok`: a rename there touches every import and every document that
+  says `malmok apply`, and a working title is not the moment for that.
 
 ## [0.48.2] - 2026-08-16
 
@@ -688,7 +701,7 @@ A pass over every Korean screen, not only the new ones.
   then elevates; locally it only elevates, and it is still needed, because an
   account that cannot elevate answers "no" to every privileged question
   (`v0.42.0`). It is labelled `sudo password` there, and the hint says to leave
-  it empty when platformctl is already running as root.
+  it empty when malmok is already running as root.
 - The topology panel marks the node that is this machine. Which address the
   operator is sitting at is the one thing a diagram of addresses cannot show,
   and it decides whether a connection is opened at all.
@@ -701,7 +714,7 @@ A pass over every Korean screen, not only the new ones.
 
 ### Added
 
-- A node can be the machine platformctl is running on. This is the ordinary
+- A node can be the machine malmok is running on. This is the ordinary
   case, not the special one: an installer is normally run on the machine being
   installed, and reaching another machine over SSH is the addition. Until now
   installing onto the host you were sitting at needed an sshd, an account and a
@@ -716,7 +729,7 @@ A pass over every Korean screen, not only the new ones.
   named by the VIP it will carry once the cluster is up. False where it is: a
   tool running in a container with host networking sees the host's addresses and
   is not the host, and the address alone cannot tell the two apart.
-- `sudo platformctl` needs no second sudo. The local runner reports that it is
+- `sudo malmok` needs no second sudo. The local runner reports that it is
   already root and the elevation wrapper leaves it alone, which matters on an
   image that has no sudo binary and an account in no sudoers file.
 - `examples/cluster-local.yaml`.
@@ -744,7 +757,7 @@ A pass over every Korean screen, not only the new ones.
 
 ### Added
 
-- `platformctl upgrade --to <version>`, and the start menu's Upgrade entry that
+- `malmok upgrade --to <version>`, and the start menu's Upgrade entry that
   drives it. Servers first, then agents, one node at a time: a kubelet must
   never lead its API server, and a control plane that restarts two members at
   once is a restore rather than a retry.
@@ -945,7 +958,7 @@ that was not the thing that had to be true.
   attempts at a ten-minute wait took thirty minutes to say what was wrong.
 - The Helm release name is the upstream one. RKE2 uses the resource name as the
   release name and it prefixes every object the chart creates, so a
-  `platformctl-` prefix produced deployments whose names appear in no
+  `malmok-` prefix produced deployments whose names appear in no
   cert-manager runbook. It also cannot be changed afterwards: Helm stamps the
   release onto cluster-scoped CRDs, and a rename leaves them owned by a release
   that no longer exists -- deleting the namespace does not help, because the
@@ -1001,7 +1014,7 @@ that was not the thing that had to be true.
 
 ### Removed
 
-- `cmd/platformctl/apply_preflight.go`. Both of its functions were superseded:
+- `cmd/malmok/apply_preflight.go`. Both of its functions were superseded:
   `apply -f` runs the whole pipeline, and the wizard no longer stops before
   installing.
 
@@ -1029,7 +1042,7 @@ that was not the thing that had to be true.
 
 ### Changed
 
-- The title bar says `platformctl` rather than `platformctl installer`, which
+- The title bar says `malmok` rather than `malmok installer`, which
   stopped being true the moment the menu offered anything else. The rail, the
   step counter and the rail toggle appear only inside the install flow --
   numbering the menu would make arriving at the tool look like step one of a
@@ -1050,7 +1063,7 @@ that was not the thing that had to be true.
 
 ### Added
 
-- `internal/report` and `platformctl report`: the audit report of
+- `internal/report` and `malmok report`: the audit report of
   `docs/00-architecture.md` §7 and the DNS record sheet, written into the run's
   `artifacts/` directory and produced automatically at the end of `apply`.
 - Built from the run directory and nothing else. A report generated from live
@@ -1086,7 +1099,7 @@ that was not the thing that had to be true.
 
 ### Added
 
-- `platformctl apply -f cluster.yaml` builds a cluster. Every phase existed and
+- `malmok apply -f cluster.yaml` builds a cluster. Every phase existed and
   none was reachable from the command line; a document now runs measure →
   decide → build → verify end to end. Confirmed against the live two-node
   cluster: 107 checks, five phases, every step satisfied on a re-run.
@@ -1428,7 +1441,7 @@ the checks, fixed by the phase, and confirmed gone by re-measuring.
 
 ### Added
 
-- `platformctl preflight -f cluster.yaml` runs every check the document calls
+- `malmok preflight -f cluster.yaml` runs every check the document calls
   for and prints only what needs attention, or everything with `-v`. Measured
   against a live Ubuntu 24.04 node: 64 checks in under five seconds.
 - `preflight.Session`, the orchestrator. It resolves nothing itself -- reading a
@@ -1740,7 +1753,7 @@ on anything that would change the node.
   supply certificates. Forcing a mode and a domain there configures the cluster
   around guesses, and a certificate for a name nobody serves still has to be
   renewed. Gateways come up on HTTP; certificates are added later with
-  `platformctl cert apply`, the same command that renews them.
+  `malmok cert apply`, the same command that renews them.
 - `registry.mode: embedded` — RKE2's own registry mirror, now the default for
   the online profiles (ADR-011). A registry that is stood up has to be kept
   alive for the life of the cluster, with credentials, certificates and
@@ -1866,7 +1879,7 @@ on anything that would change the node.
   the whole tree is table-driven tested without a cluster. Every downgrade
   records its triggering probes and the nodes involved, because "why is this
   running Traefik" has no answer without them.
-- `platformctl plan -f cluster.yaml [--validate-only]`, which prints the
+- `malmok plan -f cluster.yaml [--validate-only]`, which prints the
   resolved configuration and marks each value the profile supplied.
 
 ### Notes
@@ -1940,7 +1953,7 @@ on anything that would change the node.
 
 ### Added
 
-- `platformctl apply --demo`: a full simulated run through the phase
+- `malmok apply --demo`: a full simulated run through the phase
   catalogue. No node is contacted and nothing is installed, but the runner,
   the state file, the event stream and a renderer all run end to end. It is
   what makes it possible to settle the TUI's layout before writing 67 probes
@@ -1999,10 +2012,10 @@ on anything that would change the node.
 
 ### Added
 
-- `cmd/platformctl` — the first runnable binary, with `attach` as its only
+- `cmd/malmok` — the first runnable binary, with `attach` as its only
   subcommand. Commands are registered as they are implemented; one that exists
   and does nothing is worse at a customer site than one that is absent.
-- `platformctl attach` resolves the event file from `--file`, else the newest
+- `malmok attach` resolves the event file from `--file`, else the newest
   run under `--bundle`, else the bundle's shared event log. `--follow=false`
   replays a finished run, `--verbose` includes log lines, and `-o json` passes
   the stream through unchanged — the engine already emits JSONL, so that format
@@ -2101,7 +2114,7 @@ on anything that would change the node.
   step-level idempotency contract (`Observe`/`Satisfied`/`Apply`), the resume
   model and state file, the JSONL event schema, retry policy, and §7 acceptance
   criteria in five groups.
-- `platformctl attach` and `apply --detach` in `docs/00-architecture.md` §4.
+- `malmok attach` and `apply --detach` in `docs/00-architecture.md` §4.
   The engine outliving the renderer needs a way back in, and a dropped SSH
   session at a customer site is routine rather than exceptional.
 
@@ -2188,7 +2201,7 @@ on anything that would change the node.
 
 ### Added
 
-- `go.mod` — module `platform.ryxen.dev/platformctl`, Go 1.24. Nothing can live
+- `go.mod` — module `platform.ryxen.dev/malmok`, Go 1.24. Nothing can live
   under `internal/` without it.
 - `internal/codes` — the diagnostic code registry, now the single source of
   truth as CLAUDE.md requires. 67 preflight codes collected from

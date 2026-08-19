@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"strings"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/spec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/spec"
 )
 
 // The wizard collects values; internal/spec decides what they mean. Building

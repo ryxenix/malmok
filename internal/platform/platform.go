@@ -22,10 +22,10 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 // Phase is where these steps are filed.
@@ -57,15 +57,15 @@ const Namespace = "argocd"
 const ReleaseName = "argocd"
 
 // RepoSecretName holds the credential for the repository the document names.
-const RepoSecretName = "platformctl-repo"
+const RepoSecretName = "malmok-repo"
 
 // Files this phase writes.
 const (
-	argocdFile = rke2.ManifestDir + "/platformctl-argocd.yaml"
-	appsFile   = rke2.ManifestDir + "/platformctl-argocd-apps.yaml"
+	argocdFile = rke2.ManifestDir + "/malmok-argocd.yaml"
+	appsFile   = rke2.ManifestDir + "/malmok-argocd-apps.yaml"
 )
 
-const managedFileHeader = "# Managed by platformctl. Changes here are overwritten on the next apply."
+const managedFileHeader = "# Managed by malmok. Changes here are overwritten on the next apply."
 
 // fingerprintAnnotation is how the repository Secret says which credential it
 // holds, so the check never has to read a password back off the cluster.
@@ -255,7 +255,7 @@ metadata:
     ` + fingerprintAnnotation + `: ` + yamlString(fp) + `
 type: Opaque
 stringData:
-  name: ` + yamlString("platformctl") + `
+  name: ` + yamlString("malmok") + `
   url: ` + yamlString(url) + `
 `)
 	if g.Source == v1alpha1.GitOpsOCI {
@@ -504,7 +504,7 @@ func probeApplication() string {
 	return `apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: "platformctl-probe"
+  name: "malmok-probe"
   namespace: ` + yamlString(Namespace) + `
 spec:
   project: "default"

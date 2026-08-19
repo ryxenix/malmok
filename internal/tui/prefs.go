@@ -43,7 +43,7 @@ func PrefsPath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "platformctl", "prefs.yaml")
+	return filepath.Join(dir, "malmok", "prefs.yaml")
 }
 
 // LoadPrefs reads the saved preferences, returning the defaults when there are

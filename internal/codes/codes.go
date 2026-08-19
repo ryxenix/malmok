@@ -1,4 +1,4 @@
-// Package codes is the single source of truth for platformctl's diagnostic
+// Package codes is the single source of truth for malmok's diagnostic
 // codes: preflight probes (PF), post-apply verification (PV), upgrade
 // preconditions (UP), execution failures (EX), maintenance checks (MC) and
 // downgrade reasons (DG).

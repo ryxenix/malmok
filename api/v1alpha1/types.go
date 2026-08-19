@@ -1,4 +1,4 @@
-// Package v1alpha1 defines the declarative specification consumed by platformctl.
+// Package v1alpha1 defines the declarative specification consumed by malmok.
 //
 // ARCHITECTURAL CONTRACT
 //
@@ -125,7 +125,7 @@ const (
 //
 //  1. rke2-server / rke2-agent systemd unit environment
 //  2. containerd (image pull)
-//  3. helm / platformctl's own egress
+//  3. helm / malmok's own egress
 //  4. in-cluster workloads that egress (ArgoCD, cert-manager ACME)
 type ProxySpec struct {
 	HTTP    string   `yaml:"http,omitempty"    json:"http,omitempty"`
@@ -204,7 +204,7 @@ type NodeSpec struct {
 
 	SSH SSHSpec `yaml:"ssh,omitempty" json:"ssh,omitempty"`
 
-	// Local runs this node's work on the machine platformctl is invoked on
+	// Local runs this node's work on the machine malmok is invoked on
 	// instead of opening an SSH connection to it.
 	//
 	// Unset means decide from the address, which is right almost always: an
@@ -370,7 +370,7 @@ type EtcdSpec struct {
 	SnapshotRetention int    `yaml:"snapshotRetention,omitempty" json:"snapshotRetention,omitempty"`
 	// SnapshotTarget: local path, NFS mount, or S3-compatible endpoint.
 	// A backup that has never been restore-tested is not a backup; the engine
-	// exposes `platformctl restore --dry-run` to force the rehearsal.
+	// exposes `malmok restore --dry-run` to force the rehearsal.
 	SnapshotTarget string  `yaml:"snapshotTarget,omitempty" json:"snapshotTarget,omitempty"`
 	S3             *S3Spec `yaml:"s3,omitempty" json:"s3,omitempty"`
 }
@@ -400,7 +400,7 @@ const (
 	// and a certificate for a name nobody uses still has to be renewed.
 	//
 	// Gateways come up on HTTP; certificates are added later with
-	// `platformctl cert apply`, the same command that renews them.
+	// `malmok cert apply`, the same command that renews them.
 	PKINone       PKIMode = "none"
 	PKIACMEDNS01  PKIMode = "acme-dns01" // real LE wildcard (homelab / company)
 	PKIACMEHTTP01 PKIMode = "acme-http01"

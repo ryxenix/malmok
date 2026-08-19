@@ -17,16 +17,16 @@ import (
 	"fmt"
 	"sort"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/cert"
-	"platform.ryxen.dev/platformctl/internal/dataplane"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/gateway"
-	"platform.ryxen.dev/platformctl/internal/nodeprep"
-	"platform.ryxen.dev/platformctl/internal/pki"
-	"platform.ryxen.dev/platformctl/internal/platform"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/cert"
+	"platform.ryxen.dev/malmok/internal/dataplane"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/gateway"
+	"platform.ryxen.dev/malmok/internal/nodeprep"
+	"platform.ryxen.dev/malmok/internal/pki"
+	"platform.ryxen.dev/malmok/internal/platform"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 // Runners gives the catalogue a shell on each node.

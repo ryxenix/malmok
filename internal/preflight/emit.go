@@ -3,8 +3,8 @@ package preflight
 import (
 	"strings"
 
-	"platform.ryxen.dev/platformctl/internal/codes"
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/codes"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 // Emitting probe results as events is what lets a screen draw preflight without

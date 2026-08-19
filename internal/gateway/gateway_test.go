@@ -7,11 +7,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/cert"
-	"platform.ryxen.dev/platformctl/internal/dataplane"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/cert"
+	"platform.ryxen.dev/malmok/internal/dataplane"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 func gatewaySpec() v1alpha1.ClusterSpec {

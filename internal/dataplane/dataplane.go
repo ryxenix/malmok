@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 // Phase is where these steps are filed.
@@ -41,13 +41,13 @@ const gatewayAPIURL = "https://github.com/kubernetes-sigs/gateway-api/releases/d
 
 // Files this phase writes, all under RKE2's manifest directory.
 const (
-	gatewayCRDFile = rke2.ManifestDir + "/platformctl-gateway-api-crds.yaml"
-	ciliumCfgFile  = rke2.ManifestDir + "/platformctl-cilium-config.yaml"
-	lbPoolFile     = rke2.ManifestDir + "/platformctl-lb-pool.yaml"
-	l2PolicyFile   = rke2.ManifestDir + "/platformctl-l2-announcement.yaml"
+	gatewayCRDFile = rke2.ManifestDir + "/malmok-gateway-api-crds.yaml"
+	ciliumCfgFile  = rke2.ManifestDir + "/malmok-cilium-config.yaml"
+	lbPoolFile     = rke2.ManifestDir + "/malmok-lb-pool.yaml"
+	l2PolicyFile   = rke2.ManifestDir + "/malmok-l2-announcement.yaml"
 )
 
-const managedFileHeader = "# Managed by platformctl. Changes here are overwritten on the next apply."
+const managedFileHeader = "# Managed by malmok. Changes here are overwritten on the next apply."
 
 // kubectl is the prelude every step needs: RKE2 keeps its binaries outside PATH
 // and its kubeconfig outside the default location.
@@ -95,11 +95,11 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 	}
 	if body := LoadBalancerPool(spec); body != "" {
 		steps = append(steps, add(rke2.ManifestStep(Phase, "lb-pool", lbPoolFile, body,
-			"ciliumloadbalancerippool platformctl", o.timeout())))
+			"ciliumloadbalancerippool malmok", o.timeout())))
 	}
 	if body := L2AnnouncementPolicy(spec); body != "" {
 		steps = append(steps, add(rke2.ManifestStep(Phase, "l2-announcement", l2PolicyFile, body,
-			"ciliuml2announcementpolicy platformctl", o.timeout())))
+			"ciliuml2announcementpolicy malmok", o.timeout())))
 	}
 	// The agents have to run the configuration that was just written. RKE2's
 	// helm controller upgrades the chart, but a Cilium values change lands in
@@ -431,7 +431,7 @@ func LoadBalancerPool(spec v1alpha1.ClusterSpec) string {
 	b.WriteString(`apiVersion: cilium.io/v2
 kind: CiliumLoadBalancerIPPool
 metadata:
-  name: platformctl
+  name: malmok
 spec:
   blocks:
 `)
@@ -456,7 +456,7 @@ func L2AnnouncementPolicy(spec v1alpha1.ClusterSpec) string {
 	b.WriteString(`apiVersion: cilium.io/v2alpha1
 kind: CiliumL2AnnouncementPolicy
 metadata:
-  name: platformctl
+  name: malmok
 spec:
   # Announced from the control plane only. A worker answering for a service
   # address it does not host sends traffic on an extra hop for no reason.
@@ -486,7 +486,7 @@ func shellQuote(s string) string {
 
 // GatewayNodeLabel marks the nodes a node-ips gateway answers on, when the
 // document names a subset rather than every node.
-const GatewayNodeLabel = "platformctl.io/gateway"
+const GatewayNodeLabel = "malmok.io/gateway"
 
 // NodeIPGateways reports whether any gateway answers on node addresses.
 func NodeIPGateways(spec v1alpha1.ClusterSpec) bool {

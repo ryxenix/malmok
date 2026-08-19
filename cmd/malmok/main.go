@@ -1,4 +1,4 @@
-// Command platformctl builds and operates RKE2 platforms.
+// Command malmok builds and operates RKE2 platforms.
 //
 // The command tree grows as the engine does; only the subcommands that are
 // actually implemented are registered, because a command that exists and does

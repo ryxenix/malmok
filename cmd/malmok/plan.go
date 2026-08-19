@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/plan"
-	"platform.ryxen.dev/platformctl/internal/spec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/plan"
+	"platform.ryxen.dev/malmok/internal/spec"
 )
 
 func newPlanCmd() *cobra.Command {
@@ -30,8 +30,8 @@ that had to be downgraded and why.
 
 Nothing is changed. Every value the profile supplied is listed, so the audit
 trail can distinguish what the operator chose from what the tool did.`,
-		Example: `  platformctl plan -f cluster.yaml
-  platformctl plan -f cluster.yaml --validate-only`,
+		Example: `  malmok plan -f cluster.yaml
+  malmok plan -f cluster.yaml --validate-only`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			doc, applied, err := o.load()

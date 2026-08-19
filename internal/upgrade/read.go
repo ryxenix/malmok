@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 // ---------------------------------------------------------------------------

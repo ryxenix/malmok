@@ -9,9 +9,9 @@ var version = "dev"
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "platformctl",
+		Use:   "malmok",
 		Short: "Build and operate RKE2 platforms",
-		Long: `platformctl builds and operates RKE2 platforms across homelab,
+		Long: `malmok builds and operates RKE2 platforms across homelab,
 production and customer sites, including DMZ and air-gapped installations.
 
 The engine runs from cluster.yaml alone. The TUI drives an install and renders

@@ -15,12 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/cert"
-	"platform.ryxen.dev/platformctl/internal/dataplane"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/cert"
+	"platform.ryxen.dev/malmok/internal/dataplane"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 // Phase is where these steps are filed.
@@ -32,7 +32,7 @@ const DefaultNamespace = "gateway-system"
 // DefaultContractConfigMap is the name application charts look for.
 const DefaultContractConfigMap = "platform-gateway-contract"
 
-const managedFileHeader = "# Managed by platformctl. Changes here are overwritten on the next apply."
+const managedFileHeader = "# Managed by malmok. Changes here are overwritten on the next apply."
 
 // fingerprintAnnotation is how a TLS Secret says which certificate it holds.
 //
@@ -245,8 +245,8 @@ func indentProbes(ips []string, scheme string, port int) string {
 
 // Files this phase writes.
 const (
-	gatewayFile  = rke2.ManifestDir + "/platformctl-gateways.yaml"
-	contractFile = rke2.ManifestDir + "/platformctl-gateway-contract.yaml"
+	gatewayFile  = rke2.ManifestDir + "/malmok-gateways.yaml"
+	contractFile = rke2.ManifestDir + "/malmok-gateway-contract.yaml"
 )
 
 // secretStep installs one TLS Secret.

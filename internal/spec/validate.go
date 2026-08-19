@@ -7,8 +7,8 @@ import (
 	"net/netip"
 	"strings"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 // Validate reports every problem with the document at once.
@@ -245,7 +245,7 @@ func validatePKI(s *v1alpha1.ClusterSpec) []error {
 	switch p.Mode {
 	case v1alpha1.PKINone:
 		// Nothing to check. Gateways come up on HTTP and certificates are added
-		// later with `platformctl cert apply`.
+		// later with `malmok cert apply`.
 	case v1alpha1.PKIACMEDNS01, v1alpha1.PKIACMEHTTP01:
 		if p.ACME == nil || p.ACME.Email == "" {
 			errs = append(errs, fmt.Errorf("pki.acme.email is required with mode %s", p.Mode))

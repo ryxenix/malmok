@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/state"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/state"
 )
 
 // DefaultMaxAttempts is the retry budget from docs/11-execute.md §6.

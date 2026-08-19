@@ -8,10 +8,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 // The wizard is the whole application: a sequence of steps with a rail showing
@@ -181,7 +181,7 @@ type Config struct {
 	Version      string
 	Domain       string
 
-	// Local says the first server is the machine platformctl is running on.
+	// Local says the first server is the machine malmok is running on.
 	//
 	// Chosen on a screen rather than inferred from an address, because it is
 	// the first thing an operator knows and the last thing they should have to

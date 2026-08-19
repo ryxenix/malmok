@@ -1,6 +1,6 @@
 # Malmok (말목) — 가칭
 
-RKE2 기반 플랫폼 구축·운영 자동화 도구. CLI/바이너리 이름은 `platformctl`.
+RKE2 기반 플랫폼 구축·운영 자동화 도구. CLI/바이너리 이름은 `malmok`.
 홈랩 / 회사 프로덕션 / 고객사(온라인·DMZ·폐쇄망) 전 케이스 단일 도구 대응.
 
 **현재 상태: 설계 단계. 실행 코드 없음.**
@@ -21,7 +21,7 @@ docs/
 api/v1alpha1/                스키마 = 단일 원천. 주석이 명세다
 ├── types.go                 ClusterSpec
 └── gateway.go               GatewaySpec (gateway / listener / TLS / DNS)
-cmd/platformctl/             CLI. 구현된 명령만 등록한다
+cmd/malmok/             CLI. 구현된 명령만 등록한다
 internal/
 ├── codes/                   진단 코드 단일 원천. 131건
 │   ├── codes.go             타입 · 레지스트리 · 검증

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/platformctl/internal/codes"
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/codes"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 // Probe events have to satisfy the same schema as everything else in the file.

@@ -5,7 +5,7 @@ package report
 // The audit report and the DNS sheet are written for people. This file is
 // written for the next tool: an inventory system that wants to know what
 // cluster now exists, on which machines, built by which run -- without
-// parsing markdown. The contract is loose coupling by format: platformctl
+// parsing markdown. The contract is loose coupling by format: malmok
 // writes handoff.json, anything may read it, and neither side calls the
 // other.
 //
@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/platform"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/platform"
 )
 
 // HandoffVersion names the schema so a consumer can refuse what it does not

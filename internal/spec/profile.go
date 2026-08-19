@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
 )
 
 // Profile baselines: the Tier-1 combinations of docs/00-architecture.md ADR-003.
@@ -48,7 +48,7 @@ var baselines = map[v1alpha1.ProfileName]Baseline{
 		Dataplane: v1alpha1.DataplaneCiliumGW, Fallback: v1alpha1.DataplaneCanalTraefik,
 		DowngradePolicy: v1alpha1.DowngradeAuto,
 		// Nothing is issued at build time. The service domain is usually not
-		// decided yet, and `platformctl cert apply` adds certificates later
+		// decided yet, and `malmok cert apply` adds certificates later
 		// with the same command used for renewal.
 		PKIMode: v1alpha1.PKINone, Storage: v1alpha1.StorageLocalPath,
 		// No registry to stand up, no credentials to keep alive for the life of

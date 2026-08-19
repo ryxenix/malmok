@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 // ShellStep implements Step as a pair of shell programs run on a node.

@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 // Phase is where these steps are filed.
@@ -43,20 +43,20 @@ const (
 // Namespaces the phase creates.
 const (
 	Namespace       = "cert-manager"
-	IssuerName      = "platformctl"
-	CASecretName    = "platformctl-ca"
-	TrustBundleName = "platformctl-ca"
+	IssuerName      = "malmok"
+	CASecretName    = "malmok-ca"
+	TrustBundleName = "malmok-ca"
 )
 
 // Files this phase writes.
 const (
-	certManagerFile  = rke2.ManifestDir + "/platformctl-cert-manager.yaml"
-	issuerFile       = rke2.ManifestDir + "/platformctl-issuer.yaml"
-	trustManagerFile = rke2.ManifestDir + "/platformctl-trust-manager.yaml"
-	trustBundleFile  = rke2.ManifestDir + "/platformctl-trust-bundle.yaml"
+	certManagerFile  = rke2.ManifestDir + "/malmok-cert-manager.yaml"
+	issuerFile       = rke2.ManifestDir + "/malmok-issuer.yaml"
+	trustManagerFile = rke2.ManifestDir + "/malmok-trust-manager.yaml"
+	trustBundleFile  = rke2.ManifestDir + "/malmok-trust-bundle.yaml"
 )
 
-const managedFileHeader = "# Managed by platformctl. Changes here are overwritten on the next apply."
+const managedFileHeader = "# Managed by malmok. Changes here are overwritten on the next apply."
 
 // kubectl is the prelude the cluster-scoped steps need.
 var kubectl = rke2.Kubectl
@@ -231,7 +231,7 @@ kubectl apply -f "$t" >/dev/null`, Namespace, shellQuote(manifest)),
 // acmeTokenStep installs the DNS provider credential.
 func acmeTokenStep(spec v1alpha1.ClusterSpec, m Material) *engine.ShellStep {
 	provider := strings.TrimSpace(spec.PKI.ACME.DNSProvider)
-	name := "platformctl-acme-" + provider
+	name := "malmok-acme-" + provider
 
 	manifest := fmt.Sprintf(`apiVersion: v1
 kind: Secret
@@ -301,7 +301,7 @@ exit 1`, int(o.timeout().Seconds()), read, IssuerName, IssuerName),
 
 // CertManagerChart renders the HelmChart RKE2 deploys.
 //
-// The resource is named `cert-manager`, not `platformctl-cert-manager`: RKE2
+// The resource is named `cert-manager`, not `malmok-cert-manager`: RKE2
 // uses the resource name as the Helm release name, and the release name
 // prefixes every object the chart creates. Prefixing it would give the
 // deployments names that appear in no cert-manager runbook, and an operator
@@ -434,7 +434,7 @@ func writeSolver(b *strings.Builder, spec v1alpha1.ClusterSpec) {
 	switch provider {
 	case "cloudflare":
 		b.WriteString("          cloudflare:\n            apiTokenSecretRef:\n")
-		b.WriteString("              name: " + yamlString("platformctl-acme-cloudflare") + "\n")
+		b.WriteString("              name: " + yamlString("malmok-acme-cloudflare") + "\n")
 		b.WriteString("              key: api-token\n")
 	case "route53":
 		b.WriteString("          route53:\n            region: us-east-1\n")

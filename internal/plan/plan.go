@@ -17,8 +17,8 @@ import (
 	"sort"
 	"strings"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/preflight"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/preflight"
 )
 
 // Plan is the confirmed configuration.

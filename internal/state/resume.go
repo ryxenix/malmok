@@ -3,7 +3,7 @@ package state
 import (
 	"fmt"
 
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 // Action is what resume decides to do with one step. See docs/11-execute.md §4.2.

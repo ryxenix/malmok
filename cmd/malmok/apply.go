@@ -13,15 +13,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/attach"
-	"platform.ryxen.dev/platformctl/internal/build"
-	"platform.ryxen.dev/platformctl/internal/demo"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/spec"
-	"platform.ryxen.dev/platformctl/internal/state"
-	"platform.ryxen.dev/platformctl/internal/tui"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/attach"
+	"platform.ryxen.dev/malmok/internal/build"
+	"platform.ryxen.dev/malmok/internal/demo"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/spec"
+	"platform.ryxen.dev/malmok/internal/state"
+	"platform.ryxen.dev/malmok/internal/tui"
 )
 
 func newApplyCmd() *cobra.Command {
@@ -52,13 +52,13 @@ func newApplyCmd() *cobra.Command {
 resumable: an interrupted run continues from where it stopped rather than
 starting over. See docs/11-execute.md.`,
 		Example: `  # simulated run -- no node is contacted, nothing is installed
-  platformctl apply --demo
+  malmok apply --demo
 
   # simulated run that fails, to look at the failure path
-  platformctl apply --demo --fail-at rke2-server-ready
+  malmok apply --demo --fail-at rke2-server-ready
 
   # resume an interrupted run
-  platformctl apply --demo --resume 01JBQ8F2K3M5N7P9R1S3T5V7W9`,
+  malmok apply --demo --resume 01JBQ8F2K3M5N7P9R1S3T5V7W9`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !isDemo && specFile != "" {

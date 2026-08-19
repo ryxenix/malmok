@@ -44,7 +44,7 @@ menu:
   logs: 실행 기록과 로그
   logs.help: 이전 실행이 무엇을 했는지 봅니다. 실패한 실행도 포함합니다.
   quit: 종료
-  quit.help: platformctl 을 닫습니다. 노드에서 돌고 있는 것은 중단되지 않습니다.
+  quit.help: malmok 을 닫습니다. 노드에서 돌고 있는 것은 중단되지 않습니다.
   unavailable: "  (미구현)"
   unavailable.status: 아직 구현되지 않았습니다. 선택해도 아무것도 바뀌지 않습니다.
 open:
@@ -62,7 +62,7 @@ save:
   help: "이대로 기록됩니다. 화면에 없는 항목은 읽어들인 문서에서 그대로 옮겨집니다."
   path: 저장 위치
   written: 문서를 저장했습니다.
-  after: "클러스터에는 아무 변경도 없습니다. 이 파일로 `platformctl apply -f` 를 실행해야 반영됩니다."
+  after: "클러스터에는 아무 변경도 없습니다. 이 파일로 `malmok apply -f` 를 실행해야 반영됩니다."
   hint: Enter 로 저장하고, Esc 로 돌아가 고칩니다
 target:
   heading: 대상 버전
@@ -80,7 +80,7 @@ doc:
 runs:
   heading: 실행 기록
   help: "이 도구가 남긴 실행 기록입니다. 최신순이며, 열면 그때 일어난 일을 재생합니다."
-  none: 아직 기록된 실행이 없습니다. `platformctl apply` 가 한 번 돌면 나타납니다.
+  none: 아직 기록된 실행이 없습니다. `malmok apply` 가 한 번 돌면 나타납니다.
   count: 건
   col_id: 실행
   col_when: 시각
@@ -220,7 +220,7 @@ hint:
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
   bundle: 폐쇄망을 건너온 Hauler 아티팩트입니다. 이것 아니면 레지스트리 주소 — 폐쇄망 구축에는 둘 중 하나가 필요합니다
   acmeserver: 비우면 Let's Encrypt 운영 서버입니다. 시험 중에는 staging 을 쓰십시오 — 운영 서버에 실수하면 일주일짜리 발급 한도를 소모합니다
-  sudopassword: 이 서버에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. platformctl 을 이미 root 로 실행 중이면 비워두십시오
+  sudopassword: 이 서버에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. malmok 을 이미 root 로 실행 중이면 비워두십시오
   toggle_steps: 단계 목록
   toggle_ascii: ascii
   toggle_lang: English

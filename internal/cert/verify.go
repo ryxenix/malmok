@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/codes"
+	"platform.ryxen.dev/malmok/internal/codes"
 )
 
 // The verification gates of docs/20-cert.md §4. Every one of them must pass

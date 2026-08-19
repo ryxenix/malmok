@@ -73,7 +73,7 @@ type Sudo struct {
 func (s Sudo) Run(ctx context.Context, cmd string) (Result, error) {
 	// A runner that is already root needs no sudo, and asking for it would
 	// require the binary to be installed and the account to be in the sudoers
-	// file for no gain. `sudo platformctl` on the machine being installed is
+	// file for no gain. `sudo malmok` on the machine being installed is
 	// the ordinary local invocation and a minimal image frequently has neither.
 	if r, ok := s.Runner.(Rooted); ok && r.IsRoot() {
 		return s.Runner.Run(ctx, cmd)
@@ -162,7 +162,7 @@ func (f *Fake) Close() error { return nil }
 // One check at the start, so the failure names the real cause once instead of
 // arriving as several dozen wrong answers.
 func Elevate(ctx context.Context, r Runner, password string) (Runner, error) {
-	// Already root: nothing to wrap. `sudo platformctl` on the machine being
+	// Already root: nothing to wrap. `sudo malmok` on the machine being
 	// installed is the ordinary local invocation, and requiring sudo inside it
 	// would need the binary present and the account in the sudoers file for no
 	// gain.
@@ -183,7 +183,7 @@ func Elevate(ctx context.Context, r Runner, password string) (Runner, error) {
 		if password == "" {
 			return nil, fmt.Errorf(
 				"%s: this account cannot elevate without a password and none was given. "+
-					"Set ssh.becomePassword in the document, or run platformctl as root on a local node: %s",
+					"Set ssh.becomePassword in the document, or run malmok as root on a local node: %s",
 				r.Host(), CleanLine(detail))
 		}
 		return nil, fmt.Errorf("%s: this account cannot elevate: %s", r.Host(), CleanLine(detail))

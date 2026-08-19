@@ -1,8 +1,8 @@
-# A single node, installed on the machine platformctl is running on.
+# A single node, installed on the machine malmok is running on.
 #
 # There is no ssh block because nothing is dialled: the address belongs to an
 # interface on this machine, so the work runs here. Run it as root -- `sudo
-# platformctl apply -f cluster-local.yaml` -- or give the account a
+# malmok apply -f cluster-local.yaml` -- or give the account a
 # becomePassword; an account that cannot elevate answers "no" to every
 # privileged question and the node reads as one that cannot run the dataplane.
 #

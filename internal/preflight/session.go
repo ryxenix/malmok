@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/cert"
-	"platform.ryxen.dev/platformctl/internal/codes"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/cert"
+	"platform.ryxen.dev/malmok/internal/codes"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 // Session runs preflight for a whole document.

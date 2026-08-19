@@ -12,14 +12,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/platformctl/internal/attach"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/preflight"
-	"platform.ryxen.dev/platformctl/internal/rke2"
-	"platform.ryxen.dev/platformctl/internal/spec"
-	"platform.ryxen.dev/platformctl/internal/state"
-	"platform.ryxen.dev/platformctl/internal/upgrade"
+	"platform.ryxen.dev/malmok/internal/attach"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/preflight"
+	"platform.ryxen.dev/malmok/internal/rke2"
+	"platform.ryxen.dev/malmok/internal/spec"
+	"platform.ryxen.dev/malmok/internal/state"
+	"platform.ryxen.dev/malmok/internal/upgrade"
 )
 
 // upgradeFlags are what `upgrade` was invoked with.
@@ -77,7 +77,7 @@ before the first one goes down.`,
 	return cmd
 }
 
-// runUpgrade is what `platformctl upgrade --to vX` does.
+// runUpgrade is what `malmok upgrade --to vX` does.
 //
 // Measure, decide, move. The same shape as a build and for the same reason: the
 // decision is a function of what the nodes turned out to be running, not of

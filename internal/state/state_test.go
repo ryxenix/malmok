@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 const testRun = "01JBQ8F2K3M5N7P9R1S3T5V7W9"

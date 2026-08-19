@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/codes"
-	"platform.ryxen.dev/platformctl/internal/preflight"
+	"platform.ryxen.dev/malmok/internal/codes"
+	"platform.ryxen.dev/malmok/internal/preflight"
 )
 
 // Result is one wire check.
@@ -588,7 +588,7 @@ func negotiable(ctx context.Context, addr, sni string, o Options) Result {
 func exampleFor(hostname string) string {
 	h := strings.TrimSpace(hostname)
 	if strings.HasPrefix(h, "*.") {
-		return "platformctl-verify" + h[1:]
+		return "malmok-verify" + h[1:]
 	}
 	return h
 }

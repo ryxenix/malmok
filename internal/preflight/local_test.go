@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
 )
 
 // baseSpec is a document that passes every local probe, so a case can break one

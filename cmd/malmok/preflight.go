@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/preflight"
-	"platform.ryxen.dev/platformctl/internal/spec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/preflight"
+	"platform.ryxen.dev/malmok/internal/spec"
 )
 
 // preflightOptions are shared by `preflight` and `plan`, because plan has to
@@ -87,9 +87,9 @@ be measured rather than loading it.
 Checks that need no node -- CIDR collisions, certificate material, the airgap
 bundle -- run first, so a document written before the machines exist can still
 be checked.`,
-		Example: `  platformctl preflight -f cluster.yaml
-  platformctl preflight -f cluster.yaml -v
-  platformctl preflight -f cluster.yaml --insecure-host-key`,
+		Example: `  malmok preflight -f cluster.yaml
+  malmok preflight -f cluster.yaml -v
+  malmok preflight -f cluster.yaml --insecure-host-key`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			doc, _, err := o.load()

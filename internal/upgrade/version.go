@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/codes"
-	"platform.ryxen.dev/platformctl/internal/preflight"
+	"platform.ryxen.dev/malmok/internal/codes"
+	"platform.ryxen.dev/malmok/internal/preflight"
 )
 
 // Version is an RKE2 version, comparable.

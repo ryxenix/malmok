@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 // PhaseBootstrap is the phase that brings up the first server.
@@ -38,7 +38,7 @@ const (
 )
 
 // managedFileHeader marks the config file as ours.
-const managedFileHeader = "# Managed by platformctl. Changes here are overwritten on the next apply."
+const managedFileHeader = "# Managed by malmok. Changes here are overwritten on the next apply."
 
 // Options are what the L1 steps need beyond the document.
 type Options struct {

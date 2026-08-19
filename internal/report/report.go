@@ -18,12 +18,12 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/dataplane"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/plan"
-	"platform.ryxen.dev/platformctl/internal/rke2"
-	"platform.ryxen.dev/platformctl/internal/spec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/dataplane"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/plan"
+	"platform.ryxen.dev/malmok/internal/rke2"
+	"platform.ryxen.dev/malmok/internal/spec"
 )
 
 // ArtifactsDir is where a run keeps what it produced (docs/11-execute.md §1.1).
@@ -206,11 +206,11 @@ func configuration(b *strings.Builder, r *Run) {
 	b.WriteString("| Component | Version | Pinned by |\n|---|---|---|\n")
 	fmt.Fprintf(b, "| RKE2 | %s | the document |\n", dash(r.Spec.Kubernetes.Version))
 	if strings.HasPrefix(string(r.Spec.Kubernetes.Dataplane.Preset), "cilium") {
-		fmt.Fprintf(b, "| Gateway API | %s | platformctl (what Cilium supports) |\n",
+		fmt.Fprintf(b, "| Gateway API | %s | malmok (what Cilium supports) |\n",
 			dataplane.GatewayAPIVersion)
 	}
 	if v := r.Spec.Topology.VIP; v != nil && v.Address != "" {
-		fmt.Fprintf(b, "| kube-vip | %s | platformctl |\n", rke2.KubeVIPVersion)
+		fmt.Fprintf(b, "| kube-vip | %s | malmok |\n", rke2.KubeVIPVersion)
 	}
 	b.WriteString("\nCilium and CoreDNS are the versions RKE2 " +
 		strings.TrimSpace(r.Spec.Kubernetes.Version) + " bundles; this tool does not pin them.\n\n")

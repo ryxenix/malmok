@@ -1,4 +1,4 @@
-module platform.ryxen.dev/platformctl
+module platform.ryxen.dev/malmok
 
 go 1.25.8
 

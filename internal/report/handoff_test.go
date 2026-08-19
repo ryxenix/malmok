@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/plan"
-	"platform.ryxen.dev/platformctl/internal/platform"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/plan"
+	"platform.ryxen.dev/malmok/internal/platform"
 )
 
 // runEnded is the terminal event the engine writes for every run.

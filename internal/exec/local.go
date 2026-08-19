@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
 )
 
 // Running on the machine the tool is invoked on.
@@ -93,7 +93,7 @@ func (l *LocalRunner) IsRoot() bool { return os.Geteuid() == 0 }
 // Rooted is implemented by a runner that already runs with the privileges the
 // probes need, so Sudo can leave it alone.
 //
-// It exists for the local path: a tool invoked with `sudo platformctl` is
+// It exists for the local path: a tool invoked with `sudo malmok` is
 // already root, and wrapping every command in another `sudo` requires the
 // binary to be installed and the account to be in the sudoers file for no gain
 // -- a minimal image frequently has neither.

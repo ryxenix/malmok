@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 const (

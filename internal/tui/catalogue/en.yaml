@@ -45,7 +45,7 @@ menu:
   logs: Runs and logs
   logs.help: Look at what a previous run did, including one that failed.
   quit: Quit
-  quit.help: Close platformctl. Nothing running on a node is stopped.
+  quit.help: Close malmok. Nothing running on a node is stopped.
   unavailable: "  (not built yet)"
   unavailable.status: This is not implemented. Nothing here will change if you choose it.
 open:
@@ -63,7 +63,7 @@ save:
   help: "This is what will be written. Everything the screens do not show is carried over from the document as it was read."
   path: Written to
   written: The document has been written.
-  after: "Nothing on a cluster has changed. Run `platformctl apply -f` against this file to make it so."
+  after: "Nothing on a cluster has changed. Run `malmok apply -f` against this file to make it so."
   hint: Enter writes the file; Esc goes back to change something
 target:
   heading: Target version
@@ -81,7 +81,7 @@ doc:
 runs:
   heading: Runs
   help: "Every run this tool recorded, newest first. Opening one replays what happened."
-  none: No run has been recorded here yet. A run appears once `platformctl apply` has written one.
+  none: No run has been recorded here yet. A run appears once `malmok apply` has written one.
   count: run(s)
   col_id: run
   col_when: when
@@ -221,7 +221,7 @@ hint:
   rootkey: This is the intermediate key. The root key stays offline
   bundle: The Hauler artifact carried across the gap. Either this or a registry address -- an air-gapped build needs one of the two
   acmeserver: Empty means Let's Encrypt production. Point it at staging while testing -- a mistake against production spends a rate limit that resets in a week
-  sudopassword: Only used to elevate on this machine; never written to cluster.yaml. Leave empty if platformctl is already running as root
+  sudopassword: Only used to elevate on this machine; never written to cluster.yaml. Leave empty if malmok is already running as root
   toggle_steps: steps
   toggle_ascii: ascii
   toggle_lang: 한국어

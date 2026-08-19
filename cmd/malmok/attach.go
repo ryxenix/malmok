@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/platformctl/internal/attach"
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/attach"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 func newAttachCmd() *cobra.Command {
@@ -37,13 +37,13 @@ The engine runs as its own process and outlives the renderer, so a dropped SSH
 session costs nothing: reattach and the screen comes back. See
 docs/11-execute.md §1.2.`,
 		Example: `  # follow the newest run under the default bundle path
-  platformctl attach
+  malmok attach
 
   # follow a specific event file, printing every log line
-  platformctl attach --file ./out/events.jsonl --verbose
+  malmok attach --file ./out/events.jsonl --verbose
 
   # replay a finished run without waiting for more
-  platformctl attach --run 01JBQ8F2K3M5N7P9R1S3T5V7W9 --follow=false`,
+  malmok attach --run 01JBQ8F2K3M5N7P9R1S3T5V7W9 --follow=false`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := resolveEventFile(file, bundle)

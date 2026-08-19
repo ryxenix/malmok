@@ -16,9 +16,9 @@ import (
 	"fmt"
 	"strings"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 // Phase is the phase name these steps belong to.
@@ -33,7 +33,7 @@ const Phase = "l0-node-prep"
 // A customer site six months later has to be able to tell what put a file
 // there. Without it, an operator finds a sysctl they did not write and cannot
 // tell whether removing it breaks something.
-const managedFileHeader = "# Managed by platformctl. Changes here are overwritten on the next apply."
+const managedFileHeader = "# Managed by malmok. Changes here are overwritten on the next apply."
 
 // sysctls are what the kubelet and the dataplane need.
 //
@@ -63,8 +63,8 @@ var checkedSysctls = []string{
 // that fails now.
 var modules = []string{"br_netfilter", "overlay"}
 
-const sysctlFile = "/etc/sysctl.d/90-platformctl.conf"
-const modulesFile = "/etc/modules-load.d/90-platformctl.conf"
+const sysctlFile = "/etc/sysctl.d/90-malmok.conf"
+const modulesFile = "/etc/modules-load.d/90-malmok.conf"
 
 // Steps returns the l0-node-prep catalogue for one node.
 //
@@ -167,8 +167,8 @@ echo "swap is off and /etc/fstab has no entry"`,
 		Do: `set -e
 swapoff -a
 if grep -qE '^[^#].*[[:space:]]swap[[:space:]]' /etc/fstab; then
-  cp -a /etc/fstab /etc/fstab.platformctl.bak
-  sed -i -E 's|^([^#].*[[:space:]]swap[[:space:]].*)$|# platformctl disabled swap: \1|' /etc/fstab
+  cp -a /etc/fstab /etc/fstab.malmok.bak
+  sed -i -E 's|^([^#].*[[:space:]]swap[[:space:]].*)$|# malmok disabled swap: \1|' /etc/fstab
 fi`,
 		Satisfied: "%s",
 		Missing:   "%s",
@@ -209,8 +209,8 @@ type TrustMaterial struct {
 // they use different directories and different commands, which is the one place
 // the family actually matters.
 const (
-	caFileDebian = "/usr/local/share/ca-certificates/platformctl.crt"
-	caFileRHEL   = "/etc/pki/ca-trust/source/anchors/platformctl.crt"
+	caFileDebian = "/usr/local/share/ca-certificates/malmok.crt"
+	caFileRHEL   = "/etc/pki/ca-trust/source/anchors/malmok.crt"
 )
 
 // trustStep installs the private CA into the node trust store.

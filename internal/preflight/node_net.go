@@ -369,7 +369,7 @@ func (n *Node) CheckExistingRuntime(ctx context.Context) ProbeResult {
 // installation this document built". Without that distinction PF-802 blocks
 // every run after the first, which would make resume (§4) and adding a node
 // impossible -- and the tool would be refusing its own work.
-const ManagedMarker = "Managed by platformctl"
+const ManagedMarker = "Managed by malmok"
 
 // ours reports whether the RKE2 on this node was put there by this tool.
 //
@@ -393,7 +393,7 @@ func (n *Node) CheckExistingKubernetes(ctx context.Context) ProbeResult {
 		return passf("PF-802", "no previous RKE2 or k3s installation is present")
 	}
 	if n.ours(ctx) {
-		return passf("PF-802", "the RKE2 installation on this node was written by platformctl; "+
+		return passf("PF-802", "the RKE2 installation on this node was written by malmok; "+
 			"the install phases re-observe it rather than treating it as a leftover")
 	}
 	return failf("PF-802", "KUBERNETES_PRESENT",

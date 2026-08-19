@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 func embeddedSpec() v1alpha1.ClusterSpec {
@@ -139,12 +139,12 @@ func TestSwapChecksFstabAndNotOnlyTheRunningState(t *testing.T) {
 	}
 
 	do := swapStep().Do
-	if !strings.Contains(do, "fstab.platformctl.bak") {
+	if !strings.Contains(do, "fstab.malmok.bak") {
 		t.Error("fstab is edited without a backup")
 	}
 	// The line is commented rather than deleted, so an operator can see what
 	// was there and put it back.
-	if strings.Contains(do, "sed -i") && !strings.Contains(do, "# platformctl disabled swap") {
+	if strings.Contains(do, "sed -i") && !strings.Contains(do, "# malmok disabled swap") {
 		t.Error("the fstab entry is removed rather than commented out")
 	}
 }

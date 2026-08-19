@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
 )
 
 // The local runner has to behave exactly like the SSH one, because every probe
@@ -188,7 +188,7 @@ func TestConnectRoutesByConfig(t *testing.T) {
 	}
 }
 
-// A tool invoked with `sudo platformctl` is already root, and wrapping every
+// A tool invoked with `sudo malmok` is already root, and wrapping every
 // command in another sudo needs the binary installed and the account in the
 // sudoers file for no gain. A minimal image frequently has neither.
 func TestSudoLeavesAnAlreadyRootRunnerAlone(t *testing.T) {

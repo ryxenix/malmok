@@ -9,10 +9,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/rke2"
-	"platform.ryxen.dev/platformctl/internal/spec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/rke2"
+	"platform.ryxen.dev/malmok/internal/spec"
 )
 
 func ts(sec int) event.Timestamp {
@@ -928,8 +928,8 @@ func TestFinishedScreenCarriesTheInstallation(t *testing.T) {
 		m.cfg.Server,             // and where
 		"/srv/out/runs/01KZ3Z5G", // the run directory, not just the id
 		"cluster.yaml", "events.jsonl", "state.json",
-		"platformctl attach --run", // what to run next
-		"45s",                      // how long it took
+		"malmok attach --run", // what to run next
+		"45s",                 // how long it took
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the finished screen does not mention %q:\n%s", want, screen)

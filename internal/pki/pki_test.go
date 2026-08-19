@@ -7,9 +7,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 func specWith(mode v1alpha1.PKIMode) v1alpha1.ClusterSpec {
@@ -199,7 +199,7 @@ func TestIssuingKeyIsNeverWrittenToTheManifestDirectory(t *testing.T) {
 func TestKeyMaterialNeverReachesTheEventStream(t *testing.T) {
 	s := caSecretStep(material())
 	s.Runner = &exec.Fake{Default: exec.Result{
-		ExitCode: 1, Stdout: "the issuing CA secret cert-manager/platformctl-ca does not exist\n",
+		ExitCode: 1, Stdout: "the issuing CA secret cert-manager/malmok-ca does not exist\n",
 	}}
 	s.Host = "h"
 

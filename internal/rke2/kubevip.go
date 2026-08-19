@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 // kube-vip gives the control plane an address that is not any node's.
@@ -41,7 +41,7 @@ const KubeVIPImage = "ghcr.io/kube-vip/kube-vip:" + KubeVIPVersion
 const ManifestDir = DataDir + "/server/manifests"
 
 // KubeVIPManifest is where the DaemonSet lands.
-const KubeVIPManifest = ManifestDir + "/platformctl-kube-vip.yaml"
+const KubeVIPManifest = ManifestDir + "/malmok-kube-vip.yaml"
 
 // ResolveVIPInterface finds the interface that will carry the VIP.
 //
@@ -214,7 +214,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: platformctl:kube-vip
+  name: malmok:kube-vip
 rules:
   - apiGroups: [""]
     resources: ["services", "services/status", "nodes", "endpoints"]
@@ -226,11 +226,11 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: platformctl:kube-vip
+  name: malmok:kube-vip
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: platformctl:kube-vip
+  name: malmok:kube-vip
 subjects:
   - kind: ServiceAccount
     name: kube-vip

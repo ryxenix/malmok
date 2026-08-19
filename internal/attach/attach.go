@@ -24,7 +24,7 @@ import (
 	"sort"
 	"time"
 
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 // DefaultPollInterval is how often a follower looks for new bytes. Fast enough

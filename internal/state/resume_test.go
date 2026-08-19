@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/platformctl/internal/event"
+	"platform.ryxen.dev/malmok/internal/event"
 )
 
 // phaseOrder is the §2 catalogue, abbreviated to the phases these tests touch.

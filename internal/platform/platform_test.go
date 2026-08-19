@@ -7,10 +7,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/rke2"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/rke2"
 )
 
 func gitSpec(apps ...string) v1alpha1.ClusterSpec {
@@ -280,7 +280,7 @@ func TestRepositoryComesBeforeTheApplications(t *testing.T) {
 func TestRegistryCredentialOnlyGoesToTheRegistry(t *testing.T) {
 	m := Material{
 		RegistryHost: "harbor.acme.internal",
-		RegistryUser: "robot$platformctl",
+		RegistryUser: "robot$malmok",
 		RegistryPass: "s3cret",
 	}
 	tests := []struct {
@@ -308,7 +308,7 @@ func TestRegistryCredentialOnlyGoesToTheRegistry(t *testing.T) {
 func TestTheRepositoryPasswordIsNeverWrittenToTheManifestDirectory(t *testing.T) {
 	m := Material{
 		RegistryHost: "harbor.acme.internal",
-		RegistryUser: "robot$platformctl",
+		RegistryUser: "robot$malmok",
 		RegistryPass: "s3cret",
 	}
 	for _, s := range Steps(&exec.Fake{}, ociSpec("harbor.acme.internal/charts", "podinfo@6.9.2"), m, Options{}) {

@@ -21,7 +21,7 @@ import (
 	"time"
 	"unicode"
 
-	"platform.ryxen.dev/platformctl/internal/codes"
+	"platform.ryxen.dev/malmok/internal/codes"
 )
 
 // ---------------------------------------------------------------------------

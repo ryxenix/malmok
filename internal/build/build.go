@@ -12,19 +12,19 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/catalogue"
-	"platform.ryxen.dev/platformctl/internal/dataplane"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/exec"
-	"platform.ryxen.dev/platformctl/internal/gateway"
-	"platform.ryxen.dev/platformctl/internal/plan"
-	"platform.ryxen.dev/platformctl/internal/preflight"
-	"platform.ryxen.dev/platformctl/internal/report"
-	"platform.ryxen.dev/platformctl/internal/rke2"
-	"platform.ryxen.dev/platformctl/internal/state"
-	"platform.ryxen.dev/platformctl/internal/upgrade"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/catalogue"
+	"platform.ryxen.dev/malmok/internal/dataplane"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/exec"
+	"platform.ryxen.dev/malmok/internal/gateway"
+	"platform.ryxen.dev/malmok/internal/plan"
+	"platform.ryxen.dev/malmok/internal/preflight"
+	"platform.ryxen.dev/malmok/internal/report"
+	"platform.ryxen.dev/malmok/internal/rke2"
+	"platform.ryxen.dev/malmok/internal/state"
+	"platform.ryxen.dev/malmok/internal/upgrade"
 )
 
 // Session is the connections and findings one wizard-driven build shares
@@ -239,7 +239,7 @@ func downgradeAllowed(spec v1alpha1.ClusterSpec, p *plan.Plan) error {
 		// confirm, and anything unset on a profile that did not choose.
 		return fmt.Errorf("the nodes cannot run what the document asked for: %s. "+
 			"downgradePolicy is confirm, so nothing has been installed -- write the "+
-			"configuration out and run `platformctl apply -f cluster.yaml --approve` "+
+			"configuration out and run `malmok apply -f cluster.yaml --approve` "+
 			"to accept it", joined)
 	}
 }

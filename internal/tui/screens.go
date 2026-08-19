@@ -8,9 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"platform.ryxen.dev/platformctl/api/v1alpha1"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/exec"
+	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/exec"
 )
 
 // One function per step, each returning the Frame the chrome draws. Keeping the
@@ -670,11 +670,11 @@ func (w *Wizard) elapsed() string {
 }
 
 func (w *Wizard) resumeCommand() string {
-	return "platformctl apply -f cluster.yaml --resume " + w.runID
+	return "malmok apply -f cluster.yaml --resume " + w.runID
 }
 
 func (w *Wizard) attachCommand() string {
-	return "platformctl attach --run " + w.runID
+	return "malmok attach --run " + w.runID
 }
 
 func (w *Wizard) currentNode() string {

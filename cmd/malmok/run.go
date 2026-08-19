@@ -12,18 +12,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/platformctl/internal/attach"
-	"platform.ryxen.dev/platformctl/internal/catalogue"
-	"platform.ryxen.dev/platformctl/internal/dataplane"
-	"platform.ryxen.dev/platformctl/internal/engine"
-	"platform.ryxen.dev/platformctl/internal/event"
-	"platform.ryxen.dev/platformctl/internal/gateway"
-	"platform.ryxen.dev/platformctl/internal/plan"
-	"platform.ryxen.dev/platformctl/internal/preflight"
-	"platform.ryxen.dev/platformctl/internal/report"
-	"platform.ryxen.dev/platformctl/internal/rke2"
-	"platform.ryxen.dev/platformctl/internal/spec"
-	"platform.ryxen.dev/platformctl/internal/state"
+	"platform.ryxen.dev/malmok/internal/attach"
+	"platform.ryxen.dev/malmok/internal/catalogue"
+	"platform.ryxen.dev/malmok/internal/dataplane"
+	"platform.ryxen.dev/malmok/internal/engine"
+	"platform.ryxen.dev/malmok/internal/event"
+	"platform.ryxen.dev/malmok/internal/gateway"
+	"platform.ryxen.dev/malmok/internal/plan"
+	"platform.ryxen.dev/malmok/internal/preflight"
+	"platform.ryxen.dev/malmok/internal/report"
+	"platform.ryxen.dev/malmok/internal/rke2"
+	"platform.ryxen.dev/malmok/internal/spec"
+	"platform.ryxen.dev/malmok/internal/state"
 )
 
 // buildFlags are what `apply -f` was invoked with.
@@ -45,7 +45,7 @@ type buildFlags struct {
 	screen *tuiFlags
 }
 
-// runBuild is what `platformctl apply -f cluster.yaml` does.
+// runBuild is what `malmok apply -f cluster.yaml` does.
 //
 // The order is the order of docs/11-execute.md §2 and it is not negotiable:
 // measure, decide, build, verify. Preflight comes first because a plan is a

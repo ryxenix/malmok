@@ -523,7 +523,15 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 	// with the one check nowhere in sight, and went digging in events.jsonl
 	// for a sentence this screen already had.
 	if !w.busy && len(w.failures) > 0 {
-		b.WriteString("\n" + w.theme.Section(w.cat.T("progress.findings"), width, w.glyphs) + "\n")
+		// The heading tells the truth about weight: "what stopped it" only
+		// when something actually stopped the run. Four warnings under that
+		// title read as four reasons the install cannot happen, when every
+		// one of them was advisory and the Continue button was live.
+		title := w.cat.T("progress.warnings")
+		if w.workErr != nil || w.anyBlocked() {
+			title = w.cat.T("progress.findings")
+		}
+		b.WriteString("\n" + w.theme.Section(title, width, w.glyphs) + "\n")
 		const maxShown = 6
 		for i, e := range w.failures {
 			if i == maxShown {

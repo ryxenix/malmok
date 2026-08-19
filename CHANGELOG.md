@@ -5,6 +5,23 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.55.2] - 2026-08-19
+
+### Fixed
+
+- The findings section on a finished progress screen said "what stopped it"
+  even when nothing had: four advisory warnings under that heading read as
+  four reasons the install cannot happen, while the Continue button was
+  live. The heading now tells the truth about weight -- "Warnings, the
+  install can proceed" unless something actually blocked or errored.
+
+### Added
+
+- `scripts/build.sh` builds the binary as `bin/malmok-v<version>-<timestamp>`
+  (version stamped into `--version` too) and points the `bin/malmok` symlink
+  at it, so a binary copied to a server answers "which build is this?" from
+  its filename alone.
+
 ## [0.55.1] - 2026-08-19
 
 ### Fixed

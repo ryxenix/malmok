@@ -156,6 +156,7 @@ progress:
   stopped: It stopped before anything ran
   logs: Logs
   findings: What stopped it
+  warnings: Warnings -- the install can proceed
 preflight:
   heading: Preflight checks
 summary:

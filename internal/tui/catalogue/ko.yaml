@@ -155,6 +155,7 @@ progress:
   stopped: 시작도 못 하고 멈췄습니다
   logs: 로그
   findings: 멈춘 이유
+  warnings: 경고 — 설치는 진행 가능
 preflight:
   heading: 사전 검사
 summary:

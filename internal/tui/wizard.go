@@ -1085,6 +1085,16 @@ func (w *Wizard) fold(e event.Event) {
 	}
 }
 
+// anyBlocked reports whether a collected finding actually stops the run.
+func (w *Wizard) anyBlocked() bool {
+	for _, e := range w.failures {
+		if e.Status == event.StatusBlocked {
+			return true
+		}
+	}
+	return false
+}
+
 func (w *Wizard) phase(id string) *phaseView {
 	p, ok := w.phases[id]
 	if !ok {

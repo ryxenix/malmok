@@ -552,16 +552,27 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 	}
 	// The tail under its own header, so the eye can tell where the verdicts
 	// end and the narration begins without reading either.
-	if tail := w.tailLogs(4); len(tail) > 0 {
-		b.WriteString("\n" + w.theme.Section(w.cat.T("progress.logs"), width, w.glyphs) + "\n")
+	tailN := 4
+	if w.logExpanded {
+		tailN = 18
 	}
-	for _, e := range w.tailLogs(4) {
-		mark := " "
-		if e.Level == event.LevelWarn || e.Level == event.LevelError {
-			mark = w.glyphs.Warn
+	if tail := w.tailLogs(tailN); len(tail) > 0 {
+		b.WriteString("\n" + w.theme.Section(w.cat.T("progress.logs"), width, w.glyphs) + "\n")
+		for _, e := range tail {
+			mark := " "
+			if e.Level == event.LevelWarn || e.Level == event.LevelError ||
+				e.Status == event.StatusFailed || e.Status == event.StatusBlocked {
+				mark = w.glyphs.Warn
+			}
+			line := e.Detail
+			// Step verdicts name their step, so the narration reads as
+			// "which step said what" rather than a stream of sentences.
+			if e.Kind == event.KindStep && e.Step != "" {
+				line = e.Step + ": " + line
+			}
+			b.WriteString(w.theme.Dim.Render(fmt.Sprintf(" %s %s  %s",
+				mark, e.TS.Format("15:04:05"), truncCells(line, width-14))) + "\n")
 		}
-		b.WriteString(w.theme.Dim.Render(fmt.Sprintf(" %s %s  %s",
-			mark, e.TS.Format("15:04:05"), truncCells(e.Detail, width-14))) + "\n")
 	}
 
 	heading := w.cat.T("install.heading")

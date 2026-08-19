@@ -314,7 +314,9 @@ type Wizard struct {
 	phases   map[string]*phaseView
 	logs     []event.Event
 	failures []event.Event
-	runStat  event.Status
+	// logExpanded widens the progress screen's log tail (the Logs button).
+	logExpanded bool
+	runStat     event.Status
 
 	preflight Work
 	install   Work
@@ -818,6 +820,9 @@ func (w *Wizard) activate(label string) (tea.Model, tea.Cmd) {
 		w.returnToMenu()
 		return w, nil
 	case w.cat.T("btn.logs"):
+		// A button that does nothing is worse than no button. This one
+		// widens the log tail from a glance to a page and back.
+		w.logExpanded = !w.logExpanded
 		return w, nil
 	case w.cat.T("btn.check"):
 		// Re-run the checks in place. Distinct from Continue, which moves on:
@@ -1072,16 +1077,30 @@ func (w *Wizard) fold(e event.Event) {
 		}
 
 	case event.KindLog, event.KindDecision:
-		w.logs = append(w.logs, e)
-		if len(w.logs) > 200 {
-			w.logs = w.logs[len(w.logs)-200:]
-		}
+		w.appendLog(e)
 		return
+	}
+
+	// A step's verdict is the install's narration -- "swap is off and
+	// /etc/fstab has no entry", "rke2-server is active" -- and it already
+	// arrives in every step event's detail. Only the demo ever emitted
+	// kind=log, so a real install showed an empty log pane while the
+	// narration scrolled past unrendered.
+	if e.Kind == event.KindStep && e.Status.Terminal() && e.Detail != "" {
+		w.appendLog(e)
 	}
 
 	if (e.Status == event.StatusFailed || e.Status == event.StatusBlocked) &&
 		(e.Kind == event.KindStep || e.Kind == event.KindProbe) {
 		w.failures = append(w.failures, e)
+	}
+}
+
+// appendLog keeps the rolling log window.
+func (w *Wizard) appendLog(e event.Event) {
+	w.logs = append(w.logs, e)
+	if len(w.logs) > 200 {
+		w.logs = w.logs[len(w.logs)-200:]
 	}
 }
 

@@ -1533,3 +1533,27 @@ func TestTheProgressScreenNamesWhatStoppedIt(t *testing.T) {
 		t.Error("findings are shown while the run is still moving")
 	}
 }
+
+// The install narrates itself through its step verdicts, and the log pane
+// must show them: only the demo ever emitted kind=log, so a real install ran
+// with an empty log section while every step's sentence scrolled past
+// unrendered. The Logs button widens the tail instead of doing nothing.
+func TestStepVerdictsReachTheLogPane(t *testing.T) {
+	w := wizard(t, LangEN, false, 120, 40, StepInstall)
+	w.busy = true
+	w.fold(event.Event{Kind: event.KindStep, Phase: "l0-node-prep", Step: "swap",
+		Status: event.StatusOK, Detail: "swap is off and /etc/fstab has no entry"})
+
+	_, body, _ := w.progressScreen(110, "install")
+	if !strings.Contains(plain(body), "swap: swap is off") {
+		t.Errorf("the step's verdict is not in the log tail:\n%s", plain(body))
+	}
+
+	// A running step is not a verdict yet.
+	w.logs = nil
+	w.fold(event.Event{Kind: event.KindStep, Phase: "l0-node-prep", Step: "swap",
+		Status: event.StatusRunning, Detail: "checking"})
+	if len(w.logs) != 0 {
+		t.Error("a non-terminal step event entered the log stream")
+	}
+}

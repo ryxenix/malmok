@@ -5,6 +5,19 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.55.3] - 2026-08-19
+
+### Fixed
+
+- A real install showed an empty log pane. The install narrates itself
+  through its step verdicts ("swap is off and /etc/fstab has no entry",
+  "rke2-server is active") and those already arrive in every step event --
+  but only the demo ever emitted kind=log, which was all the pane rendered.
+  Terminal step verdicts now flow into the log tail, prefixed with their
+  step's name.
+- The Logs button on the progress screen did nothing. It now widens the log
+  tail from a glance (4 lines) to a page (18) and back.
+
 ## [0.55.2] - 2026-08-19
 
 ### Fixed

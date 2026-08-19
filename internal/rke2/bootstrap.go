@@ -11,6 +11,7 @@ package rke2
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -53,6 +54,23 @@ type Options struct {
 	// unpacks and starts every static pod, which is minutes rather than
 	// seconds on a cold node.
 	ReadyTimeout time.Duration
+
+	// Prestage is written into the manifest directory before rke2-server first
+	// starts. It exists for the configuration the cluster cannot come up
+	// without: with kube-proxy disabled, Cilium must be told the API server's
+	// direct address at bootstrap, or it waits on the in-cluster service IP
+	// that only a running kube-proxy -- or a running Cilium -- would route.
+	// Found live on the first IDC install: the node sat NotReady for 900s
+	// while the config that would have fixed it waited in the next phase.
+	Prestage []PrestagedManifest
+}
+
+// PrestagedManifest is one file for the manifest directory, written before
+// the service starts so RKE2's own reconciler applies it on first boot.
+type PrestagedManifest struct {
+	Name string // step name
+	Path string
+	Body string
 }
 
 func (o Options) installTimeout() time.Duration {
@@ -81,13 +99,80 @@ func BootstrapSteps(runner exec.Runner, node v1alpha1.NodeSpec, spec v1alpha1.Cl
 		s.Phase, s.Runner, s.Host = PhaseBootstrap, runner, host
 		return s
 	}
-	return []engine.Step{
+	steps := []engine.Step{
 		add(installStep(spec.Kubernetes.Version, "server", o)),
 		add(configStep(ServerConfig(node, spec, ""))),
+	}
+	for _, m := range o.Prestage {
+		steps = append(steps, add(prestageStep(m)))
+	}
+	steps = append(steps,
 		add(serviceStep("rke2-server", o)),
 		// The operator's own access, not only the tool's: the account this
 		// logged in as is the account kubectl and k9s will run from.
 		add(kubeconfigStep(node.SSH.User)),
+		// And the tools that access is for. A cluster whose kubeconfig is in
+		// place but whose kubectl is buried in /var/lib/rancher looks broken
+		// from the machine it was built on.
+		add(opsToolsStep(spec.Network.Mode == v1alpha1.NetworkOnline)),
+	)
+	return steps
+}
+
+// prestageStep writes one manifest before the service starts. Write-only:
+// there is no cluster to apply anything to yet, and RKE2 reconciles the
+// directory on its first boot.
+func prestageStep(m PrestagedManifest) *engine.ShellStep {
+	return &engine.ShellStep{
+		Name: m.Name,
+		Check: fmt.Sprintf(`[ -f %s ] || { echo "%s does not exist"; exit 1; }
+printf '%%s' %s | cmp -s - %s || { echo "%s differs from the document"; exit 1; }
+echo "%s matches the document"`, m.Path, m.Path, ShellQuote(m.Body), m.Path, m.Path, m.Path),
+		Do: fmt.Sprintf(`set -e
+install -d -m 0755 %s
+printf '%%s' %s > %s`, ManifestDir, ShellQuote(m.Body), m.Path),
+		Satisfied: "%s",
+		Missing:   "%s",
+	}
+}
+
+// opsToolsStep puts kubectl and k9s on the operator's PATH.
+//
+// RKE2 ships kubectl but buries it in /var/lib/rancher/rke2/bin, which is on
+// nobody's PATH; the kubeconfig step gave the operator credentials to a
+// cluster they then could not address. k9s comes from its release page, so it
+// is skipped off-line -- an airgapped site gets it from the bundle or not at
+// all, and a step that needs the internet must say so rather than hang.
+func opsToolsStep(online bool) *engine.ShellStep {
+	k9sCheck, k9sDo := `command -v k9s >/dev/null || { echo "k9s is not installed"; exit 1; }`, ""
+	if online {
+		k9sDo = `
+if ! command -v k9s >/dev/null; then
+  arch=$(uname -m)
+  case "$arch" in
+    x86_64) a=amd64 ;;
+    aarch64) a=arm64 ;;
+    *) echo "no k9s build for $arch"; a="" ;;
+  esac
+  if [ -n "$a" ]; then
+    curl -sfL "https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_${a}.tar.gz"       | tar -xz -C /usr/local/bin k9s
+    chmod 0755 /usr/local/bin/k9s
+  fi
+fi`
+	} else {
+		// Off-line the check asks only for kubectl; reporting a missing k9s
+		// forever on a site that cannot fetch it is a step that never settles.
+		k9sCheck = `true`
+	}
+	return &engine.ShellStep{
+		Name: "operator-tools",
+		Check: fmt.Sprintf(`command -v kubectl >/dev/null || { echo "kubectl is not on the PATH"; exit 1; }
+%s
+echo "kubectl $(kubectl version --client 2>/dev/null | head -1); $(k9s version -s 2>/dev/null | head -1 || echo 'k9s absent')"`, k9sCheck),
+		Do: fmt.Sprintf(`set -e
+ln -sf %s/bin/kubectl /usr/local/bin/kubectl%s`, DataDir, k9sDo),
+		Satisfied: "%s",
+		Missing:   "%s",
 	}
 }
 
@@ -277,7 +362,15 @@ func ServerConfig(node v1alpha1.NodeSpec, spec v1alpha1.ClusterSpec, token strin
 		}
 	}
 
-	if ip := strings.TrimSpace(node.NodeIP); ip != "" {
+	// The advertised address is the document's, not the default route's.
+	// Unpinned, the kubelet advertises whichever interface holds the default
+	// route -- on the first IDC node that was the public one, and the operator
+	// had named the internal address in the document all along.
+	ip := strings.TrimSpace(node.NodeIP)
+	if ip == "" && net.ParseIP(strings.TrimSpace(node.Host)) != nil {
+		ip = strings.TrimSpace(node.Host)
+	}
+	if ip != "" {
 		b.WriteString("node-ip: " + yamlString(ip) + "\n")
 	}
 	if h := strings.TrimSpace(node.Hostname); h != "" {

@@ -111,7 +111,19 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 		Grade:     engine.GradeMutating,
 		Traversal: engine.TraversalCluster,
 		Steps: func(string) []engine.Step {
-			steps := rke2.BootstrapSteps(r.ByHost[first.Host], first, spec, o.RKE2)
+			ro := o.RKE2
+			// With kube-proxy disabled, Cilium needs the API server's direct
+			// address before it first starts, or bootstrap deadlocks on the
+			// in-cluster service IP nothing routes yet. The same file the
+			// dataplane phase maintains, written one phase earlier.
+			if dataplane.WantsCilium(spec) {
+				ro.Prestage = append(ro.Prestage, rke2.PrestagedManifest{
+					Name: "cilium-values",
+					Path: dataplane.CiliumConfigFile,
+					Body: dataplane.CiliumHelmConfig(spec),
+				})
+			}
+			steps := rke2.BootstrapSteps(r.ByHost[first.Host], first, spec, ro)
 			// kube-vip belongs to bootstrap, not to a phase of its own: the
 			// address it serves is what every later join uses, so the phase
 			// that brings up the first server has to finish with it answering.

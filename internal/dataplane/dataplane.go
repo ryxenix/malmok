@@ -42,9 +42,11 @@ const gatewayAPIURL = "https://github.com/kubernetes-sigs/gateway-api/releases/d
 // Files this phase writes, all under RKE2's manifest directory.
 const (
 	gatewayCRDFile = rke2.ManifestDir + "/malmok-gateway-api-crds.yaml"
-	ciliumCfgFile  = rke2.ManifestDir + "/malmok-cilium-config.yaml"
-	lbPoolFile     = rke2.ManifestDir + "/malmok-lb-pool.yaml"
-	l2PolicyFile   = rke2.ManifestDir + "/malmok-l2-announcement.yaml"
+	// CiliumConfigFile is shared with bootstrap, which prestages the same
+	// file before rke2-server first starts.
+	CiliumConfigFile = rke2.ManifestDir + "/malmok-cilium-config.yaml"
+	lbPoolFile       = rke2.ManifestDir + "/malmok-lb-pool.yaml"
+	l2PolicyFile     = rke2.ManifestDir + "/malmok-l2-announcement.yaml"
 )
 
 const managedFileHeader = "# Managed by malmok. Changes here are overwritten on the next apply."
@@ -89,7 +91,7 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 
 	steps := []engine.Step{
 		add(gatewayCRDStep(spec, o)),
-		add(rke2.ManifestStep(Phase, "cilium-values", ciliumCfgFile, CiliumHelmConfig(spec),
+		add(rke2.ManifestStep(Phase, "cilium-values", CiliumConfigFile, CiliumHelmConfig(spec),
 			"helmchartconfig -n kube-system rke2-cilium", o.timeout())),
 		add(ciliumAppliedStep(spec, o)),
 	}
@@ -169,6 +171,15 @@ kubectl -n kube-system rollout status ds/cilium-envoy --timeout=%ds 2>/dev/null 
 // isCilium reports whether the document asks for the Cilium dataplane.
 func isCilium(spec v1alpha1.ClusterSpec) bool {
 	return strings.HasPrefix(string(spec.Kubernetes.Dataplane.Preset), "cilium")
+}
+
+// WantsCilium reports whether the preset runs Cilium at all.
+func WantsCilium(spec v1alpha1.ClusterSpec) bool {
+	switch spec.Kubernetes.Dataplane.Preset {
+	case v1alpha1.DataplaneCiliumGW, v1alpha1.DataplaneCiliumTraefik:
+		return true
+	}
+	return false
 }
 
 // WantsGatewayAPI reports whether the preset includes a Gateway controller.

@@ -5,6 +5,32 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.56.0] - 2026-08-19
+
+### Fixed
+
+- Bootstrap deadlocked on every fresh Cilium install with kube-proxy
+  disabled, found on the first real IDC build: the bundled Cilium came up
+  with default values and waited on the in-cluster service IP
+  (10.43.0.1:443) that only a running kube-proxy -- or a running Cilium --
+  would route, while the values that point it at the API server directly
+  (kubeProxyReplacement, k8sServiceHost) sat in the next phase. The
+  HelmChartConfig is now prestaged into the manifest directory before
+  rke2-server first starts; the dataplane phase keeps maintaining the same
+  file afterwards.
+- A multi-homed node advertised whichever address holds the default route
+  -- on the IDC node, the public interface -- while the operator had named
+  the internal address in the document all along. When nodeIP is unset and
+  the node's host is an IP literal, it is pinned as node-ip; an explicit
+  nodeIP still wins.
+
+### Added
+
+- Operator tools land with the cluster: kubectl (RKE2's own, linked onto
+  the PATH from /var/lib/rancher/rke2/bin) and k9s (fetched from its release
+  page -- online sites only; an airgapped site is not asked to download what
+  it cannot reach, nor checked for it forever).
+
 ## [0.55.3] - 2026-08-19
 
 ### Fixed

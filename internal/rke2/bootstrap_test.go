@@ -413,3 +413,83 @@ func TestBundledTraefikFollowsThePreset(t *testing.T) {
 		}
 	}
 }
+
+// The advertised address is the document's, not the default route's. Found on
+// the first IDC install: a multi-homed node advertised its public interface
+// because nothing pinned node-ip, while the operator had named the internal
+// address in the document all along.
+func TestNodeIPFollowsTheDocument(t *testing.T) {
+	tests := []struct {
+		name string
+		host string
+		pin  string // explicit NodeSpec.NodeIP
+		want any    // expected node-ip value; nil = key absent
+	}{
+		{name: "an IP host pins itself", host: "192.168.0.24", want: "192.168.0.24"},
+		{name: "an explicit nodeIP wins", host: "192.168.0.24", pin: "10.0.0.5", want: "10.0.0.5"},
+		{name: "a hostname pins nothing", host: "cp01.acme.internal", want: nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			n := serverNode()
+			n.Host, n.NodeIP = tc.host, tc.pin
+			got := parse(t, ServerConfig(n, clusterSpec(), ""))
+			if got["node-ip"] != tc.want {
+				t.Errorf("node-ip = %v, want %v", got["node-ip"], tc.want)
+			}
+		})
+	}
+}
+
+// With kube-proxy disabled, Cilium must know the API server's direct address
+// before rke2-server first starts, or bootstrap deadlocks: Cilium waits on the
+// in-cluster service IP that only a running kube-proxy -- or a running Cilium
+// -- would route, and the node sits NotReady until the timeout. The prestaged
+// manifest must therefore land before the service step.
+func TestPrestagedManifestsLandBeforeTheServiceStarts(t *testing.T) {
+	o := Options{Prestage: []PrestagedManifest{{
+		Name: "cilium-values", Path: ManifestDir + "/x.yaml", Body: "kubeProxyReplacement: true",
+	}}}
+	steps := BootstrapSteps(&exec.Fake{}, serverNode(), clusterSpec(), o)
+
+	pre, svc := -1, -1
+	for i, s := range steps {
+		switch s.(*engine.ShellStep).Name {
+		case "cilium-values":
+			pre = i
+		case "service":
+			svc = i
+		}
+	}
+	if pre == -1 {
+		t.Fatal("the prestaged manifest produced no step")
+	}
+	if svc == -1 {
+		t.Fatal("no service step")
+	}
+	if pre > svc {
+		t.Errorf("the manifest (step %d) lands after the service starts (step %d)", pre, svc)
+	}
+}
+
+// The kubeconfig step gave the operator credentials to a cluster they could
+// not address: RKE2 buries kubectl in /var/lib/rancher/rke2/bin. The tools
+// step links it onto the PATH and fetches k9s -- online only, because a step
+// that needs the internet on an airgapped site must skip, not hang.
+func TestOperatorToolsFollowTheNetworkMode(t *testing.T) {
+	online := opsToolsStep(true)
+	if !strings.Contains(online.Do, "ln -sf "+BinDir+"/kubectl") {
+		t.Errorf("kubectl is not linked onto the PATH:\n%s", online.Do)
+	}
+	if !strings.Contains(online.Do, "k9s_Linux_") {
+		t.Errorf("online mode does not fetch k9s:\n%s", online.Do)
+	}
+
+	airgap := opsToolsStep(false)
+	if strings.Contains(airgap.Do, "k9s_Linux_") {
+		t.Error("an airgapped site is asked to download k9s")
+	}
+	if strings.Contains(airgap.Check, "command -v k9s") {
+		t.Error("an airgapped site is checked for a k9s it cannot fetch")
+	}
+}

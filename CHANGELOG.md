@@ -5,6 +5,26 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.55.1] - 2026-08-19
+
+### Fixed
+
+- A failed probe now carries the severity its code is registered with,
+  instead of a hardcoded "block". Found on a real IDC install: swap being on
+  blocked preflight and told the operator to disable it by hand -- which is
+  exactly what l0-node-prep automates, and exactly what PF-105's registry
+  entry ("apply will disable it", warn) already said. The same hardcoding
+  sat on 20 more probes, including every degrade-registered eBPF check, so a
+  node without eBPF was refused outright instead of reaching the plan's
+  designed fallback-to-canal path. warnResult stays a deliberate softening
+  for sub-cases (an unreadable NTP daemon is not an unreachable NTP server).
+- The progress screen now names what stopped the run. The findings were
+  collected all along but rendered only on the done screen, so a blocked
+  preflight read "1 checks block the install" with the one check nowhere in
+  sight, and the operator went digging in events.jsonl for a sentence the
+  screen already had. Blocked and failed findings render with their code,
+  node and detail once the run stops.
+
 ## [0.55.0] - 2026-08-19
 
 ### Changed

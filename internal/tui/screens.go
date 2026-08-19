@@ -517,6 +517,28 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 		b.WriteString("\n")
 	}
 
+	// What stopped it, on the screen where it stopped. The findings were
+	// collected all along but rendered only on the done screen -- so an
+	// operator whose preflight blocked read "1 checks block the install"
+	// with the one check nowhere in sight, and went digging in events.jsonl
+	// for a sentence this screen already had.
+	if !w.busy && len(w.failures) > 0 {
+		b.WriteString("\n" + w.theme.Section(w.cat.T("progress.findings"), width, w.glyphs) + "\n")
+		const maxShown = 6
+		for i, e := range w.failures {
+			if i == maxShown {
+				b.WriteString(w.dim(fmt.Sprintf("  +%d", len(w.failures)-maxShown), width) + "\n")
+				break
+			}
+			head := e.Code
+			if e.Node != "" {
+				head += "  " + e.Node
+			}
+			b.WriteString(" " + w.theme.Err.Render(w.glyphs.Failed+" "+head) + "\n")
+			b.WriteString(w.dim(wrapCells(e.Detail, width-3), width-3) + "\n")
+		}
+	}
+
 	if node := w.currentNode(); node != "" {
 		b.WriteString("\n" + w.theme.Dim.Render(node) + "\n")
 	}

@@ -187,10 +187,21 @@ func ListenerHostnames(spec v1alpha1.ClusterSpec, secretRef string) []string {
 	return out
 }
 
-// fail builds a blocking result.
+// fail builds a failed result carrying the severity its code is registered
+// with. The registry is the single source of truth for what a finding means:
+// a warn-registered check (swap -- apply turns it off) must not stop the run,
+// and a degrade-registered one (no eBPF) is the plan's cue to fall back, not
+// a refusal. Hardcoding block here did both for months: the swap probe told
+// the operator to do by hand what l0-node-prep automates, and a node without
+// eBPF was refused instead of downgraded. Unknown ids stay block -- refusing
+// on a typo beats proceeding on one.
 func fail(id, reason, detail string) ProbeResult {
+	sev := codes.SeverityBlock
+	if c, ok := codes.Lookup(id); ok {
+		sev = c.Severity
+	}
 	return ProbeResult{
-		ID: id, Status: StatusFail, Severity: codes.SeverityBlock,
+		ID: id, Status: StatusFail, Severity: sev,
 		Code: reason, Detail: detail,
 	}
 }

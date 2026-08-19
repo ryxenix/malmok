@@ -103,6 +103,10 @@ func failf(id, reason, format string, args ...any) ProbeResult {
 	return fail(id, reason, fmt.Sprintf(format, args...))
 }
 
+// warnResult is a deliberate softening: the same code can have sub-cases of
+// different weight (an unreadable NTP daemon is not an unreachable NTP
+// server), and this is how a probe says "this one is only worth a warning"
+// against its code's registered severity.
 func warnResult(id, reason, detail string) ProbeResult {
 	return ProbeResult{
 		ID: id, Status: StatusFail, Severity: codes.SeverityWarn,

@@ -1501,3 +1501,35 @@ func TestTheVersionWearsItsChannelAndTheMenuHasNoPane(t *testing.T) {
 		t.Error("the menu carries an explanation pane")
 	}
 }
+
+// The screen where a run stops must say what stopped it. The findings were
+// collected all along but rendered only on the done screen, so a blocked
+// preflight read "1 checks block the install" with the check nowhere in
+// sight -- the operator went digging in events.jsonl for a sentence the
+// screen already had.
+func TestTheProgressScreenNamesWhatStoppedIt(t *testing.T) {
+	w := wizard(t, LangEN, false, 120, 40, StepPreflight)
+	w.busy = false
+	w.failures = []event.Event{{
+		Kind: event.KindProbe, Phase: "preflight", Code: "PF-105",
+		Node: "192.168.0.24", Status: event.StatusBlocked,
+		Detail: "swap is active (/dev/sda3 32G)",
+	}}
+
+	_, body, _ := w.progressScreen(100, "preflight")
+	got := plain(body)
+	if !strings.Contains(got, "PF-105") || !strings.Contains(got, "swap is active") {
+		t.Errorf("the blocking finding is not on the screen:\n%s", got)
+	}
+	if !strings.Contains(got, "192.168.0.24") {
+		t.Error("the finding does not say which node")
+	}
+
+	// While the run is still going the list stays off the screen: partial
+	// findings under a moving progress bar read as a verdict.
+	w.busy = true
+	_, body, _ = w.progressScreen(100, "preflight")
+	if strings.Contains(plain(body), "PF-105") {
+		t.Error("findings are shown while the run is still moving")
+	}
+}

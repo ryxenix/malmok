@@ -528,3 +528,30 @@ func TestMachineUUIDMissingIsASkipNotAFailure(t *testing.T) {
 		t.Fatalf("PF-109 without DMI should skip, got %+v", r)
 	}
 }
+
+// A probe's severity is its code's registered severity. Swap is the case that
+// found this: PF-105 is registered warn because l0-node-prep turns swap off,
+// yet the probe hardcoded block -- so preflight refused the install and told
+// the operator to do by hand what the next phase automates. The same
+// hardcoding kept degrade-registered eBPF findings from ever reaching the
+// plan's fallback path.
+func TestFailedProbesCarryTheirRegisteredSeverity(t *testing.T) {
+	n, _ := ubuntuProber(t, map[string]exec.Result{
+		"swapon": {Stdout: "/dev/sda3 32G\n"},
+	})
+	r := n.CheckSwap(t.Context())
+	if r.Status != StatusFail {
+		t.Fatalf("swap on did not fail the check: %+v", r)
+	}
+	if r.Severity != codes.SeverityWarn {
+		t.Errorf("PF-105 severity = %s; registered warn, because apply disables swap", r.Severity)
+	}
+
+	// And a degrade-registered finding degrades rather than blocks.
+	den := map[string]exec.Result{"bpftool feature probe": {Stdout: "DENIED permission denied\n"}}
+	n2, _ := ubuntuProber(t, den)
+	r2 := n2.CheckBPFLoad(t.Context())
+	if r2.Status != StatusFail || r2.Severity != codes.SeverityDegrade {
+		t.Errorf("PF-204 = %s/%s; registered degrade, the plan's cue to fall back", r2.Status, r2.Severity)
+	}
+}

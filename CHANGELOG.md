@@ -5,6 +5,19 @@ All notable changes to platformctl are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.54.0] - 2026-08-19
+
+### Changed
+
+- The layout fills the window at fixed proportions, the way k9s sizes its
+  panes. The 84-cell content cap is gone -- fields, section rules and the
+  form take everything the pane has -- and the rail scales with the window
+  (an eighth of the width, clamped 18..28) instead of staying 18 cells on a
+  full monitor. A half-screen and a full monitor now show the same shape,
+  rather than a fixed column with growing emptiness beside it. Prose is the
+  one exception: the explanation strip still wraps at 120 cells, because a
+  170-cell line is one the eye loses on the way back.
+
 ## [0.53.1] - 2026-08-19
 
 ### Changed

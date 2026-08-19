@@ -12,10 +12,11 @@ import "strings"
 // first.) On a window too narrow for the chrome the same text stays inline,
 // exactly where it was.
 
-// stripWrap caps the strip's line length. Full-bleed prose at 170 cells is a
-// line the eye loses on the way back; the cap is the same judgement as
-// maxContentW, a little wider because the strip is one thought, not a form.
-const stripWrap = 108
+// stripWrap caps the strip's line length. The layout fills proportionally,
+// but prose is the one thing that does not gain from width: at 170 cells the
+// eye loses the line on the way back, so the strip wraps early and leaves
+// the rest of its rows dark.
+const stripWrap = 120
 
 // stripLines caps the strip's height so a wordy screen cannot push the
 // content off the window. Three lines at stripWrap hold every current text.

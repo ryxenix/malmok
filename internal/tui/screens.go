@@ -181,13 +181,11 @@ func (w *Wizard) View() tea.View {
 func (w *Wizard) contentWidth() int {
 	width := w.width - gutter*2
 	if w.width >= minChromeW {
-		width = w.width - railWidth - 3 - gutter
+		width = w.width - railW(w.width) - 3 - gutter
 	}
-	// Capped, because a form is not a table. Fields that stretch to 160 cells
-	// put the value a head-turn away from its label, and every guide on
-	// reading width says the same thing the eye does. Wide terminals get a
-	// calmer column, not longer brackets.
-	return min(width, maxContentW)
+	// The whole pane, no cap: the layout fills at fixed proportions, and a
+	// window's spare width goes into the content rather than beside it.
+	return width
 }
 
 func (w *Wizard) rail() []RailItem {

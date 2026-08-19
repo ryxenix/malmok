@@ -29,15 +29,20 @@ import (
 // monochrome, because the same screen has to work over IPMI.
 
 const (
-	railWidth    = 18
 	minChromeW   = 72
 	minChromeH   = 18
 	gutter       = 2
 	buttonMargin = 2
-	// maxContentW caps the content column. A form is not a table: fields that
-	// stretch across a wide terminal put the value a head-turn from its label.
-	maxContentW = 84
 )
+
+// railW is the rail's share of the window: proportional, the way k9s sizes
+// its panes, so the layout keeps the same shape on a laptop half-screen and
+// on a full monitor instead of leaving the growth to one region. Clamped,
+// because below 18 cells the step labels truncate and above 28 the rail is
+// hoarding cells the content can use.
+func railW(w int) int {
+	return min(max(w/8, 18), 28)
+}
 
 // Theme holds the styles the chrome draws with.
 type Theme struct {
@@ -245,19 +250,18 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	b.WriteString(t.blendRule(w, f.Truecolor, g))
 	b.WriteString("\n")
 
-	// The chrome fills the terminal -- header, rules, rail and footer go edge
-	// to edge, the way every full-screen tool's do. The content column hugs
-	// the left of its pane, the way the Ubuntu installer's does: reading
-	// starts where the eye starts, and a column floating in the middle of a
-	// wide window reads as small and far away. It is still capped at
-	// maxContentW, because a form is not a table and brackets that stretch to
-	// 160 cells put the value a head-turn from its label.
+	// The chrome fills the terminal at fixed proportions, the way k9s does:
+	// header, rules, rail and footer go edge to edge, the rail takes its
+	// share of the width, and the content takes everything that remains --
+	// on a half-screen and on a full monitor the screen has the same shape,
+	// rather than a fixed column with growing emptiness beside it. Reading
+	// starts at the pane's left edge, like the Ubuntu installer's.
 	showRail := w >= minChromeW && len(f.Rail) > 0 && !f.HideRail
 	paneW := w - gutter*2
 	if showRail {
-		paneW = w - railWidth - 3 - gutter
+		paneW = w - railW(w) - 3 - gutter
 	}
-	contentW := min(paneW, maxContentW)
+	contentW := paneW
 
 	body := t.content(f, contentW, g)
 	footer := t.footer(f, w, g)
@@ -285,7 +289,7 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	if showRail {
 		rail := strings.Split(padTo(t.rail(f.Rail, g), bodyH), "\n")
 		for i := range bodyLines {
-			left := padCells(rail[i], railWidth)
+			left := padCells(rail[i], railW(w))
 			b.WriteString(t.Rail.Render(" "+left) + t.Divider.Render(g.VRule) + " " +
 				bodyLines[i] + "\n")
 		}

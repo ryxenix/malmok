@@ -92,16 +92,28 @@ func (s *ShellStep) Observe(ctx context.Context) (Observation, error) {
 }
 
 // Apply runs Do.
+//
+// Do is traced. A step body is a script, and a script under `set -e` can die
+// on a line that prints nothing -- which is how a real failure reached an
+// operator as "gateway-api-crds failed (exit 1):" with nothing after the
+// colon, twice, on two different steps. Tracing costs nothing on the happy
+// path (a successful Apply's output is never reported; the step's sentence
+// comes from re-observing) and on the unhappy one it names the command that
+// failed.
 func (s *ShellStep) Apply(ctx context.Context) error {
-	res, err := s.run(ctx, s.Do, s.DoTimeout)
+	res, err := s.run(ctx, "set -x\n"+s.Do, s.DoTimeout)
 	if err != nil {
 		return Fail("EX-002", fmt.Errorf("%s: could not be applied on %s: %w", s.Name, s.Host, err))
 	}
 	if !res.OK() {
 		// The node's own words are more use than a restatement of the step
 		// name, so they are carried into the failure rather than summarised.
+		said := CleanForEvent(res.Out() + " " + res.Err())
+		if strings.TrimSpace(said) == "" {
+			said = "the command printed nothing"
+		}
 		return Fail("EX-002", fmt.Errorf("%s failed on %s (exit %d): %s",
-			s.Name, s.Host, res.ExitCode, clip(CleanForEvent(res.Out()+" "+res.Err()))))
+			s.Name, s.Host, res.ExitCode, clip(said)))
 	}
 	return nil
 }

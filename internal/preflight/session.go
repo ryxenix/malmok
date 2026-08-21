@@ -605,12 +605,19 @@ func (r Report) Summary() string {
 	s := fmt.Sprintf("%d checks in %s: %d pass, %d fail, %d warn, %d skip",
 		pass+fail+warn+skip, r.Duration.Round(time.Millisecond), pass, fail, warn, skip)
 	if len(r.Unreachable) > 0 {
+		// With the reason: "could not reach 10.0.0.11" sends an operator to
+		// the network when the answer was a host key, a password or a
+		// missing account, and the reason was in hand all along.
 		hosts := make([]string, 0, len(r.Unreachable))
 		for h := range r.Unreachable {
 			hosts = append(hosts, h)
 		}
 		sort.Strings(hosts)
-		s += "; could not reach " + strings.Join(hosts, ", ")
+		var why []string
+		for _, h := range hosts {
+			why = append(why, h+" ("+r.Unreachable[h]+")")
+		}
+		s += "; could not reach " + strings.Join(why, ", ")
 	}
 	return s
 }

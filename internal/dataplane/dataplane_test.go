@@ -251,13 +251,26 @@ func TestAirgapReadsTheBundleFromDisk(t *testing.T) {
 	}
 }
 
-// A preset this phase does not implement must produce nothing rather than an
-// empty success.
-func TestUnsupportedPresetProducesNoSteps(t *testing.T) {
+// canal-traefik configures nothing -- RKE2 ships both charts and this tool
+// adds no values -- but "nothing to configure" is not "nothing to check". The
+// phase used to be skipped whole, so a canal build never observed the
+// dataplane its workloads depend on and reported success on the strength of
+// the installer having run.
+func TestTheBundledDataplaneIsStillObserved(t *testing.T) {
 	spec := ciliumSpec()
 	spec.Kubernetes.Dataplane.Preset = "canal-traefik"
-	if steps := Steps(&exec.Fake{}, spec, Options{}); len(steps) != 0 {
-		t.Errorf("a preset with no implementation produced %d steps", len(steps))
+
+	steps := Steps(&exec.Fake{}, spec, Options{})
+	if len(steps) != 1 {
+		t.Fatalf("canal produced %d steps, want the one that observes it", len(steps))
+	}
+	sh := steps[0].(*engine.ShellStep)
+	if !strings.Contains(sh.Check, "ds/rke2-canal") || !strings.Contains(sh.Check, "coredns") {
+		t.Errorf("the check does not observe canal and CoreDNS:\n%s", sh.Check)
+	}
+	// Nothing Cilium-shaped: this preset has no cilium-config to reconcile.
+	if strings.Contains(sh.Check, "cilium") || strings.Contains(sh.Do, "cilium") {
+		t.Error("the canal step reaches for Cilium")
 	}
 }
 

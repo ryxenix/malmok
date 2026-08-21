@@ -77,16 +77,20 @@ func (o Options) timeout() time.Duration {
 // runner is a control-plane node: everything here is cluster state, so it is
 // written once rather than on every node.
 func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.Step {
-	if !isCilium(spec) {
-		// The other presets are not implemented yet, and producing an empty
-		// phase silently would report success for work nobody did.
-		return nil
-	}
-
 	host := runner.Host()
 	add := func(s *engine.ShellStep) engine.Step {
 		s.Phase, s.Runner, s.Host = Phase, runner, host
 		return s
+	}
+
+	if !isCilium(spec) {
+		// canal-traefik configures nothing -- RKE2 ships both charts and this
+		// tool has no values to add -- but "nothing to configure" is not
+		// "nothing to check". A canal build used to skip this phase whole, so
+		// the dataplane every workload depends on was never observed at all,
+		// and the build reported success on the strength of the installer
+		// having run. Found by building the preset for the first time.
+		return []engine.Step{add(bundledDataplaneStep(spec, o))}
 	}
 
 	steps := []engine.Step{
@@ -113,6 +117,31 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 	// bound nowhere, agents five days old.
 	steps = append(steps, add(ciliumCurrentStep(o)))
 	return append(steps, add(gatewayClassStep(o)))
+}
+
+// bundledDataplaneStep observes the dataplane RKE2 ships with the
+// canal-traefik preset.
+//
+// Read-only, because there is nothing to apply: the observable is that every
+// canal pod is Ready on every node and CoreDNS is available, which is what
+// "the dataplane works" means to the workloads that come after it. Apply
+// waits for the same thing rather than acting -- an installer that just ran
+// is allowed a minute to converge, and if it does not, the step says which
+// part did not.
+func bundledDataplaneStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
+	ready := `kubectl -n kube-system rollout status ds/rke2-canal --timeout=%s >/dev/null 2>&1 || { echo "the canal daemonset is not rolled out on every node"; exit 1; }
+kubectl -n kube-system rollout status deploy/rke2-coredns-rke2-coredns --timeout=%s >/dev/null 2>&1 || { echo "CoreDNS is not available"; exit 1; }
+echo "canal is Ready on every node and CoreDNS is available"`
+
+	return &engine.ShellStep{
+		Name:      "bundled-dataplane",
+		Check:     kubectl + fmt.Sprintf(ready, "10s", "10s"),
+		Do:        kubectl + fmt.Sprintf(ready, o.timeout().String(), o.timeout().String()),
+		Satisfied: "%s",
+		Missing:   "%s",
+		DoTimeout: 2*o.timeout() + time.Minute,
+		Attempts:  1,
+	}
 }
 
 // ciliumCurrentStep restarts cilium when its pods predate the configuration
@@ -153,12 +182,11 @@ kubectl -n kube-system rollout status ds/cilium --timeout=10s >/dev/null 2>&1 ||
 echo "every cilium pod started after its configuration was applied"`, applied, oldest),
 
 		Do: kubectl + fmt.Sprintf(`set -e
-kubectl -n kube-system rollout restart deploy/cilium-operator
+%s
 kubectl -n kube-system rollout restart ds/cilium ds/cilium-envoy 2>/dev/null || kubectl -n kube-system rollout restart ds/cilium
-kubectl -n kube-system rollout status deploy/cilium-operator --timeout=%ds
 kubectl -n kube-system rollout status ds/cilium --timeout=%ds
 kubectl -n kube-system rollout status ds/cilium-envoy --timeout=%ds 2>/dev/null || true`,
-			int(o.timeout().Seconds()), int(o.timeout().Seconds()), int(o.timeout().Seconds())),
+			restartOperator, int(o.timeout().Seconds()), int(o.timeout().Seconds())),
 
 		Satisfied: "%s",
 		Missing:   "%s",
@@ -167,6 +195,22 @@ kubectl -n kube-system rollout status ds/cilium-envoy --timeout=%ds 2>/dev/null 
 		Attempts: 1,
 	}
 }
+
+// restartOperator replaces the cilium-operator pods.
+//
+// Not `rollout restart`: the operator Deployment asks for two replicas that
+// will not share a node, so on a single-node cluster the surge pods stay
+// Pending, the old pod is never replaced, and the rollout never finishes --
+// a deadlock a one-node build walked straight into. Deleting the pods lets
+// the ReplicaSet refill what the cluster can actually place.
+const restartOperator = `kubectl -n kube-system delete pod -l io.cilium/app=operator --wait=false >/dev/null 2>&1 || true`
+
+// operatorRunning is the fast verdict: an operator that cannot be scheduled
+// will never accept a GatewayClass, and waiting out a fifteen-minute timeout
+// to say so is the difference between a tool that reports and a tool that
+// hangs.
+const operatorRunning = `kubectl -n kube-system get pods -l io.cilium/app=operator ` +
+	`--field-selector=status.phase=Running --no-headers 2>/dev/null | grep -c . || true`
 
 // isCilium reports whether the document asks for the Cilium dataplane.
 func isCilium(spec v1alpha1.ClusterSpec) bool {
@@ -365,18 +409,27 @@ fi
 # Restarting it is the only thing that re-runs that check; harmless when the
 # controller is already registered, because the class is Accepted by then and
 # this branch is not reached.
-kubectl -n kube-system rollout restart deployment/cilium-operator >/dev/null 2>&1 || true
-kubectl -n kube-system rollout status deployment/cilium-operator --timeout=180s >/dev/null 2>&1 || true
+%s
 deadline=$(( $(date +%%s) + %d ))
+# A verdict window, not a vigil: if no operator is running two minutes in,
+# nothing is ever going to accept this class, and the timeout would only
+# delay the same answer.
+verdict=$(( $(date +%%s) + 120 ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   [ "$(%s)" = True ] && exit 0
+  if [ "$(date +%%s)" -gt "$verdict" ] && [ "$(%s)" = 0 ]; then
+    echo "no cilium-operator pod is Running, so nothing can accept the GatewayClass:"
+    kubectl -n kube-system get pods -l io.cilium/app=operator -o wide 2>&1 | tail -5
+    kubectl -n kube-system get events --field-selector reason=FailedScheduling 2>&1 | tail -5
+    exit 1
+  fi
   sleep 5
 done
 echo "the cilium GatewayClass never became Accepted. The cluster reports:"
 kubectl get gatewayclass -o wide 2>&1 | tail -5
 kubectl -n kube-system get job helm-install-rke2-cilium 2>&1 | tail -3
 kubectl -n kube-system logs -l io.cilium/app=operator --tail=30 2>&1 | tail -30
-exit 1`, exists, int(o.timeout().Seconds()), read),
+exit 1`, exists, restartOperator, int(o.timeout().Seconds()), read, operatorRunning),
 
 		Satisfied: "%s",
 		Missing:   "%s",

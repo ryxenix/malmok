@@ -159,7 +159,15 @@ func (d *Document) ApplyProfile() ([]string, error) {
 
 	set("kubernetes.dataplane.preset", s.Kubernetes.Dataplane.Preset == "",
 		func() { s.Kubernetes.Dataplane.Preset = b.Dataplane })
-	set("kubernetes.dataplane.fallback", s.Kubernetes.Dataplane.Fallback == "" && b.Fallback != "",
+	// A baseline fallback is inherited only where it is a fallback at all.
+	// Choosing canal-traefik on a profile whose baseline falls back to
+	// canal-traefik used to produce "fallback is the same as preset, so a
+	// downgrade has nowhere to go" -- the document refused for a value the
+	// operator never wrote. An explicit fallback that collides is still an
+	// error: that one is the operator's own contradiction.
+	set("kubernetes.dataplane.fallback",
+		s.Kubernetes.Dataplane.Fallback == "" && b.Fallback != "" &&
+			b.Fallback != s.Kubernetes.Dataplane.Preset,
 		func() { s.Kubernetes.Dataplane.Fallback = b.Fallback })
 	set("kubernetes.dataplane.downgradePolicy", s.Kubernetes.Dataplane.DowngradePolicy == "",
 		func() { s.Kubernetes.Dataplane.DowngradePolicy = b.DowngradePolicy })

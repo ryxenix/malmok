@@ -5,6 +5,45 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.57.0] - 2026-08-21
+
+Found by building three scenarios from bare nodes: an IDC-shaped single node
+(no VIP, no certificates), a canal-traefik pair, and the full cilium-gw build.
+
+### Fixed
+
+- Restarting the Cilium operator deadlocked a single-node cluster.
+  `rollout restart` surges a new pod, the operator Deployment asks for two
+  replicas that will not share a node, and on one node the surge pods stay
+  Pending while the old pod is never replaced -- a twenty-minute wait for
+  something that could never happen. The operator's pods are deleted
+  instead, so the ReplicaSet refills what the cluster can actually place.
+- The GatewayClass wait now returns a verdict in two minutes instead of
+  spending the whole timeout: if no operator pod is Running by then, nothing
+  can ever accept the class, and the step says so with the pod states and
+  the scheduling events.
+- A step that failed silently reported nothing at all -- "gateway-api-crds
+  failed (exit 1):" with an empty message and no evidence, twice, on two
+  different steps. Apply now traces its script, so a script that dies under
+  `set -e` on a line that prints nothing still names the command that died;
+  an empty result reads "the command printed nothing" rather than trailing
+  off.
+- A profile's baseline could contradict an explicit choice and the document
+  was blamed: choosing canal-traefik on a profile whose baseline falls back
+  to canal-traefik was refused for "fallback is the same as preset", a value
+  the operator never wrote. Inheritance now skips a fallback the preset
+  already is; an explicitly written collision is still an error.
+- "could not reach 192.168.88.241" now carries the reason (a host key, a
+  password, a missing account) instead of sending the operator to the
+  network with the answer already in hand.
+
+### Added
+
+- The canal-traefik preset is observed rather than assumed. The dataplane
+  phase used to be skipped whole for it -- nothing this tool configures --
+  so a canal build never checked the dataplane its workloads depend on. It
+  now waits for every canal pod to be Ready and CoreDNS to be available.
+
 ## [0.56.2] - 2026-08-21
 
 ### Fixed

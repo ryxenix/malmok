@@ -487,3 +487,35 @@ func TestCiliumHostNetworkFollowsExposure(t *testing.T) {
 		t.Errorf("a load-balanced gateway was moved into the host namespace:\n%s", cfg)
 	}
 }
+
+// An HTTPS listener that omits the tls block inherits the cluster's pki.mode,
+// and the Secret that inheritance lands in still has to be named. It was
+// nameless: the listener got no certificateRefs, Cilium programmed the
+// gateway anyway, and every handshake was reset by a listener holding no
+// certificate -- caught only by PV-001, after the cluster was built.
+func TestAnHTTPSListenerAlwaysNamesItsSecret(t *testing.T) {
+	spec := gatewaySpec()
+	spec.Gateway.Gateways[0].Listeners = []v1alpha1.ListenerSpec{
+		{Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443, Hostname: "*.acme.internal"},
+	}
+
+	body := GatewayManifest(spec)
+	if !strings.Contains(body, "certificateRefs") {
+		t.Errorf("an HTTPS listener has no certificateRefs:\n%s", body)
+	}
+	want := spec.Gateway.Gateways[0].Name + "-https-tls"
+	if !strings.Contains(body, want) {
+		t.Errorf("the listener does not reference %q:\n%s", want, body)
+	}
+	if refs := SecretRefs(spec); len(refs) != 1 || refs[0] != want {
+		t.Errorf("SecretRefs is %v, want [%s] so the material has somewhere to land", refs, want)
+	}
+
+	// A listener that names its own Secret keeps that name.
+	spec.Gateway.Gateways[0].Listeners[0].TLS = &v1alpha1.ListenerTLS{
+		Source: v1alpha1.TLSFromSecret, SecretRef: "wildcard-acme",
+	}
+	if refs := SecretRefs(spec); len(refs) != 1 || refs[0] != "wildcard-acme" {
+		t.Errorf("SecretRefs is %v, want the document's own name", refs)
+	}
+}

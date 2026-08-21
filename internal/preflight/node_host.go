@@ -360,6 +360,49 @@ type Offset struct {
 // A difference smaller than what the measurement could resolve is not evidence
 // of anything. Reporting it as skew would be the tool blaming the cluster for
 // its own latency.
+// CheckClockSkewTrend is CheckClockSkew given a second set of readings taken
+// a little later.
+//
+// One sample cannot tell a clock that is converging from one that is wrong.
+// Nodes come up from a reboot seconds apart, each reports itself synchronised
+// while its time daemon is still stepping, and the gap closes on its own --
+// which a single measurement calls drift and blocks the build for. Two
+// samples separated by a pause answer the question the operator actually
+// has: is this settling, or is it staying wrong.
+func CheckClockSkewTrend(first, second map[string]Offset, tolerance time.Duration) ProbeResult {
+	latest := CheckClockSkew(second, tolerance)
+	if !latest.Failed() || latest.Code != "CLOCK_SKEW" {
+		return latest
+	}
+	if was, is := skewOf(first), skewOf(second); was > is && was-is > tolerance/10 {
+		// Still closing. Say so rather than blocking: the operator is looking
+		// at a cluster whose clocks are converging, and the honest verdict is
+		// "measure again", not "these nodes are wrong".
+		return warnResult("PF-502", "CLOCK_CONVERGING", fmt.Sprintf(
+			"the node clocks are %s apart and closing (%s a moment ago), so their time daemons are "+
+				"still stepping after a boot rather than drifting; re-run the checks in a minute, "+
+				"and if the gap stops closing above %s, treat it as %s",
+			is.Round(time.Millisecond), was.Round(time.Millisecond), tolerance, "CLOCK_SKEW"))
+	}
+	return latest
+}
+
+// skewOf is the spread between the furthest-apart readings.
+func skewOf(readings map[string]Offset) time.Duration {
+	var low, high time.Duration
+	first := true
+	for _, o := range readings {
+		if first || o.Delta < low {
+			low = o.Delta
+		}
+		if first || o.Delta > high {
+			high = o.Delta
+		}
+		first = false
+	}
+	return high - low
+}
+
 func CheckClockSkew(readings map[string]Offset, tolerance time.Duration) ProbeResult {
 	if len(readings) < 2 {
 		return skipped("PF-502", "skew needs at least two nodes to compare")

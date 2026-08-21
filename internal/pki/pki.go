@@ -118,6 +118,17 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, m Material, o Options)
 		return s
 	}
 
+	// byo-cert issues nothing. The document supplied the certificate and the
+	// gateway phase installs it as the listener's Secret, so there is no
+	// issuer to create and no cert-manager to run for it -- the same reason
+	// `pki.mode: none` installs nothing. It used to fall through to the
+	// issuer path and produce a ClusterIssuer whose spec was empty, which the
+	// cluster rejected with "spec: Required value" after a ten-minute wait.
+	// Found by building the preset for the first time.
+	if mode == v1alpha1.PKIBYOCert {
+		return nil
+	}
+
 	steps := []engine.Step{
 		add(rke2.ManifestStep(Phase, "cert-manager", certManagerFile,
 			CertManagerChart(spec, o), "helmchart -n kube-system cert-manager", o.timeout())),
@@ -380,6 +391,11 @@ func IssuerManifest(spec v1alpha1.ClusterSpec) string {
 	b.WriteString("  name: " + yamlString(IssuerName) + "\nspec:\n")
 
 	switch spec.PKI.Mode {
+	case v1alpha1.PKIBYOCert:
+		// Nothing issues: the material came with the document. Rendering an
+		// issuer body here would be inventing a signer that does not exist.
+		return ""
+
 	case v1alpha1.PKIPrivateCA:
 		b.WriteString("  ca:\n    secretName: " + yamlString(CASecretName) + "\n")
 

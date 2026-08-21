@@ -203,7 +203,7 @@ func drainStep(addr string, o Options) *engine.ShellStep {
 	return &engine.ShellStep{
 		Name: "drain",
 		Check: rke2.Kubectl + nodeName(addr) + fmt.Sprintf(`
-sched=$(kubectl get node "$node" -o jsonpath='{.spec.unschedulable}' 2>/dev/null)
+sched=$(kubectl get node "$node" -o jsonpath='{.spec.unschedulable}' 2>/dev/null || true)
 [ "$sched" = "true" ] || { echo "$node still accepts work"; exit 1; }
 left=$(%s)
 [ "$left" = "0" ] || { echo "$node still runs $left pod(s) that would be evicted"; exit 1; }
@@ -277,7 +277,7 @@ exit 1`, unit, unit, unit, unit),
 // stayed up, because the one that just restarted is the least able to answer.
 func upgradedStep(addr string, want Version, o Options) *engine.ShellStep {
 	read := nodeName(addr) + `
-line=$(kubectl get node "$node" -o jsonpath='{.status.nodeInfo.kubeletVersion}{"|"}{range .status.conditions[?(@.type=="Ready")]}{.status}{end}' 2>/dev/null)`
+line=$(kubectl get node "$node" -o jsonpath='{.status.nodeInfo.kubeletVersion}{"|"}{range .status.conditions[?(@.type=="Ready")]}{.status}{end}' 2>/dev/null || true)`
 
 	timeout := o.RKE2.ReadyTimeout
 	if timeout <= 0 {

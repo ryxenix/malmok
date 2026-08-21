@@ -290,3 +290,32 @@ func TestStepIDs(t *testing.T) {
 		}
 	}
 }
+
+// Under `set -e`, a command substitution that exits non-zero takes the whole
+// script with it -- so every assignment whose command may legitimately fail
+// (a resource that does not exist yet is the answer a wait loop waits for)
+// has to say `|| true`. Without it the Gateway API wait never ran once on a
+// fresh cluster: kubectl exited 1 because the CRD was absent, the script died
+// silently, and a re-run passed only because RKE2 had applied the bundle
+// meanwhile. That flakiness cost a whole IDC build.
+func TestWaitLoopsSurviveTheAbsenceTheyWaitFor(t *testing.T) {
+	for _, s := range Steps(&exec.Fake{}, ciliumSpec(), Options{}) {
+		sh := s.(*engine.ShellStep)
+		for _, script := range []string{sh.Check, sh.Do} {
+			if !strings.Contains(script, "set -e") {
+				continue
+			}
+			for _, line := range strings.Split(script, "\n") {
+				line = strings.TrimSpace(line)
+				// An assignment from a command that hides its stderr is one
+				// where absence is expected.
+				if !strings.Contains(line, "=$(") || !strings.Contains(line, "2>/dev/null") {
+					continue
+				}
+				if !strings.Contains(line, "|| true") && !strings.HasSuffix(line, "\\") {
+					t.Errorf("%s: an assignment under set -e can kill the script:\n  %s", sh.Name, line)
+				}
+			}
+		}
+	}
+}

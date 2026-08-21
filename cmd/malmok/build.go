@@ -232,6 +232,24 @@ func (o *preflightOptions) assembleBundles(doc *spec.Document) (map[string]*cert
 	out := map[string]*cert.Bundle{}
 	for _, ref := range refs {
 		tls := byRef[ref]
+		if tls == nil && doc.Spec.PKI.Mode == v1alpha1.PKIBYOCert && doc.Spec.PKI.BYOCert != nil {
+			// The listener named no material and the cluster did: byo-cert
+			// means the operator handed over one certificate for the service
+			// domain, and a listener that omits the tls block inherits it.
+			// Without this the inheritance the schema documents produced
+			// nothing at all, and the listener served no certificate.
+			byo := doc.Spec.PKI.BYOCert
+			tls = &v1alpha1.ListenerTLS{
+				Source:    v1alpha1.TLSFromBYO,
+				SecretRef: ref,
+				BYO: &v1alpha1.BYOMaterial{
+					// The CA travels as the chain: a private CA's own root is
+					// what in-cluster clients verify against, and the assembler
+					// treats chain input as additive.
+					Cert: byo.Cert, Key: byo.Key, Chain: byo.CACert,
+				},
+			}
+		}
 		if tls == nil || tls.Source != v1alpha1.TLSFromBYO {
 			// A listener whose certificate is issued in-cluster has nothing to
 			// assemble here; l2-pki will own it.

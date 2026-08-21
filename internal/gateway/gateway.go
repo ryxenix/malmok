@@ -403,11 +403,11 @@ func writeListener(b *strings.Builder, gw v1alpha1.Gateway, l v1alpha1.ListenerS
 		b.WriteString("      hostname: " + yamlString(l.Hostname) + "\n")
 	}
 
-	if l.TLS != nil && l.Protocol == v1alpha1.ListenerHTTPS {
+	if l.Protocol == v1alpha1.ListenerHTTPS {
 		b.WriteString("      tls:\n        mode: Terminate\n")
-		if l.TLS.SecretRef != "" {
+		if ref := ListenerSecret(gw, l); ref != "" {
 			b.WriteString("        certificateRefs:\n          - kind: Secret\n            name: " +
-				yamlString(l.TLS.SecretRef) + "\n")
+				yamlString(ref) + "\n")
 		}
 	}
 	if l.TLS != nil && l.Protocol == v1alpha1.ListenerTLSPassthrough {
@@ -542,17 +542,36 @@ func SecretRefs(spec v1alpha1.ClusterSpec) []string {
 	var out []string
 	for _, gw := range spec.Gateway.Gateways {
 		for _, l := range gw.Listeners {
-			if l.TLS == nil || l.TLS.SecretRef == "" || l.Protocol != v1alpha1.ListenerHTTPS {
+			if l.Protocol != v1alpha1.ListenerHTTPS {
 				continue
 			}
-			if !seen[l.TLS.SecretRef] {
-				seen[l.TLS.SecretRef] = true
-				out = append(out, l.TLS.SecretRef)
+			ref := ListenerSecret(gw, l)
+			if ref != "" && !seen[ref] {
+				seen[ref] = true
+				out = append(out, ref)
 			}
 		}
 	}
 	sort.Strings(out)
 	return out
+}
+
+// ListenerSecret names the Secret an HTTPS listener terminates with.
+//
+// The document's name when it gives one, and a derived one otherwise -- a
+// listener that omits the tls block inherits the cluster's pki.mode, and
+// something still has to name the Secret that inheritance lands in. It was
+// nameless before, so the listener got no certificateRefs, Cilium programmed
+// the gateway anyway, and every handshake was reset by a listener holding no
+// certificate. Found by building an HTTPS listener for the first time.
+func ListenerSecret(gw v1alpha1.Gateway, l v1alpha1.ListenerSpec) string {
+	if l.Protocol != v1alpha1.ListenerHTTPS {
+		return ""
+	}
+	if l.TLS != nil && l.TLS.SecretRef != "" {
+		return l.TLS.SecretRef
+	}
+	return gw.Name + "-" + l.Name + "-tls"
 }
 
 func sortedKeys(m map[string]*cert.Bundle) []string {

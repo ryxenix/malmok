@@ -223,7 +223,7 @@ rm -f /tmp/rke2-install.sh`, InstallerURL)
 	return &engine.ShellStep{
 		Name: "install",
 		Check: fmt.Sprintf(`command -v rke2 >/dev/null 2>&1 || { echo "rke2 is not installed"; exit 1; }
-have=$(rke2 --version 2>/dev/null | head -1 | awk '{print $3}')
+have=$(rke2 --version 2>/dev/null | head -1 | awk '{print $3}' || true)
 [ -n "$have" ] || { echo "rke2 is present but reports no version"; exit 1; }
 want=%s
 if [ "$want" != latest ] && [ "$have" != "$want" ]; then

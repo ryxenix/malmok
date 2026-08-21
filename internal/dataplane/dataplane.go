@@ -296,8 +296,13 @@ install -d -m 0755 %s
 rm -f /tmp/gateway-api.yaml
 deadline=$(( $(date +%%s) + 300 ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
+  # The trailing || true matters: the CRD not existing yet is the answer this
+  # loop waits for, and under set -e a command substitution that exits
+  # non-zero takes the whole script with it. Without it the wait never ran
+  # once on a fresh cluster -- kubectl exited 1, the script died silently,
+  # and a re-run passed only because RKE2 had applied the bundle meanwhile.
   have=$(kubectl get crd gatewayclasses.gateway.networking.k8s.io \
-    -o jsonpath='{.metadata.annotations.gateway\.networking\.k8s\.io/bundle-version}' 2>/dev/null)
+    -o jsonpath='{.metadata.annotations.gateway\.networking\.k8s\.io/bundle-version}' 2>/dev/null || true)
   [ "$have" = %s ] && exit 0
   sleep 5
 done

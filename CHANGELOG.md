@@ -5,6 +5,38 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.58.0] - 2026-08-22
+
+Found by a scenario that had never been built: byo-cert PKI, a load-balancer
+pool gateway, an HTTPS listener and an upstream registry.
+
+### Fixed
+
+- **Every from-scratch cilium-gw build failed at the Gateway API CRDs, and
+  the reason was one missing `|| true`.** Under `set -e`, a command
+  substitution that exits non-zero takes the script with it, and
+  `have=$(kubectl get crd ... 2>/dev/null)` exits non-zero precisely when
+  the CRD is absent -- which is what the wait loop exists to wait for. The
+  loop never ran once on a new cluster: the script died silently, and a
+  re-run passed only because RKE2 had applied the bundle meanwhile. That
+  flakiness cost an IDC build and three scenario runs. Every assignment of
+  the same shape is fixed and a test rejects new ones.
+- `pki.mode: byo-cert` rendered a ClusterIssuer with an empty spec, which
+  the cluster refused with "spec: Required value" after a ten-minute wait.
+  byo-cert issues nothing: the document supplied the certificate, so the
+  phase now installs nothing at all.
+- An HTTPS listener that omits its tls block is documented to inherit the
+  cluster's pki.mode -- and the Secret that inheritance lands in had no
+  name, so the listener got no certificateRefs, Cilium reported the gateway
+  Programmed anyway, and every handshake was reset. Listeners now always
+  name their Secret, and the cluster's byo-cert material is assembled into
+  it. Verified on the wire: the gateway serves the supplied wildcard.
+- PF-502 (clock skew) measures twice before calling it drift. Nodes come up
+  from a reboot seconds apart, each reporting itself synchronised while its
+  time daemon steps; one sample cannot tell that from clocks that disagree.
+  A gap that is closing reports as converging, a gap that is not still
+  blocks.
+
 ## [0.57.2] - 2026-08-21
 
 ### Changed

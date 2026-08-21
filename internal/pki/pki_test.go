@@ -427,3 +427,21 @@ func TestReleaseNamesAreTheUpstreamOnes(t *testing.T) {
 		}
 	}
 }
+
+// byo-cert issues nothing: the document supplied the certificate and the
+// gateway phase installs it as the listener's Secret. The mode used to fall
+// through to the issuer path and render a ClusterIssuer with an empty spec,
+// which the cluster rejected with "spec: Required value" -- after a
+// ten-minute wait, on a build that had already done everything else right.
+func TestBYOCertIssuesNothing(t *testing.T) {
+	spec := specWith(v1alpha1.PKIBYOCert)
+	spec.PKI.PrivateCA = nil
+	spec.PKI.BYOCert = &v1alpha1.BYOCertSpec{Cert: "file://gw.crt", Key: "file://gw.key"}
+
+	if body := IssuerManifest(spec); body != "" {
+		t.Errorf("byo-cert rendered an issuer:\n%s", body)
+	}
+	if steps := Steps(&exec.Fake{}, spec, Material{}, Options{}); len(steps) != 0 {
+		t.Errorf("byo-cert produced %d steps: %v", len(steps), names(steps))
+	}
+}

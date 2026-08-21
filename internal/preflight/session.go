@@ -220,7 +220,7 @@ func (s *Session) Run(ctx context.Context) Report {
 	for _, r := range []ProbeResult{
 		CheckHomogeneous(rep.Nodes),
 		CheckHostnames(hostnamesOf(rep.Nodes)),
-		CheckClockSkew(clocks, DefaultClockTolerance),
+		s.clockSkew(ctx, nodes, clocks),
 		CheckTimezones(zones),
 		prober.CheckVIPFree(ctx, s.Spec, held),
 	} {
@@ -310,6 +310,48 @@ func (s *Session) peerChecks(ctx context.Context, specs []v1alpha1.NodeSpec, cap
 		}
 	}
 }
+
+// clockSkew measures the spread, and measures it again when it looks wrong.
+//
+// The second look costs a pause and only in the failing case, and it is what
+// separates "these nodes came up seconds apart and are still stepping" from
+// "these clocks disagree". Preflight stays read-only either way: this reads
+// `date` twice.
+func (s *Session) clockSkew(ctx context.Context, nodes []v1alpha1.NodeSpec, first map[string]Offset) ProbeResult {
+	got := CheckClockSkew(first, DefaultClockTolerance)
+	if !got.Failed() || got.Code != "CLOCK_SKEW" {
+		return got
+	}
+
+	select {
+	case <-ctx.Done():
+		return got
+	case <-time.After(clockRecheckDelay):
+	}
+
+	second := map[string]Offset{}
+	for _, n := range nodes {
+		if _, ok := first[n.Host]; !ok {
+			continue
+		}
+		runner, err := s.connect(ctx, n)
+		if err != nil {
+			return got
+		}
+		node := &Node{Runner: runner, Spec: n, Cluster: s.Spec}
+		delta, uncertainty, ok := node.Clock(ctx)
+		runner.Close()
+		if !ok {
+			return got
+		}
+		second[n.Host] = Offset{Delta: delta, Uncertainty: uncertainty}
+	}
+	return CheckClockSkewTrend(first, second, DefaultClockTolerance)
+}
+
+// clockRecheckDelay is long enough for a stepping time daemon to show its
+// direction and short enough that nobody waits on it wondering.
+const clockRecheckDelay = 20 * time.Second
 
 // documentChecks are everything that needs no node.
 func (s *Session) documentChecks(ctx context.Context) []ProbeResult {

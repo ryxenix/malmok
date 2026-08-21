@@ -112,7 +112,7 @@ func (s *ShellStep) Apply(ctx context.Context) error {
 		if strings.TrimSpace(said) == "" {
 			said = "the command printed nothing"
 		}
-		return Fail("EX-002", fmt.Errorf("%s failed on %s (exit %d): %s",
+		return FailWith("EX-002", said, fmt.Errorf("%s failed on %s (exit %d): %s",
 			s.Name, s.Host, res.ExitCode, clip(said)))
 	}
 	return nil

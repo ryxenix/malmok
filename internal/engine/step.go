@@ -99,6 +99,10 @@ type Error struct {
 	// trying again — a block-severity probe result, a failed verification.
 	Fatal bool
 
+	// Evidence is the raw output behind the failure, kept whole for the run's
+	// event file while the detail line stays readable.
+	Evidence string
+
 	Err error
 }
 
@@ -111,8 +115,25 @@ func (e *Error) Error() string {
 
 func (e *Error) Unwrap() error { return e.Err }
 
+// evidenceOf returns the raw output a failure carried, if any.
+func evidenceOf(err error) string {
+	var e *Error
+	if errors.As(err, &e) {
+		return e.Evidence
+	}
+	return ""
+}
+
 // Fail returns a retryable step failure carrying code.
 func Fail(code string, err error) error { return &Error{Code: code, Err: err} }
+
+// FailWith is Fail with the raw output attached. The detail line is clipped
+// for readability, and the clip used to promise "the full output is in the
+// run's event file" while attaching nothing -- so the one place an operator
+// was told to look was the one place it was not. Evidence is that file.
+func FailWith(code, evidence string, err error) error {
+	return &Error{Code: code, Evidence: evidence, Err: err}
+}
 
 // FailFatal returns a step failure that must not be retried.
 func FailFatal(code string, err error) error { return &Error{Code: code, Fatal: true, Err: err} }

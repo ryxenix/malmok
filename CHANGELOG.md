@@ -5,6 +5,15 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.57.1] - 2026-08-21
+
+### Fixed
+
+- A clipped failure told the operator "the full output is in the run's event
+  file" and attached nothing, so the one place they were sent to look was the
+  one place it was not. Step failures now carry their whole output as the
+  event's evidence, and the detail line stays clipped for reading.
+
 ## [0.57.0] - 2026-08-21
 
 Found by building three scenarios from bare nodes: an IDC-shaped single node

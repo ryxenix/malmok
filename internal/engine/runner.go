@@ -344,6 +344,7 @@ func (r *Runner) runStep(ctx context.Context, p Phase, node string, s Step, inde
 	ev := settled
 	ev.Status, ev.Code, ev.Attempt, ev.MaxAttempts = event.StatusFailed, code, budget, budget
 	ev.Detail = last.Error()
+	ev.Evidence = evidenceOf(last)
 	if _, err := r.emit(ev); err != nil {
 		return err
 	}

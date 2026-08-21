@@ -5,6 +5,22 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.56.1] - 2026-08-21
+
+### Fixed
+
+- PF-601 (inter-node port matrix) is now measured against a live listener
+  instead of inferred from RST behaviour. The old rule -- "refused means
+  reachable, timeout means filtered" -- collapses on a stateful firewall
+  that eats the RST a closed port sends back: every pre-install node read
+  as filtered on a segment that was open all along, while the working
+  production cluster beside it was the disproof. Preflight now binds the
+  control-plane ports on every node (systemd-socket-activate, existing
+  services left alone), waits until each is up, and connects across: a
+  landed connection is proof, anything else is a finding. When a listener
+  cannot be arranged the check reports "not measured" rather than guessing
+  -- the guess is the bug this replaces.
+
 ## [0.56.0] - 2026-08-19
 
 ### Fixed

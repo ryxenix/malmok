@@ -238,10 +238,40 @@ func (s *Session) peerChecks(ctx context.Context, specs []v1alpha1.NodeSpec, cap
 	if len(caps) < 2 {
 		return
 	}
+	// Two passes over the same connections. The port matrix is measured
+	// against real listeners (see CheckPortMatrix), so every node has to be
+	// listening before any node starts connecting -- interleaving the two
+	// turns a race into a firewall finding.
+	nodes := make([]*Node, len(caps))
+	listening := make([]bool, len(caps))
 	var wg sync.WaitGroup
 	for i := range caps {
 		spec, ok := findNodeSpec(specs, caps[i].Host)
 		if !ok {
+			continue
+		}
+		wg.Add(1)
+		go func(i int, spec v1alpha1.NodeSpec) {
+			defer wg.Done()
+			runner, err := s.connect(ctx, spec)
+			if err != nil {
+				return
+			}
+			nodes[i] = &Node{Runner: runner, Spec: spec, Cluster: s.Spec}
+			listening[i] = nodes[i].StartPortListeners(ctx)
+		}(i, spec)
+	}
+	wg.Wait()
+
+	allListening := true
+	for i := range caps {
+		if nodes[i] != nil && !listening[i] {
+			allListening = false
+		}
+	}
+
+	for i := range caps {
+		if nodes[i] == nil {
 			continue
 		}
 		var peers []string
@@ -250,27 +280,35 @@ func (s *Session) peerChecks(ctx context.Context, specs []v1alpha1.NodeSpec, cap
 				peers = append(peers, c.Host)
 			}
 		}
-
 		wg.Add(1)
-		go func(i int, spec v1alpha1.NodeSpec, peers []string) {
+		go func(i int, peers []string) {
 			defer wg.Done()
-			runner, err := s.connect(ctx, spec)
-			if err != nil {
-				return
-			}
-			defer runner.Close()
-
-			node := &Node{Runner: runner, Spec: spec, Cluster: s.Spec}
+			node := nodes[i]
 			node.ProbePeers(ctx, peers, &caps[i])
+			if !allListening {
+				// Without a listener on the far end a failed connect proves
+				// nothing, and a passed one was luck. Say it was not measured
+				// rather than guessing from RST behaviour -- the guess is the
+				// bug this design replaced.
+				caps[i].Probes["PF-601"] = unmeasured("PF-601",
+					"a listener could not be arranged on every peer (systemd-socket-activate missing?), so reachability was not measured")
+			}
 			for _, id := range []string{"PF-601", "PF-602"} {
 				if r, ok := caps[i].Probes[id]; ok {
-					r.Node = spec.Host
+					r.Node = caps[i].Host
 					s.emit(r)
 				}
 			}
-		}(i, spec, peers)
+		}(i, peers)
 	}
 	wg.Wait()
+
+	for i := range caps {
+		if nodes[i] != nil {
+			nodes[i].StopPortListeners(ctx)
+			nodes[i].Runner.Close()
+		}
+	}
 }
 
 // documentChecks are everything that needs no node.

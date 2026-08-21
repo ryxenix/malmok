@@ -470,25 +470,33 @@ func TestCrossNodeProbes(t *testing.T) {
 	})
 }
 
-// PF-601 distinguishes refused from dropped. Before an install nothing is
-// listening, so refused is the expected answer and a timeout is the finding.
-func TestPortMatrixDistinguishesRefusedFromDropped(t *testing.T) {
-	t.Run("refused is expected before an install", func(t *testing.T) {
-		n, _ := ubuntuProber(t, map[string]exec.Result{"/dev/tcp/": {Stdout: "rc=1\n"}})
+// PF-601 is measured against a live listener on the far end, so its verdict
+// is positive proof rather than an inference from RST behaviour. The first
+// version read "refused" as reachable and "timeout" as filtered -- and a
+// stateful firewall that eats closed-port RSTs made every pre-install node
+// look filtered on a segment that was open all along.
+func TestPortMatrixMeasuresAgainstALiveListener(t *testing.T) {
+	t.Run("a connection that lands is the proof", func(t *testing.T) {
+		n, _ := ubuntuProber(t, map[string]exec.Result{"/dev/tcp/": {Stdout: "rc=0" + "\n"}})
 		got := n.CheckPortMatrix(context.Background(), []string{"10.0.0.12"})
-		if got.Failed() {
-			t.Errorf("PF-601 failed on refused connections: %s", got.Detail)
+		if got.Status != StatusPass {
+			t.Errorf("PF-601 is %s on successful connects: %s", got.Status, got.Detail)
 		}
 	})
 
-	t.Run("a timeout means something is dropping it", func(t *testing.T) {
-		n, _ := ubuntuProber(t, map[string]exec.Result{"/dev/tcp/": {Stdout: "rc=124\n"}})
-		got := n.CheckPortMatrix(context.Background(), []string{"10.0.0.12"})
-		if got.Code != "PORTS_FILTERED" {
-			t.Fatalf("PF-601 is %s/%s: %s", got.Status, got.Code, got.Detail)
-		}
-		if !strings.Contains(got.Detail, "9345") {
-			t.Errorf("the failure does not name the port people miss: %s", got.Detail)
+	t.Run("anything else is a finding, refused included", func(t *testing.T) {
+		// With a listener bound on the peer, "refused" can no longer mean
+		// "reachable and empty" -- something answered with a rejection or the
+		// listener was never reachable.
+		for _, rc := range []string{"rc=1", "rc=124"} {
+			n, _ := ubuntuProber(t, map[string]exec.Result{"/dev/tcp/": {Stdout: rc + "\n"}})
+			got := n.CheckPortMatrix(context.Background(), []string{"10.0.0.12"})
+			if got.Code != "PORTS_FILTERED" {
+				t.Fatalf("PF-601 on %s is %s/%s: %s", rc, got.Status, got.Code, got.Detail)
+			}
+			if !strings.Contains(got.Detail, "9345") {
+				t.Errorf("the failure does not name the port people miss: %s", got.Detail)
+			}
 		}
 	})
 

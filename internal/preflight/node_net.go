@@ -24,6 +24,15 @@ var ControlPlanePorts = []int{6443, 9345, 2379, 2380, 10250}
 // Reachability is measured from the node rather than from the machine running
 // the tool, because that is the path that has to work: a bastion with its own
 // route to the control plane proves nothing about what the nodes see.
+//
+// It is measured against a real listener, not inferred from RST behaviour.
+// The first version reasoned "refused means reachable, timeout means
+// filtered" -- and a stateful firewall that eats the RST a closed port sends
+// back made every pre-install node read as filtered, on a segment where the
+// ports were open all along (found live: the whole homelab drops closed-port
+// RSTs, and the working production cluster next to the "blocked" nodes was
+// the proof). StartPortListeners puts something real on the far end first, so
+// a successful connect is proof and a failure is a finding.
 func (n *Node) CheckPortMatrix(ctx context.Context, peers []string) ProbeResult {
 	if len(peers) == 0 {
 		return skipped("PF-601", "there is no other node to reach")
@@ -32,33 +41,70 @@ func (n *Node) CheckPortMatrix(ctx context.Context, peers []string) ProbeResult 
 	var blocked []string
 	for _, peer := range peers {
 		for _, port := range ControlPlanePorts {
-			// A refused connection means the host is up and nothing is
-			// listening, which is expected before an install. A timeout means
-			// something is dropping the packet, which is the firewall finding.
 			cmd := fmt.Sprintf(
 				"timeout 3 bash -c '</dev/tcp/%s/%d' 2>&1; echo rc=$?", peer, port)
 			r := n.run(ctx, cmd)
 			if r.ExitCode < 0 {
 				return unmeasured("PF-601", "the node could not be asked: "+r.Err())
 			}
-			out := r.Out()
-			// 124 is what timeout returns when it had to kill the attempt.
-			if strings.Contains(out, "rc=124") {
+			if !strings.Contains(r.Out(), "rc=0") {
 				blocked = append(blocked, fmt.Sprintf("%s:%d", peer, port))
 			}
 		}
 	}
 
 	if len(blocked) == 0 {
-		return passf("PF-601", "nothing silently drops traffic to %s on %v; "+
-			"connections are refused rather than timing out, which is the state before an install",
-			strings.Join(peers, ", "), ControlPlanePorts)
+		return passf("PF-601", "a listener on every peer answered from here on %v; the paths the cluster needs are open",
+			ControlPlanePorts)
 	}
 	return failf("PF-601", "PORTS_FILTERED",
-		"traffic to %s times out rather than being refused, so something between the nodes is dropping it; "+
+		"a live listener on %s cannot be reached from this node, so something on the path is dropping the traffic; "+
 			"9345 is the RKE2 supervisor and is absent from Kubernetes port references, "+
 			"which is why a rule set written from one leaves it closed",
 		strings.Join(blocked, ", "))
+}
+
+// StartPortListeners binds the control-plane ports on this node for the
+// duration of the peer checks, so CheckPortMatrix on the other nodes connects
+// to something real. Ports already held (a built cluster being re-checked)
+// are left alone -- the real service is a better listener than ours. Returns
+// false when nothing could be arranged, in which case the matrix cannot be
+// measured honestly.
+func (n *Node) StartPortListeners(ctx context.Context) bool {
+	var ports []string
+	for _, p := range ControlPlanePorts {
+		ports = append(ports, strconv.Itoa(p))
+	}
+	list := strings.Join(ports, " ")
+
+	start := fmt.Sprintf(`command -v systemd-socket-activate >/dev/null || { echo NOTOOL; exit 0; }
+for p in %s; do
+  ss -ltnH "sport = :$p" 2>/dev/null | grep -q . && continue
+  nohup timeout 90 systemd-socket-activate --accept -l "$p" cat >/dev/null 2>&1 &
+done
+echo STARTED`, list)
+	if r, err := n.Runner.Run(ctx, start); err != nil || !strings.Contains(r.Stdout, "STARTED") {
+		return false
+	}
+
+	// Up is a fact, not a hope: every port has to show a listener before the
+	// peers start connecting, or a race reads as a firewall.
+	ready := fmt.Sprintf(`for i in 1 2 3 4 5 6 7 8 9 10; do
+  ok=1
+  for p in %s; do ss -ltnH "sport = :$p" 2>/dev/null | grep -q . || ok=0; done
+  [ "$ok" = 1 ] && { echo READY; exit 0; }
+  sleep 1
+done
+echo NOTREADY`, list)
+	r, err := n.Runner.Run(ctx, ready)
+	return err == nil && strings.Contains(r.Stdout, "READY")
+}
+
+// StopPortListeners ends what StartPortListeners bound; the timeout would
+// reap them anyway, but preflight leaving processes behind -- even dying
+// ones -- reads as a change on a phase that promises none.
+func (n *Node) StopPortListeners(ctx context.Context) {
+	_, _ = n.Runner.Run(ctx, "pkill -f 'systemd-socket-activate --accept' 2>/dev/null; true")
 }
 
 // CheckMTU implements PF-602.

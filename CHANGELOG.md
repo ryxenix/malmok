@@ -5,6 +5,33 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.56.2] - 2026-08-21
+
+### Fixed
+
+- A from-scratch build hung at the GatewayClass, for an ordering reason that
+  used to be papered over. Cilium's chart renders the GatewayClass only when
+  the Gateway API CRDs exist at render time, and its operator checks for
+  those CRDs once, at startup -- both happen during bootstrap, before this
+  phase installs the CRDs. Until 0.56.0 the dataplane phase wrote the Cilium
+  values for the first time here, which changed the HelmChartConfig and
+  forced a chart re-run; prestaging those values at bootstrap (the fix for
+  the kube-proxy-less deadlock) removed the accident and left the dependency
+  showing. The step now repairs instead of waiting: it deletes the completed
+  install job so the chart re-renders, and restarts cilium-operator so it
+  re-runs its CRD check. A live rebuild went from a 15-minute timeout to 13
+  seconds.
+- `curl -sfL` hid why a download failed: the Gateway API bundle fetch failed
+  on a transient GitHub error and the step reported "exit 1" with nothing
+  after the colon. Both fetches (Gateway API bundle, k9s) now retry three
+  times and name the URL and exit code when they still fail.
+- PF-601 bound its probe listeners without regard to address, so an RKE2
+  agent holding 6443 on loopback for its own API load balancer made the
+  check skip that port, leave nothing listening for peers, and report the
+  resulting failure as a firewall. Listeners now bind the address peers
+  actually use, and a port is skipped only when something already serves
+  that address.
+
 ## [0.56.1] - 2026-08-21
 
 ### Fixed

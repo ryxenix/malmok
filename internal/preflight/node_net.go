@@ -66,36 +66,55 @@ func (n *Node) CheckPortMatrix(ctx context.Context, peers []string) ProbeResult 
 
 // StartPortListeners binds the control-plane ports on this node for the
 // duration of the peer checks, so CheckPortMatrix on the other nodes connects
-// to something real. Ports already held (a built cluster being re-checked)
-// are left alone -- the real service is a better listener than ours. Returns
-// false when nothing could be arranged, in which case the matrix cannot be
-// measured honestly.
-func (n *Node) StartPortListeners(ctx context.Context) bool {
+// to something real.
+//
+// It binds the address peers actually use, and skips a port only when a
+// listener already serves that address. The address matters: an RKE2 agent
+// holds 6443 on loopback for its own API load balancer, and a port check that
+// looked only at "is the port in use" skipped it, left nothing listening for
+// peers, and reported the resulting failure as a firewall -- the second
+// version of the same mistake this probe already made once.
+//
+// Returns false when nothing could be arranged, in which case the matrix
+// cannot be measured honestly.
+func (n *Node) StartPortListeners(ctx context.Context, addr string) bool {
+	if addr == "" {
+		return false
+	}
 	var ports []string
 	for _, p := range ControlPlanePorts {
 		ports = append(ports, strconv.Itoa(p))
 	}
 	list := strings.Join(ports, " ")
 
-	start := fmt.Sprintf(`command -v systemd-socket-activate >/dev/null || { echo NOTOOL; exit 0; }
+	// A listener serves peers when it is bound to the wildcard or to this
+	// address; anything on loopback only serves the node itself.
+	serves := fmt.Sprintf(`serves() {
+  ss -ltnH "sport = :$1" 2>/dev/null | awk '{print $4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):'"$1"'$|^%s:'"$1"'$'
+}`, strings.ReplaceAll(addr, ".", `\.`))
+
+	start := fmt.Sprintf(`%s
+command -v systemd-socket-activate >/dev/null || { echo NOTOOL; exit 0; }
 for p in %s; do
-  ss -ltnH "sport = :$p" 2>/dev/null | grep -q . && continue
-  nohup timeout 90 systemd-socket-activate --accept -l "$p" cat >/dev/null 2>&1 &
+  serves "$p" && continue
+  nohup timeout 120 systemd-socket-activate --accept -l %s:"$p" cat >/dev/null 2>&1 &
 done
-echo STARTED`, list)
+echo STARTED`, serves, list, addr)
 	if r, err := n.Runner.Run(ctx, start); err != nil || !strings.Contains(r.Stdout, "STARTED") {
 		return false
 	}
 
-	// Up is a fact, not a hope: every port has to show a listener before the
-	// peers start connecting, or a race reads as a firewall.
-	ready := fmt.Sprintf(`for i in 1 2 3 4 5 6 7 8 9 10; do
+	// Up is a fact, not a hope: every port has to answer on the peer-facing
+	// address before the peers start connecting, or a race reads as a
+	// firewall.
+	ready := fmt.Sprintf(`%s
+for i in 1 2 3 4 5 6 7 8 9 10; do
   ok=1
-  for p in %s; do ss -ltnH "sport = :$p" 2>/dev/null | grep -q . || ok=0; done
+  for p in %s; do serves "$p" || ok=0; done
   [ "$ok" = 1 ] && { echo READY; exit 0; }
   sleep 1
 done
-echo NOTREADY`, list)
+echo NOTREADY`, serves, list)
 	r, err := n.Runner.Run(ctx, ready)
 	return err == nil && strings.Contains(r.Stdout, "READY")
 }

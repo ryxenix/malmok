@@ -155,7 +155,7 @@ if ! command -v k9s >/dev/null; then
     *) echo "no k9s build for $arch"; a="" ;;
   esac
   if [ -n "$a" ]; then
-    curl -sfL "https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_${a}.tar.gz"       | tar -xz -C /usr/local/bin k9s
+    curl -sfL --retry 3 --retry-delay 2 "https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_${a}.tar.gz" | tar -xz -C /usr/local/bin k9s || { echo "could not fetch k9s (exit $?)"; exit 1; }
     chmod 0755 /usr/local/bin/k9s
   fi
 fi`

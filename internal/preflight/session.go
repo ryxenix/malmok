@@ -258,7 +258,7 @@ func (s *Session) peerChecks(ctx context.Context, specs []v1alpha1.NodeSpec, cap
 				return
 			}
 			nodes[i] = &Node{Runner: runner, Spec: spec, Cluster: s.Spec}
-			listening[i] = nodes[i].StartPortListeners(ctx)
+			listening[i] = nodes[i].StartPortListeners(ctx, caps[i].Host)
 		}(i, spec)
 	}
 	wg.Wait()

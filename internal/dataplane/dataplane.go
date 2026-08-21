@@ -222,8 +222,15 @@ func gatewayCRDStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
 		fetch = fmt.Sprintf(`[ -f %s ] || { echo "the Gateway API bundle is not in the artifact path: %s"; exit 1; }
 cp %s /tmp/gateway-api.yaml`, shellQuote(src), src, shellQuote(src))
 	} else {
-		fetch = fmt.Sprintf(`curl -sfL %s -o /tmp/gateway-api.yaml`,
-			shellQuote(fmt.Sprintf(gatewayAPIURL, channel)))
+		// The failure must say so: -s swallows curl's own report and the
+		// step runs under set -e, so a GitHub hiccup produced "exit 1" with
+		// nothing after the colon -- three fast retries, no sentence, and an
+		// operator reading an empty error. curl retries the transient class
+		// itself before the engine's attempts spend themselves.
+		url := shellQuote(fmt.Sprintf(gatewayAPIURL, channel))
+		fetch = fmt.Sprintf(
+			`curl -sfL --retry 3 --retry-delay 2 %s -o /tmp/gateway-api.yaml || { echo "could not fetch the Gateway API bundle from %s (curl exit $?)"; exit 1; }`,
+			url, fmt.Sprintf(gatewayAPIURL, channel))
 	}
 
 	return &engine.ShellStep{
@@ -328,6 +335,7 @@ exit 1`, int(o.timeout().Seconds()), read, want, int(o.timeout().Seconds())),
 // point of having chosen the preset.
 func gatewayClassStep(o Options) *engine.ShellStep {
 	read := `kubectl get gatewayclass cilium -o jsonpath='{range .status.conditions[?(@.type=="Accepted")]}{.status}{end}' 2>/dev/null`
+	exists := `kubectl get gatewayclass cilium -o name 2>/dev/null`
 
 	return &engine.ShellStep{
 		Name: "gatewayclass",
@@ -335,15 +343,40 @@ func gatewayClassStep(o Options) *engine.ShellStep {
 [ "$s" = True ] || { echo "the cilium GatewayClass is not Accepted (status '$s')"; exit 1; }
 echo "the cilium GatewayClass is Accepted"`, read),
 
-		Do: kubectl + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
+		// An absent GatewayClass is an ordering problem, not a slow one, and
+		// waiting on it waits forever. Cilium's chart renders the GatewayClass
+		// only when the Gateway API CRDs exist at render time, and the chart is
+		// deployed during bootstrap -- before this phase installs those CRDs.
+		// Deleting the completed install job makes RKE2's helm controller
+		// re-run the chart, which then renders it.
+		//
+		// This used to happen by accident: writing the Cilium values here
+		// changed the HelmChartConfig and forced the same re-run. Prestaging
+		// those values at bootstrap -- which is what stops the kube-proxy-less
+		// deadlock -- removed the accident and left the dependency showing.
+		Do: kubectl + fmt.Sprintf(`if [ -z "$(%s)" ]; then
+  echo "no GatewayClass yet: the Cilium chart rendered before the Gateway API CRDs existed, so re-running it"
+  kubectl -n kube-system delete job helm-install-rke2-cilium --ignore-not-found >/dev/null 2>&1 || true
+fi
+# The operator checks for the Gateway API CRDs once, at startup, and an
+# operator that started before them logs "Required GatewayAPI resources are
+# not found" and never registers the controller -- leaving the GatewayClass
+# at "Waiting for controller" forever, which is a hang rather than a wait.
+# Restarting it is the only thing that re-runs that check; harmless when the
+# controller is already registered, because the class is Accepted by then and
+# this branch is not reached.
+kubectl -n kube-system rollout restart deployment/cilium-operator >/dev/null 2>&1 || true
+kubectl -n kube-system rollout status deployment/cilium-operator --timeout=180s >/dev/null 2>&1 || true
+deadline=$(( $(date +%%s) + %d ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   [ "$(%s)" = True ] && exit 0
   sleep 5
 done
 echo "the cilium GatewayClass never became Accepted. The cluster reports:"
 kubectl get gatewayclass -o wide 2>&1 | tail -5
+kubectl -n kube-system get job helm-install-rke2-cilium 2>&1 | tail -3
 kubectl -n kube-system logs -l io.cilium/app=operator --tail=30 2>&1 | tail -30
-exit 1`, int(o.timeout().Seconds()), read),
+exit 1`, exists, int(o.timeout().Seconds()), read),
 
 		Satisfied: "%s",
 		Missing:   "%s",

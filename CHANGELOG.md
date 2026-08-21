@@ -5,6 +5,17 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.57.2] - 2026-08-21
+
+### Changed
+
+- PF-502 (clock skew) says how to fix it. The finding named the drift and
+  the etcd tolerance and stopped there, which sends an operator to read
+  about etcd rather than to the one thing that resolves it: nodes following
+  different time servers drift apart while each reports itself synchronised
+  (a lab pair sat 1.1s apart that way). The message now names the remedy for
+  both systemd-timesyncd and chrony.
+
 ## [0.57.1] - 2026-08-21
 
 ### Fixed

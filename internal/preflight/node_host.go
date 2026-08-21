@@ -397,9 +397,18 @@ func CheckClockSkew(readings map[string]Offset, tolerance time.Duration) ProbeRe
 			skew.Round(time.Millisecond), margin.Round(time.Millisecond)))
 	}
 
+	// With the remedy, because the finding on its own sends an operator to
+	// read about etcd rather than to the one thing that fixes this: two nodes
+	// synchronising against different sources drift apart while each reports
+	// itself synchronised, which is exactly what a lab pair did at 1.1s.
 	return failf("PF-502", "CLOCK_SKEW",
 		"the node clocks differ by %s, more than the %s etcd tolerates (%s is behind %s); "+
-			"the reading is good to +/-%s, so this is drift rather than measurement noise",
+			"the reading is good to +/-%s, so this is drift rather than measurement noise. "+
+			"Point every node at the same time source and resynchronise -- with systemd-timesyncd, "+
+			"put NTP=<server> in /etc/systemd/timesyncd.conf.d/, then "+
+			"`timedatectl set-ntp true && systemctl restart systemd-timesyncd`; with chrony, set the "+
+			"server in /etc/chrony/chrony.conf and `chronyc makestep`. Nodes can each report "+
+			"themselves synchronised (PF-501) and still disagree when they follow different servers",
 		skew.Round(time.Millisecond), tolerance, lowHost, highHost, margin.Round(time.Millisecond))
 }
 

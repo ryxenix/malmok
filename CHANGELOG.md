@@ -5,6 +5,32 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.59.0] - 2026-08-22
+
+### Added
+
+- **A verification matrix, and a harness that runs it.** Six hand-written
+  scenarios found thirteen defects in an afternoon, one of which failed every
+  from-scratch build -- not because the code was exotic but because nobody
+  had walked those paths. `internal/matrix` states the paths as data: seven
+  dimensions (nodes, dataplane, pki, exposure, registry, gitops, and the
+  operation done to the cluster), eight cases chosen so that every value
+  appears and every combination that has actually broken appears together,
+  each case carrying the reason it exists.
+  - Coverage is proven offline, on every commit: adding a value to a
+    dimension fails the build until some case exercises it, and the pairs
+    that have broken before (one node with the Gateway API, byo-cert with a
+    pool address, resume with issued certificates) are named and checked.
+    Per-value coverage would have caught none of them.
+  - `test/lab` (build tag `lab`) executes the matrix against real machines:
+    every case wipes both nodes, builds with the operator's own binary, and
+    then does what its operation says -- grow, resume from a killed run, or
+    re-apply and prove nothing changed. Certificate material is generated per
+    run and the RKE2 version comes from the channel server, because fixtures
+    expire and pinned versions stop testing what people install.
+  - `scripts/matrix.sh` runs it; `docs/40-verification-matrix.md` says how to
+    read it, how to widen it, and -- honestly -- what is still outside it.
+
 ## [0.58.0] - 2026-08-22
 
 Found by a scenario that had never been built: byo-cert PKI, a load-balancer

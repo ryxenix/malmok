@@ -195,8 +195,19 @@ func (r *labRun) expectHealthy(c matrix.Case) {
 	if c.Exposure != "none" && strings.HasPrefix(c.Dataplane, "cilium") && c.Dataplane == "cilium-gw" {
 		r.onNode(`kubectl get gatewayclass cilium -o jsonpath='{range .status.conditions[?(@.type=="Accepted")]}{.status}{end}' | grep -qx True`)
 	}
-	// Nothing crash-looping, whatever the case installed.
-	r.onNode(`bad=$(kubectl get pods -A --no-headers | awk '$4!="Running" && $4!="Completed" && $4!="Pending"' | head -5); [ -z "$bad" ] || { echo "$bad"; exit 1; }`)
+	// Every pod the case installed settles into Running or Completed.
+	//
+	// Settles, not "is": a pod three seconds into ContainerCreating is not a
+	// finding, and sampling once turns the tail of a rollout into a failure --
+	// the same mistake the clock check made. Pending is still not tolerated
+	// once things have settled: a pod that cannot be scheduled is one this
+	// tool asked for and the cluster cannot give.
+	r.onNode(`for i in $(seq 1 30); do
+  bad=$(kubectl get pods -A --no-headers | awk '$4!="Running" && $4!="Completed"' | head -5)
+  [ -z "$bad" ] && exit 0
+  sleep 10
+done
+echo "$bad"; exit 1`)
 }
 
 func (r *labRun) expectNodes(want int) {

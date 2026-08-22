@@ -5,6 +5,32 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.59.1] - 2026-08-22
+
+The matrix's first full run: seven cases passed, one failed, and the one that
+failed was the preset nobody had ever built.
+
+### Fixed
+
+- cilium-traefik never finished. The applied-check demanded
+  `enable-gateway-api=true` whatever the document said -- right for cilium-gw
+  and impossible for a preset that installs no Gateway controller, so the
+  step waited out its whole 900-second timeout for a value that was never
+  coming. Every expectation now comes from the document, and an absent key
+  means the same as a key written false.
+- The Gateway API CRDs and the GatewayClass wait ran for every Cilium preset.
+  cilium-traefik has no controller to accept a GatewayClass, so even with the
+  check fixed the next step would have waited forever. Both now belong to
+  presets that run a Gateway controller.
+- The Cilium presets never waited for CoreDNS. The canal preset did from the
+  start; everything after the dataplane resolves names, so a build that
+  reported success while cluster DNS was still starting handed over a cluster
+  that could not run anything yet. Both presets share the step now.
+- A single-node cluster no longer carries a permanently Pending pod. The
+  Cilium operator asks for two replicas that will not share a node, so on one
+  node the second could never be scheduled -- a pod this tool created,
+  teaching operators that Pending is normal. One node, one operator.
+
 ## [0.59.0] - 2026-08-22
 
 ### Added

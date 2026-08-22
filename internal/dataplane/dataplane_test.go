@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -316,6 +317,68 @@ func TestWaitLoopsSurviveTheAbsenceTheyWaitFor(t *testing.T) {
 					t.Errorf("%s: an assignment under set -e can kill the script:\n  %s", sh.Name, line)
 				}
 			}
+		}
+	}
+}
+
+// The Cilium operator asks for two replicas that will not share a node, so on
+// a one-node cluster the second is Pending for the life of the cluster -- a
+// pod this tool created that can never be scheduled, which teaches operators
+// to ignore Pending. One node, one operator; two nodes keep the pair.
+func TestASingleNodeGetsOneOperator(t *testing.T) {
+	one := ciliumSpec()
+	one.Topology.Servers = []v1alpha1.NodeSpec{{Host: "10.0.0.11"}}
+	values := parse(t, CiliumHelmConfig(one))["spec"].(map[string]any)["valuesContent"].(string)
+	op, _ := parse(t, values)["operator"].(map[string]any)
+	if op == nil || op["replicas"] != 1 {
+		t.Errorf("a single-node cluster asks for %v operator replicas", op)
+	}
+
+	two := ciliumSpec()
+	two.Topology.Servers = []v1alpha1.NodeSpec{{Host: "10.0.0.11"}}
+	two.Topology.Agents = []v1alpha1.NodeSpec{{Host: "10.0.0.12"}}
+	values = parse(t, CiliumHelmConfig(two))["spec"].(map[string]any)["valuesContent"].(string)
+	if _, ok := parse(t, values)["operator"]; ok {
+		t.Error("a two-node cluster overrides the chart's own replica count")
+	}
+}
+
+// A preset without a Gateway controller must not be handed Gateway API work.
+// cilium-traefik installs no controller: it used to get the CRDs anyway, wait
+// for a GatewayClass nothing would create, and -- before even that -- sit out
+// a 900-second timeout because the applied-check demanded
+// enable-gateway-api=true, a value that preset never writes.
+func TestCiliumWithoutAGatewayControllerSkipsGatewayWork(t *testing.T) {
+	spec := ciliumSpec()
+	spec.Kubernetes.Dataplane.Preset = v1alpha1.DataplaneCiliumTraefik
+	spec.Gateway = v1alpha1.GatewaySpec{}
+
+	var names []string
+	for _, s := range Steps(&exec.Fake{}, spec, Options{}) {
+		st := s.(*engine.ShellStep)
+		names = append(names, st.Name)
+		if st.Name != "cilium-applied" {
+			continue
+		}
+		// The expectation is the document's, not cilium-gw's.
+		if !strings.Contains(st.Check, "enable-gateway-api=false") {
+			t.Errorf("the applied check does not expect the Gateway API to be off:\n%s", st.Check)
+		}
+	}
+	for _, unwanted := range []string{"gateway-api-crds", "gatewayclass"} {
+		if slices.Contains(names, unwanted) {
+			t.Errorf("a preset with no Gateway controller runs %q; steps: %v", unwanted, names)
+		}
+	}
+
+	// And the gateway preset still does all of it.
+	var gwNames []string
+	for _, s := range Steps(&exec.Fake{}, ciliumSpec(), Options{}) {
+		gwNames = append(gwNames, s.(*engine.ShellStep).Name)
+	}
+	for _, wanted := range []string{"gateway-api-crds", "gatewayclass"} {
+		if !slices.Contains(gwNames, wanted) {
+			t.Errorf("cilium-gw lost %q; steps: %v", wanted, gwNames)
 		}
 	}
 }

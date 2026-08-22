@@ -93,12 +93,19 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 		return []engine.Step{add(bundledDataplaneStep(spec, o))}
 	}
 
-	steps := []engine.Step{
-		add(gatewayCRDStep(spec, o)),
+	var steps []engine.Step
+	// The Gateway API types and the GatewayClass that follows them belong to
+	// a preset that runs a Gateway controller. cilium-traefik does not: it
+	// used to install the CRDs anyway and then wait for a GatewayClass that
+	// nothing would ever create.
+	if WantsGatewayAPI(spec) {
+		steps = append(steps, add(gatewayCRDStep(spec, o)))
+	}
+	steps = append(steps,
 		add(rke2.ManifestStep(Phase, "cilium-values", CiliumConfigFile, CiliumHelmConfig(spec),
 			"helmchartconfig -n kube-system rke2-cilium", o.timeout())),
 		add(ciliumAppliedStep(spec, o)),
-	}
+	)
 	if body := LoadBalancerPool(spec); body != "" {
 		steps = append(steps, add(rke2.ManifestStep(Phase, "lb-pool", lbPoolFile, body,
 			"ciliumloadbalancerippool malmok", o.timeout())))
@@ -115,8 +122,33 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 	// reports success while a feature the document asked for silently does not
 	// exist. Found live: host networking enabled in cilium-config, port 80
 	// bound nowhere, agents five days old.
-	steps = append(steps, add(ciliumCurrentStep(o)))
-	return append(steps, add(gatewayClassStep(o)))
+	steps = append(steps, add(ciliumCurrentStep(o)), add(corednsStep(o)))
+	if WantsGatewayAPI(spec) {
+		steps = append(steps, add(gatewayClassStep(o)))
+	}
+	return steps
+}
+
+// corednsStep waits for cluster DNS.
+//
+// Every phase after this one, and every workload after those, resolves names
+// through CoreDNS; a build that reports success while it is still starting
+// has handed over a cluster that cannot run anything yet. The canal preset
+// waited for it from the start and the Cilium presets did not, which a matrix
+// case caught by finding CoreDNS still creating after the run said "built".
+func corednsStep(o Options) *engine.ShellStep {
+	wait := `kubectl -n kube-system rollout status deploy/rke2-coredns-rke2-coredns --timeout=%s >/dev/null 2>&1 || { echo "CoreDNS is not available yet"; exit 1; }
+echo "CoreDNS is available"`
+
+	return &engine.ShellStep{
+		Name:      "coredns",
+		Check:     kubectl + fmt.Sprintf(wait, "10s"),
+		Do:        kubectl + fmt.Sprintf(wait, o.timeout().String()),
+		Satisfied: "%s",
+		Missing:   "%s",
+		DoTimeout: o.timeout() + time.Minute,
+		Attempts:  1,
+	}
 }
 
 // bundledDataplaneStep observes the dataplane RKE2 ships with the
@@ -211,6 +243,11 @@ const restartOperator = `kubectl -n kube-system delete pod -l io.cilium/app=oper
 // hangs.
 const operatorRunning = `kubectl -n kube-system get pods -l io.cilium/app=operator ` +
 	`--field-selector=status.phase=Running --no-headers 2>/dev/null | grep -c . || true`
+
+// nodeCount is how many machines the document names.
+func nodeCount(spec v1alpha1.ClusterSpec) int {
+	return len(spec.Topology.Servers) + len(spec.Topology.Agents)
+}
 
 // isCilium reports whether the document asks for the Cilium dataplane.
 func isCilium(spec v1alpha1.ClusterSpec) bool {
@@ -334,40 +371,56 @@ func ciliumAppliedStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
 	// the helm controller had applied the new one: a re-apply that turned host
 	// networking on restarted the pods into the old config, found live when
 	// the gateway never answered.
-	hostnet := "false"
-	if NodeIPGateways(spec) {
-		hostnet = "true"
+	// Every expectation comes from the document, none from a habit. The
+	// first version hardcoded enable-gateway-api=true, which is right for
+	// cilium-gw and impossible for cilium-traefik: that preset installs no
+	// Gateway controller, the key is absent from cilium-config, and the step
+	// waited out its whole timeout for a value that was never coming. Found
+	// by building the preset for the first time.
+	want := func(b bool) string {
+		if b {
+			return "true"
+		}
+		return "false"
 	}
-	read := `kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.kube-proxy-replacement}{" "}{.data.enable-gateway-api}{" "}{.data.gateway-api-hostnetwork-enabled}' 2>/dev/null`
-	// An absent key reads as empty; a document that wants it off accepts both.
-	want := `"true true ` + hostnet + `"`
-	if hostnet == "false" {
-		want = `"true true false"|"true true "|"true true"`
-	}
+	gw := want(WantsGatewayAPI(spec))
+	hostnet := want(NodeIPGateways(spec))
+
+	// The three keys in one read, separated so an absent key stays visible as
+	// an empty field rather than collapsing into its neighbour.
+	read := `kubectl -n kube-system get cm cilium-config ` +
+		`-o jsonpath='{.data.kube-proxy-replacement}|{.data.enable-gateway-api}|{.data.gateway-api-hostnetwork-enabled}' 2>/dev/null || true`
+
+	// A key Cilium never wrote and a key it wrote as false mean the same
+	// thing to a document that asked for neither.
+	agrees := `agrees() {
+  if [ "$2" = true ]; then [ "$1" = true ]; else [ "$1" = false ] || [ -z "$1" ]; fi
+}
+carries() {
+  v="$(` + read + `)"
+  kp=${v%%|*}; rest=${v#*|}; ga=${rest%%|*}; hn=${rest##*|}
+  agrees "$kp" true && agrees "$ga" ` + gw + ` && agrees "$hn" ` + hostnet + `
+}
+`
 
 	return &engine.ShellStep{
 		Name: "cilium-applied",
-		Check: kubectl + fmt.Sprintf(`v="$(%s)"
-case "$v" in
-  %s) ;;
-  *) echo "cilium-config carries '$v', the document implies 'true true %s'"; exit 1 ;;
-esac
+		Check: kubectl + agrees + fmt.Sprintf(`carries || {
+  echo "cilium-config carries '$v', the document implies kube-proxy-replacement=true enable-gateway-api=%s hostnetwork=%s"; exit 1; }
 kubectl -n kube-system rollout status ds/cilium --timeout=10s >/dev/null 2>&1 || {
   echo "cilium is reconfigured and its pods have not finished rolling"; exit 1; }
-echo "cilium-config carries the configuration this document implies"`, read, want, hostnet),
+echo "cilium-config carries the configuration this document implies"`, gw, hostnet),
 
-		Do: kubectl + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
+		Do: kubectl + agrees + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
-  v="$(%s)"
-  case "$v" in
-    %s)
-      kubectl -n kube-system rollout status ds/cilium --timeout=20s >/dev/null 2>&1 && exit 0 ;;
-  esac
+  if carries && kubectl -n kube-system rollout status ds/cilium --timeout=20s >/dev/null 2>&1; then
+    exit 0
+  fi
   sleep 10
 done
-echo "cilium did not take the new configuration within %ds. The install job reports:"
+echo "cilium did not take the new configuration within %ds; cilium-config carries '$v' and the document implies enable-gateway-api=%s hostnetwork=%s. The install job reports:"
 kubectl -n kube-system logs -l job-name=helm-install-rke2-cilium --tail=40 2>&1 | tail -40
-exit 1`, int(o.timeout().Seconds()), read, want, int(o.timeout().Seconds())),
+exit 1`, int(o.timeout().Seconds()), int(o.timeout().Seconds()), gw, hostnet),
 
 		Satisfied: "%s",
 		Missing:   "%s",
@@ -467,6 +520,14 @@ spec:
     k8sServiceHost: 127.0.0.1
     k8sServicePort: 6443
 `)
+	// The operator asks for two replicas that will not share a node, so on a
+	// single-node cluster the second one is Pending for the life of the
+	// cluster. A pod that can never be scheduled is not a warning anybody
+	// acts on -- it is a pod that teaches operators to ignore Pending, and
+	// this tool put it there. One node, one operator.
+	if nodeCount(spec) < 2 {
+		b.WriteString("    operator:\n      replicas: 1\n")
+	}
 	if WantsGatewayAPI(spec) {
 		// The L7 proxy is what actually terminates a Gateway listener; enabling
 		// the API without it produces Gateways that are accepted and never

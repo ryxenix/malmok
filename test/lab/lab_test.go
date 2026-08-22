@@ -60,13 +60,14 @@ func TestMatrix(t *testing.T) {
 	if err != nil || ch.Stable == "" {
 		t.Fatalf("could not read the RKE2 channel: %v", err)
 	}
-	t.Logf("matrix on %s: %d cases at RKE2 %s", server, len(matrix.Cases()), ch.Stable)
+	t.Logf("matrix on %s: %d cases, RKE2 stable %s, latest %s",
+		server, len(matrix.Cases()), ch.Stable, ch.Latest)
 
 	// Sequential by necessity: every case owns the same two machines.
 	for _, c := range matrix.Cases() {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Logf("%s -- %s", c, c.Why)
-			run := &labRun{t: t, bin: bin, version: ch.Stable, dir: t.TempDir()}
+			run := &labRun{t: t, bin: bin, version: ch.Stable, newer: ch.Latest, dir: t.TempDir()}
 			run.wipe()
 			run.execute(c)
 		})
@@ -74,9 +75,13 @@ func TestMatrix(t *testing.T) {
 }
 
 type labRun struct {
-	t       *testing.T
-	bin     string
+	t   *testing.T
+	bin string
+	// version is what a case builds at; newer is where an upgrade case moves
+	// to. Both come from the channel server, so the suite follows what people
+	// actually install rather than a constant somebody has to remember.
 	version string
+	newer   string
 	dir     string
 }
 
@@ -97,6 +102,20 @@ func (r *labRun) execute(c matrix.Case) {
 	case matrix.OpResume:
 		r.applyThenKill(doc, "l1-bootstrap/service")
 		r.apply(doc, 30*time.Minute)
+
+	case matrix.OpUpgrade:
+		// An upgrade needs somewhere to go. When the channels have converged
+		// there is no newer version to move to, and skipping says so rather
+		// than passing on a run that did nothing.
+		if r.newer == "" || r.newer == r.version {
+			r.t.Skipf("stable and latest are both %s, so there is no upgrade to make", r.version)
+		}
+		r.apply(doc, 30*time.Minute)
+		r.upgrade(doc, r.newer)
+		// The observable is the version the kubelets report, not the version
+		// the document asks for: a document is a request and a running
+		// kubelet is the answer.
+		r.expectVersion(r.newer)
 
 	case matrix.OpReapply:
 		r.apply(doc, 30*time.Minute)
@@ -141,6 +160,25 @@ func (r *labRun) apply(doc string, timeout time.Duration) string {
 		r.t.Fatalf("apply: %v\n%s", err, tail(out, 40))
 	}
 	return out
+}
+
+// upgrade moves the cluster, one node at a time, the way an operator does.
+func (r *labRun) upgrade(doc, to string) {
+	r.t.Helper()
+	out, err := r.malmok(45*time.Minute, "upgrade", "-f", doc, "--to", to,
+		"--insecure-host-key", "--approve", "--timeout", "45m",
+		"--bundle", filepath.Join(r.dir, "out"))
+	if err != nil {
+		r.t.Fatalf("upgrade to %s: %v\n%s", to, err, tail(out, 40))
+	}
+}
+
+// expectVersion asks every node what it is running.
+func (r *labRun) expectVersion(want string) {
+	r.t.Helper()
+	r.onNode(fmt.Sprintf(
+		`wrong=$(kubectl get nodes --no-headers -o custom-columns=N:.metadata.name,V:.status.nodeInfo.kubeletVersion | awk '$2!="%s"'); `+
+			`[ -z "$wrong" ] || { echo "$wrong"; exit 1; }`, want))
 }
 
 // applyThenKill starts a build and kills it when the named step begins, which

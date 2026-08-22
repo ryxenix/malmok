@@ -29,7 +29,7 @@
 | `exposure` | node-ips, lb-pool, none |
 | `registry` | embedded, upstream |
 | `gitops` | true, false |
-| `operation` | build, grow, resume, reapply |
+| `operation` | build, grow, resume, reapply, upgrade |
 
 `operation` 이 차원인 이유: 이번에 나온 결함 대부분은 첫 구축이 아니라 **그 다음에
 한 일**에서 나왔다. 노드 증설, 중단 후 재개, 같은 문서 재적용은 각각 다른 코드
@@ -82,6 +82,7 @@ NODE_PASSWORD=... scripts/matrix.sh -run idc-single # 한 케이스
 | `grow` | 1노드로 구축 후, 문서에 에이전트를 추가해 재적용 |
 | `resume` | `l1-bootstrap/service` 시작 시점에 SIGKILL, 같은 명령으로 재실행 |
 | `reapply` | 구축 후 같은 문서를 다시 적용 — **바뀐 스텝이 0이어야 통과** |
+| `upgrade` | stable 로 구축한 뒤 latest 로 이동 — **전 노드의 kubelet 이 새 버전을 보고해야 통과**. 채널이 수렴해 올라갈 곳이 없으면 통과가 아니라 skip 한다 |
 
 그 뒤 공통 확인 (전부 **운영자 계정에서 sudo 없이**):
 
@@ -107,5 +108,4 @@ NODE_PASSWORD=... scripts/matrix.sh -run idc-single # 한 케이스
 - **폐쇄망 / 프록시 망 모드** — 격리 구간과 프록시 필요
 - **acme-dns01** — 공인 DNS 와 ACME 계정 필요
 - **external / internal 레지스트리** — Harbor · Hauler 필요
-- **업그레이드** (`upgrade`) — 별도 검증으로 돌리고 있고, 매트릭스 편입 예정
 - **longhorn · nfs 스토리지** — 스토리지 백엔드 필요

@@ -5,6 +5,19 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.60.0] - 2026-08-22
+
+### Added
+
+- The upgrade is a matrix case. `operation` gains `upgrade`, and
+  `upgrade-two` builds at the channel's stable release and moves the cluster
+  to latest -- two nodes under a VIP, because servers and agents move by
+  different paths and the address every node joins through has to keep
+  answering while the node serving it restarts. The observable is the version
+  each kubelet reports, not the version the document asks for. When the
+  channels have converged there is nowhere to upgrade to and the case skips
+  rather than passing on a run that did nothing.
+
 ## [0.59.1] - 2026-08-22
 
 The matrix's first full run: seven cases passed, one failed, and the one that

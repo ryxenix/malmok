@@ -53,6 +53,10 @@ const (
 	// OpReapply runs the same document twice and expects the second run to
 	// change nothing.
 	OpReapply = "reapply"
+	// OpUpgrade builds at one version and moves the cluster to a newer one,
+	// node by node. It is the operation with the most to lose: every node
+	// restarts, and a cluster that was working is the thing at risk.
+	OpUpgrade = "upgrade"
 )
 
 // Case is one row of the matrix: a document to build and a thing to do to it.
@@ -121,6 +125,12 @@ func Cases() []Case {
 			Exposure: "lb-pool", Registry: "upstream", VIP: true, Op: OpReapply,
 			Why: "a second run of the same document must observe and skip, never reinstall",
 		},
+		{
+			Name: "upgrade-two", Nodes: 2, Dataplane: "cilium-gw", PKI: "none",
+			Exposure: "node-ips", Registry: "embedded", VIP: true, Op: OpUpgrade,
+			Why: "the operation with the most to lose: a working cluster, every node restarting, " +
+				"a VIP that has to keep answering and an agent that must follow its server",
+		},
 	}
 }
 
@@ -144,6 +154,12 @@ func RequiredPairs() [][2]string {
 		{DimOp + "=" + OpResume, DimPKI + "=private-ca"},
 		// Growth on the dataplane that has per-node agents to extend.
 		{DimOp + "=" + OpGrow, DimDataplane + "=cilium-gw"},
+		// An upgrade with an agent: servers and agents move by different
+		// paths, and a single-node cluster exercises only one of them.
+		{DimOp + "=" + OpUpgrade, DimNodes + "=2"},
+		// An upgrade under a VIP: the address every node joins through has to
+		// keep answering while the node serving it restarts.
+		{DimOp + "=" + OpUpgrade, DimExposure + "=node-ips"},
 	}
 }
 
@@ -156,7 +172,7 @@ func Values() map[string][]string {
 		DimExposure:  {"node-ips", "lb-pool", "none"},
 		DimRegistry:  {"embedded", "upstream"},
 		DimGitOps:    {"true", "false"},
-		DimOp:        {OpBuild, OpGrow, OpResume, OpReapply},
+		DimOp:        {OpBuild, OpGrow, OpResume, OpReapply, OpUpgrade},
 	}
 }
 

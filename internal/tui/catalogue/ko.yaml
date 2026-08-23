@@ -107,6 +107,9 @@ nodes:
   sudopassword: sudo 비밀번호
   registration: 조인 주소
   version: RKE2 버전
+  version.section: RKE2 버전
+  version.stable: 업스트림이 운영용으로 판단한 버전
+  version.latest: 가장 최신 릴리스
   domain: 도메인
 profile:
   heading: 프로파일 선택

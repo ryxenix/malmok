@@ -50,7 +50,15 @@ func (w *Wizard) fieldsFor(step Step) []field {
 				hint: "target.version.hint"},
 		}
 	case StepNodes:
-		var fs []field
+		// The version first, under the channel choices at the top of the
+		// screen: it decides what every node runs, and it sat below the SSH
+		// credentials where the most consequential answer on the screen was
+		// the last one an operator reached.
+		fs := []field{
+			{labelKey: "nodes.version", hint: "hint.version",
+				get: func(c *Config) string { return c.Version },
+				set: func(c *Config, v string) { c.Version = v }},
+		}
 		// Not asked for when the answer is this machine: the address is chosen
 		// from the ones the machine reports, above the fields.
 		if !w.cfg.Local {
@@ -100,9 +108,6 @@ func (w *Wizard) fieldsFor(step Step) []field {
 			field{labelKey: "nodes.registration", hint: "hint.registration",
 				get: func(c *Config) string { return c.Registration },
 				set: func(c *Config, v string) { c.Registration = v }},
-			field{labelKey: "nodes.version", hint: "hint.version",
-				get: func(c *Config) string { return c.Version },
-				set: func(c *Config, v string) { c.Version = v }},
 			field{labelKey: "nodes.domain",
 				get: func(c *Config) string { return c.Domain },
 				set: func(c *Config, v string) { c.Domain = v }},

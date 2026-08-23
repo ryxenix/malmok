@@ -108,6 +108,9 @@ nodes:
   sudopassword: sudo password
   registration: Join address
   version: RKE2 version
+  version.section: RKE2 version
+  version.stable: upstream's production judgement
+  version.latest: the newest release
   domain: Domain
 profile:
   heading: Profile

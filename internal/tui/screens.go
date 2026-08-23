@@ -1022,13 +1022,22 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 
 	cur := w.cursor[StepNodes]
 
+	// The version first. It decides what every node runs, and it used to sit
+	// below the SSH credentials -- the most consequential answer on the
+	// screen reached last, after four that rarely change.
+	if vs := w.versionChoices(); len(vs) > 0 {
+		b.WriteString(w.theme.Section(w.cat.T("nodes.version.section"), width, w.glyphs) + "\n")
+		w.radio(&b, labelsOf(vs), notesOf(w.cat, vs), indexOf(vs, w.cfg.Version), cur, width)
+		b.WriteString("\n")
+	}
+
 	// The OS family belongs with the machines it describes. `auto` is the
 	// default and the honest one: PF-101 reads /etc/os-release, and a document
 	// that states a family the node does not have fails a check it need not
 	// have run.
 	b.WriteString(w.theme.Section(w.cat.T("nodes.os"), width, w.glyphs) + "\n")
 	w.radio(&b, labelsOf(osFamilies), notesOf(w.cat, osFamilies),
-		indexOf(osFamilies, w.cfg.OSFamily), cur, width)
+		indexOf(osFamilies, w.cfg.OSFamily), cur-len(w.versionChoices()), width)
 	b.WriteString("\n")
 
 	// The fields come before the chooser. They are the work; the chooser is

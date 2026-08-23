@@ -1326,11 +1326,12 @@ func TestTheVersionFieldFlipsBetweenChannels(t *testing.T) {
 		t.Fatalf("stable did not fill the field: %q", w.cfg.Version)
 	}
 
-	// The version field's row.
+	// The version field's row. The choices come first on this screen -- the
+	// channel answers, then the OS family -- so the fields start after them.
 	var row int
 	for i, f := range w.fieldsFor(StepNodes) {
 		if f.labelKey == "nodes.version" {
-			row = len(osFamilies) + i
+			row = len(w.versionChoices()) + len(osFamilies) + i
 		}
 	}
 	w.cursor[StepNodes] = row
@@ -1457,7 +1458,7 @@ func TestExplanationsMoveToTheStrip(t *testing.T) {
 	nodes.cfg.Server = "10.0.0.11"
 	for i, f := range nodes.fieldsFor(StepNodes) {
 		if f.labelKey == "nodes.registration" {
-			nodes.cursor[StepNodes] = len(osFamilies) + i
+			nodes.cursor[StepNodes] = len(nodes.versionChoices()) + len(osFamilies) + i
 		}
 	}
 	if info := nodes.frameInfo(); !strings.Contains(info, "VIP or DNS") {

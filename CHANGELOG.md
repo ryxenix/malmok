@@ -5,6 +5,18 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.63.0] - 2026-08-24
+
+### Changed
+
+- The RKE2 version leads the node screen. It decides what every node runs and
+  it sat below the SSH credentials -- the most consequential answer on the
+  screen was the last one an operator reached, after four that rarely change.
+  The channel server's answers are now a chooser at the top (stable, latest,
+  each with what it means), the version field is the first field under it,
+  and typing a version by hand is still the override an air-gapped site
+  needs.
+
 ## [0.62.1] - 2026-08-24
 
 ### Added

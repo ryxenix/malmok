@@ -242,11 +242,11 @@ func TestBackIsAbsentWhileInstalling(t *testing.T) {
 // containing "a" would toggle the character set.
 func TestEditingCapturesShortcutKeys(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
-	// The node screen opens with the operating system, which is a choice; the
-	// fields start below it.
+	// By name, not by position: this test is about what a field does with the
+	// keys, and it should not fail the next time a field moves.
 	m.setLocal(false)
 	m.editing = true
-	m.cursor[StepNodes] = len(osFamilies)
+	m.cursor[StepNodes] = fieldRow(m, StepNodes, "nodes.server")
 	m.cfg.Server = ""
 
 	for _, key := range []string{"a", "g", "q", "1", "0", "."} {
@@ -1004,7 +1004,7 @@ func TestSpaceSelectsAndEnterAdvances(t *testing.T) {
 func TestEnterOpensAFieldRatherThanAdvancing(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
 	m.setLocal(false)
-	m.cursor[StepNodes] = len(osFamilies)
+	m.cursor[StepNodes] = m.firstFieldIndex(StepNodes)
 
 	m.key(fakeKey("enter"))
 	if !m.editing {
@@ -1045,7 +1045,7 @@ func TestMixedScreenKeysFollowTheCursor(t *testing.T) {
 func TestEnterWalksTheFormOntoTheButtons(t *testing.T) {
 	m := wizard(t, LangEN, false, 90, 26, StepNodes)
 	m.setLocal(false)
-	m.cursor[StepNodes] = len(osFamilies)
+	m.cursor[StepNodes] = m.firstFieldIndex(StepNodes)
 	n := len(m.fieldsFor(StepNodes))
 	if n < 2 {
 		t.Fatalf("expected several fields, got %d", n)
@@ -1060,7 +1060,7 @@ func TestEnterWalksTheFormOntoTheButtons(t *testing.T) {
 		m.key(fakeKey("enter"))
 		// The fields sit below the operating system rows, so the cursor is
 		// offset by them.
-		if want := len(osFamilies) + i + 1; m.cursor[StepNodes] != want {
+		if want := m.firstFieldIndex(StepNodes) + i + 1; m.cursor[StepNodes] != want {
 			t.Fatalf("Enter moved the cursor to %d, want %d", m.cursor[StepNodes], want)
 		}
 		if !m.editing {
@@ -1138,7 +1138,7 @@ func TestKeyHintsFollowTheScreen(t *testing.T) {
 	form := wizard(t, LangEN, false, 96, 24, StepNodes)
 	form.setLocal(false)
 	// On a field row: the operating system rows sit above the fields.
-	form.cursor[StepNodes] = len(osFamilies)
+	form.cursor[StepNodes] = form.firstFieldIndex(StepNodes)
 	if got := form.keyHints(""); !strings.Contains(got, "edit") {
 		t.Errorf("a form screen does not offer edit: %q", got)
 	}
@@ -1412,4 +1412,14 @@ func TestEveryButtonIsWired(t *testing.T) {
 			}
 		}
 	}
+}
+
+// fieldRow is the cursor index of a named field on a step.
+func fieldRow(w *Wizard, step Step, labelKey string) int {
+	for i, f := range w.fieldsFor(step) {
+		if f.labelKey == labelKey {
+			return w.firstFieldIndex(step) + i
+		}
+	}
+	return -1
 }

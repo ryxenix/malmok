@@ -859,8 +859,11 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 	case StepWhere:
 		w.setLocal(cur == 0)
 	case StepNodes:
-		if cur < len(osFamilies) {
-			w.cfg.OSFamily = osFamilies[cur].id
+		if vs := w.versionChoices(); cur < len(vs) {
+			w.cfg.Version = vs[cur].id
+			break
+		} else if cur < len(vs)+len(osFamilies) {
+			w.cfg.OSFamily = osFamilies[cur-len(vs)].id
 			break
 		}
 		// Space on the version field flips between the channel server's two
@@ -1264,7 +1267,8 @@ func (w *Wizard) contentLen() int {
 	case StepNetwork:
 		return len(networkModes) + 2 + len(routingModes) + len(w.fieldsFor(StepNetwork))
 	case StepNodes:
-		return len(osFamilies) + w.localAddressCount() + len(w.fieldsFor(StepNodes))
+		return len(w.versionChoices()) + len(osFamilies) +
+			w.localAddressCount() + len(w.fieldsFor(StepNodes))
 	case StepRegistry:
 		return len(registryModes) + w.registryExtraRows() + len(w.fieldsFor(StepRegistry))
 	case StepPKI:
@@ -1305,11 +1309,50 @@ func startStep(preflight, install Work) Step {
 // fieldIndex maps the content cursor onto the step's field list. On the options
 // screen the fields sit below two radio groups, so the cursor has to be shifted
 // past them.
+// versionChoices are the answers the channel server gave, as a chooser.
+//
+// A version typed by hand is still the override -- an air-gapped site
+// installs what its bundle carries, and no channel knows that -- but on every
+// other build the choice is between two answers upstream publishes, and
+// making an operator type one of them is asking them to transcribe.
+//
+// Empty until the channels answer: two rows saying nothing would be worse
+// than none, and the field below still takes a version.
+func (w *Wizard) versionChoices() []choice {
+	if w.channels.Stable == "" {
+		return nil
+	}
+	out := []choice{{id: w.channels.Stable, label: w.channels.Stable, note: "nodes.version.stable"}}
+	if w.channels.Latest != "" && w.channels.Latest != w.channels.Stable {
+		out = append(out, choice{id: w.channels.Latest, label: w.channels.Latest, note: "nodes.version.latest"})
+	}
+	return out
+}
+
+// firstFieldIndex is the cursor index of a step's first field: everything
+// before it is a choice. Derived from fieldIndex rather than restated, so a
+// new choice group cannot leave the two disagreeing.
+func (w *Wizard) firstFieldIndex(step Step) int {
+	was := w.cursor[step]
+	defer func() { w.cursor[step] = was }()
+
+	w.cursor[step] = 0
+	return -w.fieldIndexFor(step)
+}
+
+// fieldIndexFor is fieldIndex for a named step.
+func (w *Wizard) fieldIndexFor(step Step) int {
+	wasStep := w.step
+	w.step = step
+	defer func() { w.step = wasStep }()
+	return w.fieldIndex()
+}
+
 func (w *Wizard) fieldIndex() int {
 	i := w.cursor[w.step]
 	switch w.step {
 	case StepNodes:
-		i -= len(osFamilies)
+		i -= len(w.versionChoices()) + len(osFamilies)
 	case StepNetwork:
 		i -= len(networkModes) + 2 + len(routingModes)
 	case StepOptions:

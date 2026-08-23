@@ -5,6 +5,16 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.61.1] - 2026-08-24
+
+### Changed
+
+- `scripts/build.sh` keeps the five newest binaries and removes the rest
+  (`MALMOK_KEEP_BUILDS` to change it). Every code change rebuilds, and a few
+  days of that left forty binaries at 16MB each; a handful is enough to go
+  back to the build that was running when something was observed. Whatever
+  `bin/malmok` points at is never removed.
+
 ## [0.61.0] - 2026-08-24
 
 ### Added

@@ -324,6 +324,10 @@ type Wizard struct {
 	workCtx   context.Context
 	hideRail  bool
 
+	// hits is where the last frame put things, so a click can be turned back
+	// into the thing that was clicked.
+	hits hitMap
+
 	// prefsErr is what went wrong saving the preferences, empty when nothing
 	// did.
 	prefsErr string
@@ -543,6 +547,108 @@ func (w *Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return w.key(msg)
+
+	case tea.MouseClickMsg:
+		return w.click(msg.Mouse())
+
+	case tea.MouseWheelMsg:
+		return w.wheel(msg.Mouse())
+	}
+	return w, nil
+}
+
+// click acts on what was drawn where the pointer was.
+//
+// The regions come from the renderer, which is the only part that knows where
+// it put things; the actions are the ones the keyboard already reaches, so a
+// click and a keypress cannot disagree about what a screen does.
+func (w *Wizard) click(m tea.Mouse) (tea.Model, tea.Cmd) {
+	if m.Button != tea.MouseLeft {
+		return w, nil
+	}
+
+	kind, index := w.hits.at(m.X, m.Y)
+	if kind == hitNone {
+		// The content column keeps its rows in a line map rather than as
+		// regions: a screen knows which line it drew a choice on, not which
+		// rectangle of the terminal that became.
+		if i, ok := w.hits.item(m.Y); ok && m.X >= w.hits.contentCol {
+			kind, index = hitItem, i
+		}
+	}
+
+	switch kind {
+	case hitExit:
+		if ex := w.exitButton(); ex != nil {
+			w.focus, w.btn = focusButtons, exitFocus
+			return w.activate(ex.Label)
+		}
+
+	case hitButton:
+		btns := w.buttons()
+		if index < len(btns) {
+			w.focus, w.btn = focusButtons, index
+			return w.activate(btns[index].Label)
+		}
+
+	case hitRail:
+		// Backwards only. A rail entry is a step, and stepping forward past
+		// screens the operator has not answered would submit blanks; going
+		// back to change an answer is what the rail is for.
+		flow := w.flow()
+		if index < len(flow) && index < w.railIndex() {
+			w.step = flow[index]
+			w.focus = focusContent
+		}
+
+	case hitItem:
+		// The cursor goes where the pointer is, and the row acts as if it had
+		// been chosen -- which for a radio is selecting it and for a field is
+		// opening it. Clicking a row and pressing the key on it are the same
+		// gesture said two ways.
+		w.focus = focusContent
+		w.setCursor(index)
+
+		// A list of destinations is different: clicking an entry of the menu
+		// or of the run list means "this one", the way it does everywhere
+		// else, and making the operator click and then press Enter would be
+		// this tool's own invention.
+		switch w.step {
+		case StepMenu, StepRuns:
+			return w.next()
+		}
+		return w.selectUnderCursor()
+	}
+	return w, nil
+}
+
+// setCursor puts the cursor on an index, wherever this screen keeps it.
+//
+// Three screens track their own selection -- the menu, the run list -- and the
+// rest share the per-step cursor. A click has to reach whichever one this
+// screen reads, or the pointer moves a cursor nobody is looking at.
+func (w *Wizard) setCursor(index int) {
+	switch w.step {
+	case StepMenu:
+		if index < len(menuItems) {
+			w.menu = index
+		}
+	case StepRuns:
+		if index < len(w.runs) {
+			w.runSel = index
+		}
+	default:
+		w.cursor[w.step] = index
+	}
+}
+
+// wheel moves the cursor, which is what a wheel means on a list.
+func (w *Wizard) wheel(m tea.Mouse) (tea.Model, tea.Cmd) {
+	switch m.Button {
+	case tea.MouseWheelUp:
+		return w.key(tea.KeyPressMsg{Code: tea.KeyUp})
+	case tea.MouseWheelDown:
+		return w.key(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 	return w, nil
 }

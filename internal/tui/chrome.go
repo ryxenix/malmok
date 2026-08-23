@@ -210,6 +210,11 @@ type Frame struct {
 	Buttons []Button
 	Focused int
 
+	// Hits is filled in as the frame is drawn: a terminal reports a click as
+	// a row and a column, and this is where the answer to "what was there"
+	// comes from. Nil renders exactly as before.
+	Hits *hitMap
+
 	// Exit is drawn bottom-left, away from the actions that move forward.
 	// Proxmox puts Abort there for the same reason: the key that ends the
 	// install should not sit next to the key that continues it.
@@ -281,25 +286,51 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	// pinned under the header with fifty blank rows below.
 	bodyH := h - 2 - lines(footer) - lines(strip)
 	slack := bodyH - lines(body)
+	bodyOffset := 0
 	if slack > 1 {
-		body = strings.Repeat("\n", slack/2) + body
+		bodyOffset = slack / 2
+		body = strings.Repeat("\n", bodyOffset) + body
 	}
 	bodyLines := strings.Split(padTo(body, bodyH), "\n")
 
+	// The body starts on the third row: the title bar and the rule above it
+	// are one each.
+	const bodyTop = 2
+	contentCol := 2
 	if showRail {
+		contentCol = 1 + railW(w) + 2
 		rail := strings.Split(padTo(t.rail(f.Rail, g), bodyH), "\n")
 		for i := range bodyLines {
 			left := padCells(rail[i], railW(w))
 			b.WriteString(t.Rail.Render(" "+left) + t.Divider.Render(g.VRule) + " " +
 				bodyLines[i] + "\n")
 		}
+		// The rail begins one row down (t.rail opens with a blank line) and
+		// runs one row per step.
+		for i := range f.Rail {
+			f.Hits.add(bodyTop+1+i, bodyTop+1+i, 0, railW(w), hitRail, i)
+		}
 	} else {
 		for i := range bodyLines {
 			b.WriteString("  " + bodyLines[i] + "\n")
 		}
 	}
+	// Where the content column landed, so a click in it can be turned back
+	// into the line of body the screen drew.
+	if f.Hits != nil {
+		// content() opens with a blank line and, when there is one, a heading
+		// and the blank line under it. A screen counts its own body lines
+		// from zero, so the origin has to skip all of that.
+		lead := 1
+		if f.Heading != "" {
+			lead += 2
+		}
+		f.Hits.contentRow, f.Hits.contentCol = bodyTop+bodyOffset+lead, contentCol
+	}
 	b.WriteString(strip)
-	b.WriteString(footer)
+	// Drawn again now that its row is known, so the buttons can be clicked.
+	// The output is identical; only the recording differs.
+	b.WriteString(t.footerAt(f, w, g, bodyTop+bodyH+lines(strip)))
 	return b.String()
 }
 
@@ -375,7 +406,18 @@ func (t Theme) content(f Frame, w int, g Glyphs) string {
 // The order matters: a rule above the buttons is what separates "what you are
 // looking at" from "what you can do about it", and every installer an operator
 // has used puts the keys last.
+// footerRow is where the buttons are drawn, counted from the bottom: the rule,
+// then the buttons, then the key hints.
 func (t Theme) footer(f Frame, w int, g Glyphs) string {
+	// Rendered twice per frame -- once to measure, once in place -- so the
+	// row it lands on is only known on the second call. footerAt records the
+	// buttons; this one just draws.
+	return t.footerAt(f, w, g, -1)
+}
+
+// footerAt draws the footer and, when told which row it starts on, records
+// where each button ended up.
+func (t Theme) footerAt(f Frame, w int, g Glyphs, row int) string {
 	var b strings.Builder
 	b.WriteString(t.Divider.Render(g.Line(w)) + "\n")
 
@@ -401,6 +443,22 @@ func (t Theme) footer(f Frame, w int, g Glyphs) string {
 			gap = 1
 		}
 		b.WriteString(" " + left + strings.Repeat(" ", gap) + right + " \n")
+
+		// The row under the rule holds the actions. Columns are counted the
+		// same way they were written: a leading space, the exit action, the
+		// gap, then each button and the space between them.
+		if row >= 0 && f.Hits != nil {
+			buttonRow := row + 1
+			if left != "" {
+				f.Hits.add(buttonRow, buttonRow, 1, cells(left), hitExit, 0)
+			}
+			at := 1 + cells(left) + gap
+			for i, btn := range f.Buttons {
+				width := cells(t.button(btn, i == f.Focused))
+				f.Hits.add(buttonRow, buttonRow, at, at+width-1, hitButton, i)
+				at += width + 1 // the space between buttons
+			}
+		}
 	}
 
 	if f.Status != "" {

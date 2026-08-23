@@ -14,6 +14,8 @@ import (
 	"platform.ryxen.dev/malmok/internal/exec"
 	"platform.ryxen.dev/malmok/internal/rke2"
 	"platform.ryxen.dev/malmok/internal/spec"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // richDocument is a document with things in it the wizard has no screen for.
@@ -1556,4 +1558,66 @@ func TestStepVerdictsReachTheLogPane(t *testing.T) {
 	if len(w.logs) != 0 {
 		t.Error("a non-terminal step event entered the log stream")
 	}
+}
+
+// A click reaches what was drawn under it, and reaches it the way the
+// keyboard would: the same cursor, the same selection, the same action.
+func TestTheMouseReachesWhatWasDrawn(t *testing.T) {
+	w := wizard(t, LangEN, false, 120, 40, StepMenu)
+	_ = w.View() // the hit map is built while drawing
+
+	// The menu: find the row the third entry was drawn on and click it.
+	row, ok := rowOf(&w.hits, 2)
+	if !ok {
+		t.Fatal("the menu recorded no row for its third entry")
+	}
+	if _, _ = w.click(tea.Mouse{X: w.hits.contentCol + 4, Y: row, Button: tea.MouseLeft}); w.menu != 2 {
+		t.Errorf("a click on row %d left the menu on %d", row, w.menu)
+	}
+
+	// A radio screen: clicking a choice selects it, exactly as Space does.
+	opts := wizard(t, LangEN, false, 120, 40, StepOptions)
+	opts.cfg.Dataplane = "cilium-gw"
+	_ = opts.View()
+	if row, ok := rowOf(&opts.hits, 2); ok {
+		_, _ = opts.click(tea.Mouse{X: opts.hits.contentCol + 4, Y: row, Button: tea.MouseLeft})
+		if opts.cursor[StepOptions] != 2 {
+			t.Errorf("the cursor is on %d after clicking the third choice", opts.cursor[StepOptions])
+		}
+		if opts.cfg.Dataplane != "canal-traefik" {
+			t.Errorf("clicking the third dataplane chose %q", opts.cfg.Dataplane)
+		}
+	} else {
+		t.Error("the options screen recorded no rows")
+	}
+
+	// The wheel moves the cursor rather than doing nothing. From the third
+	// choice, up is the second.
+	before := opts.cursor[StepOptions]
+	if before == 0 {
+		t.Fatal("the cursor never moved, so the wheel has nothing to show")
+	}
+	_, _ = opts.wheel(tea.Mouse{Button: tea.MouseWheelUp})
+	if opts.cursor[StepOptions] != before-1 {
+		t.Errorf("the wheel left the cursor at %d, was %d", opts.cursor[StepOptions], before)
+	}
+
+	// A right-click is not a click on anything: only the left button acts.
+	was := opts.cursor[StepOptions]
+	if row, ok := rowOf(&opts.hits, 0); ok {
+		_, _ = opts.click(tea.Mouse{X: opts.hits.contentCol + 4, Y: row, Button: tea.MouseRight})
+		if opts.cursor[StepOptions] != was {
+			t.Error("a right-click moved the cursor")
+		}
+	}
+}
+
+// rowOf finds the screen row a cursor index was drawn on.
+func rowOf(h *hitMap, index int) (int, bool) {
+	for line, i := range h.lines {
+		if i == index {
+			return h.contentRow + line, true
+		}
+	}
+	return 0, false
 }

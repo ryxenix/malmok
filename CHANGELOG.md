@@ -5,6 +5,25 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.62.0] - 2026-08-24
+
+### Added
+
+- **The mouse works.** Terminals have reported clicks for years and this tool
+  ignored them: menu entries, radio choices, fields, settings rows, run list
+  entries, the step rail and the footer buttons are all clickable now, and
+  the wheel moves the cursor. Clicking a list entry opens it, the way it does
+  everywhere else; clicking a choice selects it, exactly as Space does. The
+  rail goes back to a step already answered and never forward, because
+  stepping forward past unanswered screens would submit blanks.
+  - A click arrives as a row and a column and nothing else, so the renderer
+    records what it draws where -- rebuilt every frame, since a stale map
+    sends the click to whatever used to be under the pointer. Screens mark
+    their rows by the cursor index they stand for, so a click and a keypress
+    reach the same code.
+  - Keyboard-only use is unchanged: nothing was moved or re-keyed, and a
+    terminal that reports no mouse behaves exactly as before.
+
 ## [0.61.1] - 2026-08-24
 
 ### Changed

@@ -98,8 +98,8 @@ func (w *Wizard) openScreen(width int) (string, string, string) {
 	// The path field first, because typing one is always available even when
 	// nothing was found to list.
 	cur := w.cursor[StepOpen]
-	b.WriteString(w.theme.Fields(
-		w.labels(StepOpen), w.maskedValues(StepOpen), cur, w.editing, width, w.glyphs))
+	w.fields(&b,
+		w.labels(StepOpen), w.maskedValues(StepOpen), cur, w.editing, width)
 
 	if len(w.openFiles) > 0 {
 		b.WriteString("\n" + w.dim(w.cat.T("open.found"), width) + "\n")
@@ -264,8 +264,8 @@ func (w *Wizard) targetScreen(width int) (string, string, string) {
 
 	b.WriteString("\n")
 	cur := w.cursor[StepTarget]
-	b.WriteString(w.theme.Fields(
-		w.labels(StepTarget), w.maskedValues(StepTarget), cur, w.editing, width, w.glyphs))
+	w.fields(&b,
+		w.labels(StepTarget), w.maskedValues(StepTarget), cur, w.editing, width)
 
 	if h := w.inlineHint(int(StepTarget), cur); h != "" {
 		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))

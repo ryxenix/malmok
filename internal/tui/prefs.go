@@ -151,6 +151,8 @@ func (w *Wizard) prefsScreen(width int) (string, string, string) {
 
 	cur := w.cursor[StepPrefs]
 	for i, row := range prefsRows {
+		w.hits.mark(nextLine(b.String()), 1, i)
+
 		marker := "  "
 		label := padCells(w.cat.T(row.labelKey), 18)
 		value := row.value(w)

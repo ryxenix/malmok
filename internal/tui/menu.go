@@ -72,6 +72,11 @@ func (w *Wizard) menuScreen(width int) (string, string, string) {
 
 	for i, item := range menuItems {
 		selected := i == w.menu
+		// Each entry marks the row it is about to occupy. Entries are not one
+		// row each -- a selected one carries its explanation, an unusable one
+		// says why -- so the row is taken as it is written rather than
+		// computed from the index.
+		w.hits.mark(nextLine(b.String()), 1, i)
 
 		icon := " "
 		if item.Icon != nil {
@@ -138,6 +143,8 @@ func (w *Wizard) runsScreen(width int) (string, string, string) {
 			padCells(w.cat.T("runs.col_when"), 22)+
 			w.cat.T("runs.col_summary")) + "\n")
 	for i, r := range w.runs {
+		w.hits.mark(nextLine(b.String()), 1, i)
+
 		marker := "  "
 		if i == w.runSel {
 			marker = w.theme.Accent.Render(w.glyphs.Focus) + " "

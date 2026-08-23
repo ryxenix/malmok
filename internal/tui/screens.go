@@ -106,6 +106,11 @@ func (w *Wizard) View() tea.View {
 	if w.inInstallFlow() {
 		context = fmt.Sprintf("%d/%d", w.railIndex()+1, len(w.flow()))
 	}
+	// Cleared before the screen draws, not inside the renderer: the screens
+	// mark their rows while building the body, which happens first, and a
+	// reset in the renderer would wipe exactly what it needs.
+	w.hits.reset()
+
 	f := Frame{
 		Title:     w.cat.T("app.title"),
 		Crumb:     w.crumb(),
@@ -173,8 +178,14 @@ func (w *Wizard) View() tea.View {
 	// calling every screen "installer" was wrong the moment the menu offered
 	// anything else.
 
+	f.Hits = &w.hits
+
 	v := tea.NewView(w.theme.Render(f, w.width, w.height, w.glyphs))
 	v.AltScreen = true
+	// Cell motion rather than all motion: the screen reacts to clicks and the
+	// wheel, and asking the terminal to report every pointer move would be a
+	// stream of events nothing reads.
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -334,31 +345,31 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 	cur := w.cursor[StepOptions]
 
 	b.WriteString(w.theme.Section(w.cat.T("options.dataplane"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(labelsOf(dataplanes), notesOf(w.cat, dataplanes),
-		indexOf(dataplanes, w.cfg.Dataplane), cur, width, w.glyphs))
+	w.radio(&b, labelsOf(dataplanes), notesOf(w.cat, dataplanes),
+		indexOf(dataplanes, w.cfg.Dataplane), cur, width)
 
 	b.WriteString("\n" + w.theme.Section(w.cat.T("options.storage"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(labelsOf(storages), notesOf(w.cat, storages),
-		indexOf(storages, w.cfg.Storage), cur-len(dataplanes), width, w.glyphs))
+	w.radio(&b, labelsOf(storages), notesOf(w.cat, storages),
+		indexOf(storages, w.cfg.Storage), cur-len(dataplanes), width)
 
 	// What to do when the nodes cannot run what was asked for. It belongs
 	// beside the dataplane because that is what it is usually about, and it was
 	// the profile's alone -- so an air-gapped build could not be told to refuse
 	// a downgrade rather than confirm one.
 	b.WriteString("\n" + w.theme.Section(w.cat.T("options.downgrade"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(labelsOf(downgradePolicies), notesOf(w.cat, downgradePolicies),
+	w.radio(&b, labelsOf(downgradePolicies), notesOf(w.cat, downgradePolicies),
 		indexOf(downgradePolicies, w.cfg.DowngradePolicy),
-		cur-len(dataplanes)-len(storages), width, w.glyphs))
+		cur-len(dataplanes)-len(storages), width)
 
 	b.WriteString("\n" + w.theme.Section(w.cat.T("options.fallback"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(labelsOf(fallbacks), notesOf(w.cat, fallbacks),
+	w.radio(&b, labelsOf(fallbacks), notesOf(w.cat, fallbacks),
 		indexOf(fallbacks, w.cfg.Fallback),
-		cur-len(dataplanes)-len(storages)-len(downgradePolicies), width, w.glyphs))
+		cur-len(dataplanes)-len(storages)-len(downgradePolicies), width)
 
 	if fs := w.fieldsFor(StepOptions); len(fs) > 0 {
 		b.WriteString("\n")
-		b.WriteString(w.theme.Fields(w.labels(StepOptions), w.maskedValues(StepOptions),
-			w.fieldIndex(), w.editing, width, w.glyphs))
+		w.fields(&b, w.labels(StepOptions), w.maskedValues(StepOptions),
+			w.fieldIndex(), w.editing, width)
 	}
 
 	if note := w.inlineHelp(w.cat.T("note.options"), width); note != "" {
@@ -781,24 +792,24 @@ func (w *Wizard) pkiScreen(width int) (string, string, string) {
 	var b strings.Builder
 
 	b.WriteString(w.inlineHelp(w.cat.T("pki.help_mode"), width))
-	b.WriteString(w.theme.Radio(labelsOf(pkiModes), notesOf(w.cat, pkiModes),
-		indexOf(pkiModes, w.cfg.PKIMode), cur, width, w.glyphs))
+	w.radio(&b, labelsOf(pkiModes), notesOf(w.cat, pkiModes),
+		indexOf(pkiModes, w.cfg.PKIMode), cur, width)
 
 	// Trust distribution, for the one mode where l2-pki reads the answer. A
 	// cluster built without it has a CA the nodes trust and the pods do not,
 	// and the failure is an opaque x509 error from inside a container.
 	if w.pkiExtraRows() > 0 {
 		b.WriteString("\n" + w.theme.Section(w.cat.T("pki.trust"), width, w.glyphs) + "\n")
-		b.WriteString(w.theme.Radio(
+		w.radio(&b,
 			[]string{w.cat.T("pki.trust.bundle"), w.cat.T("pki.trust.nodes")},
 			[]string{w.cat.T("pki.trust.bundle.note"), w.cat.T("pki.trust.nodes.note")},
-			boolIndex(w.cfg.TrustBundle), cur-len(pkiModes), width, w.glyphs))
+			boolIndex(w.cfg.TrustBundle), cur-len(pkiModes), width)
 	}
 
 	if fs := w.fieldsFor(StepPKI); len(fs) > 0 {
 		b.WriteString("\n")
-		b.WriteString(w.theme.Fields(w.labels(StepPKI), w.maskedValues(StepPKI),
-			w.fieldIndex(), w.editing, width, w.glyphs))
+		w.fields(&b, w.labels(StepPKI), w.maskedValues(StepPKI),
+			w.fieldIndex(), w.editing, width)
 		if isCA(w.cfg.PKIMode) && w.frameInfo() == "" {
 			b.WriteString("\n" + w.dim(
 				w.glyphs.Warn+" "+w.cat.T("pki.note_rootkey")+" (PF-706)", width))
@@ -823,8 +834,8 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 	var b strings.Builder
 
 	b.WriteString(w.inlineHelp(w.cat.T("reg.help"), width))
-	b.WriteString(w.theme.Radio(labelsOf(registryModes), notesOf(w.cat, registryModes),
-		indexOf(registryModes, w.cfg.RegistryMode), cur, width, w.glyphs))
+	w.radio(&b, labelsOf(registryModes), notesOf(w.cat, registryModes),
+		indexOf(registryModes, w.cfg.RegistryMode), cur, width)
 
 	// Whether to accept a certificate the registry cannot prove. Only for a
 	// registry this document points at, and two rows rather than a toggle: a
@@ -832,16 +843,16 @@ func (w *Wizard) registryScreen(width int) (string, string, string) {
 	// which was taken.
 	if w.registryHasAddress() {
 		b.WriteString("\n" + w.theme.Section(w.cat.T("reg.tls"), width, w.glyphs) + "\n")
-		b.WriteString(w.theme.Radio(
+		w.radio(&b,
 			[]string{w.cat.T("reg.tls.verify"), w.cat.T("reg.tls.insecure")},
 			[]string{w.cat.T("reg.tls.verify.note"), w.cat.T("reg.tls.insecure.note")},
-			boolIndex(!w.cfg.RegistryInsecure), cur-len(registryModes), width, w.glyphs))
+			boolIndex(!w.cfg.RegistryInsecure), cur-len(registryModes), width)
 	}
 
 	if fs := w.fieldsFor(StepRegistry); len(fs) > 0 {
 		b.WriteString("\n")
-		b.WriteString(w.theme.Fields(w.labels(StepRegistry), w.maskedValues(StepRegistry),
-			w.fieldIndex(), w.editing, width, w.glyphs))
+		w.fields(&b, w.labels(StepRegistry), w.maskedValues(StepRegistry),
+			w.fieldIndex(), w.editing, width)
 		if h := w.inlineHint(int(StepRegistry), w.fieldIndex()); h != "" {
 			b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
 		}
@@ -1009,8 +1020,8 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 	// that states a family the node does not have fails a check it need not
 	// have run.
 	b.WriteString(w.theme.Section(w.cat.T("nodes.os"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(labelsOf(osFamilies), notesOf(w.cat, osFamilies),
-		indexOf(osFamilies, w.cfg.OSFamily), cur, width, w.glyphs))
+	w.radio(&b, labelsOf(osFamilies), notesOf(w.cat, osFamilies),
+		indexOf(osFamilies, w.cfg.OSFamily), cur, width)
 	b.WriteString("\n")
 
 	// The fields come before the chooser. They are the work; the chooser is
@@ -1033,8 +1044,8 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 				vals[i] += "  " + w.glyphs.Dot + " " + tag
 			}
 		}
-		b.WriteString(w.theme.Fields(w.labels(StepNodes), vals,
-			w.fieldIndex(), w.editing, width, w.glyphs))
+		w.fields(&b, w.labels(StepNodes), vals,
+			w.fieldIndex(), w.editing, width)
 	}
 	if h := w.inlineHint(int(StepNodes), w.fieldIndex()); h != "" {
 		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
@@ -1059,8 +1070,8 @@ func (w *Wizard) nodesScreen(width int) (string, string, string) {
 					notes[i] = w.cat.T("nodes.advertised")
 				}
 			}
-			b.WriteString(w.theme.Radio(addrs, notes, indexOfString(addrs, w.cfg.Server),
-				cur, width, w.glyphs))
+			w.radio(&b, addrs, notes, indexOfString(addrs, w.cfg.Server),
+				cur, width)
 		}
 	}
 
@@ -1096,23 +1107,23 @@ func (w *Wizard) networkScreen(width int) (string, string, string) {
 	cur := w.cursor[StepNetwork]
 
 	b.WriteString(w.theme.Section(w.cat.T("net.mode"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(labelsOf(networkModes), notesOf(w.cat, networkModes),
-		indexOf(networkModes, string(w.networkMode())), cur, width, w.glyphs))
+	w.radio(&b, labelsOf(networkModes), notesOf(w.cat, networkModes),
+		indexOf(networkModes, string(w.networkMode())), cur, width)
 
 	b.WriteString("\n" + w.theme.Section(w.cat.T("net.encrypt"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(
+	w.radio(&b,
 		[]string{w.cat.T("net.encrypt.on"), w.cat.T("net.encrypt.off")},
 		[]string{w.cat.T("net.encrypt.on.note"), w.cat.T("net.encrypt.off.note")},
-		boolIndex(w.cfg.Encrypt), cur-len(networkModes), width, w.glyphs))
+		boolIndex(w.cfg.Encrypt), cur-len(networkModes), width)
 
 	b.WriteString("\n" + w.theme.Section(w.cat.T("net.routing"), width, w.glyphs) + "\n")
-	b.WriteString(w.theme.Radio(labelsOf(routingModes), notesOf(w.cat, routingModes),
-		indexOf(routingModes, w.cfg.Routing), cur-len(networkModes)-2, width, w.glyphs))
+	w.radio(&b, labelsOf(routingModes), notesOf(w.cat, routingModes),
+		indexOf(routingModes, w.cfg.Routing), cur-len(networkModes)-2, width)
 
 	if fs := w.fieldsFor(StepNetwork); len(fs) > 0 {
 		b.WriteString("\n")
-		b.WriteString(w.theme.Fields(w.labels(StepNetwork), w.maskedValues(StepNetwork),
-			w.fieldIndex(), w.editing, width, w.glyphs))
+		w.fields(&b, w.labels(StepNetwork), w.maskedValues(StepNetwork),
+			w.fieldIndex(), w.editing, width)
 	}
 	if h := w.inlineHint(int(StepNetwork), w.fieldIndex()); h != "" {
 		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))

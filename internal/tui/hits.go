@@ -118,14 +118,16 @@ func (h *hitMap) at(x, y int) (hitKind, int) {
 // is exactly how many selectable rows came before it. Asking every call site
 // to restate that is asking one of them to get it wrong.
 func (w *Wizard) radio(b *strings.Builder, labels, notes []string, chosen, cursor, width int) {
-	w.hits.mark(nextLine(b.String()), len(labels), w.cursor[w.step]-cursor)
-	b.WriteString(w.theme.Radio(labels, notes, chosen, cursor, width, w.glyphs))
+	base := w.cursor[w.step] - cursor
+	w.hits.mark(nextLine(b.String()), len(labels), base)
+	b.WriteString(w.theme.Radio(labels, notes, chosen, cursor, w.hoverRow(base), width, w.glyphs))
 }
 
 // fields writes a field block and records its rows the same way.
 func (w *Wizard) fields(b *strings.Builder, labels, values []string, cursor int, editing bool, width int) {
-	w.hits.mark(nextLine(b.String()), len(labels), w.cursor[w.step]-cursor)
-	b.WriteString(w.theme.Fields(labels, values, cursor, editing, width, w.glyphs))
+	base := w.cursor[w.step] - cursor
+	w.hits.mark(nextLine(b.String()), len(labels), base)
+	b.WriteString(w.theme.Fields(labels, values, cursor, w.hoverRow(base), editing, width, w.glyphs))
 }
 
 // nextLine is the line the next write will land on.
@@ -143,4 +145,22 @@ func nextLine(s string) int {
 		return lines(s)
 	}
 	return lines(s) - 1
+}
+
+// hoverRow is the pointer's row within a block that starts at base, or -1
+// when the pointer is elsewhere. Blocks count their rows from themselves and
+// the hover is recorded in the screen's own index space, so something has to
+// do the subtraction; doing it here keeps every call site from doing it
+// differently.
+func (w *Wizard) hoverRow(base int) int {
+	if w.hoverKind != hitItem {
+		return -1
+	}
+	return w.hoverIndex - base
+}
+
+// hovering reports whether the pointer is over the screen row that stands for
+// this index.
+func (w *Wizard) hovering(index int) bool {
+	return w.hoverKind == hitItem && w.hoverIndex == index
 }

@@ -162,6 +162,10 @@ func (w *Wizard) prefsScreen(width int) (string, string, string) {
 				w.theme.ChoiceSel.Render(" "+value+" ") + "\n")
 			continue
 		}
+		if w.hovering(i) {
+			b.WriteString(marker + w.theme.ChoiceHover.Render(label+value) + "\n")
+			continue
+		}
 		b.WriteString(marker + w.theme.Dim.Render(label) + w.theme.Body.Render(value) + "\n")
 	}
 

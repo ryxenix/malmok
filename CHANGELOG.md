@@ -5,6 +5,18 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.62.1] - 2026-08-24
+
+### Added
+
+- The pointer shows what it is over. Menu entries, choices, fields, settings
+  rows, run entries, rail steps and footer buttons light up under the mouse
+  -- distinctly from the row the cursor is on, because "what you would get"
+  and "what you have" are different claims and drawing them alike makes a
+  pointer crossing the screen look like a selection changing by itself.
+  Hovering never moves the cursor, so a selection made with the keyboard
+  survives a mouse that wanders.
+
 ## [0.62.0] - 2026-08-24
 
 ### Added

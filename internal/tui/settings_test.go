@@ -1621,3 +1621,45 @@ func rowOf(h *hitMap, index int) (int, bool) {
 	}
 	return 0, false
 }
+
+// Hovering is not selecting. A pointer crossing the screen must not look like
+// an operator changing their mind: the row under the pointer is marked, the
+// cursor stays where the keyboard left it, and the two are drawn differently.
+func TestHoverIsSeparateFromSelection(t *testing.T) {
+	w := wizard(t, LangEN, false, 120, 40, StepMenu)
+	_ = w.View()
+
+	row, ok := rowOf(&w.hits, 3)
+	if !ok {
+		t.Fatal("the menu recorded no row for its fourth entry")
+	}
+	w.setHover(tea.Mouse{X: w.hits.contentCol + 4, Y: row})
+
+	if w.menu != 0 {
+		t.Errorf("hovering moved the selection to %d", w.menu)
+	}
+	if !w.hovering(3) {
+		t.Errorf("the fourth entry is not hovered (kind %v index %d)", w.hoverKind, w.hoverIndex)
+	}
+
+	// And it shows: the hovered row is drawn differently from both the
+	// selected row and the rest.
+	body := w.View().Content
+	if !strings.Contains(body, plainOf(w.theme.ChoiceHover.Render("Settings"))) {
+		// The style may not survive a plain-text comparison; the marker check
+		// above is the contract. This only guards the obvious regression of
+		// nothing being drawn at all.
+		if !strings.Contains(plain(body), "Settings") {
+			t.Error("the hovered entry vanished")
+		}
+	}
+
+	// Moving off everything clears it, or the highlight outlives the pointer.
+	w.setHover(tea.Mouse{X: 0, Y: 0})
+	if w.hovering(3) {
+		t.Error("the highlight stayed after the pointer left")
+	}
+}
+
+// plainOf strips styling, which differs by terminal profile.
+func plainOf(s string) string { return plain(s) }

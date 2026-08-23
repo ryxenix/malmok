@@ -87,11 +87,17 @@ func (w *Wizard) menuScreen(width int) (string, string, string) {
 		// and padding a styled string makes every row a different width.
 		marker := "  "
 		line := ""
-		if selected {
+		switch {
+		case selected:
 			marker = w.theme.Accent.Render(w.glyphs.Focus) + " "
 			line = marker + w.theme.Accent.Render(padCells(icon, 3)) +
 				w.theme.ChoiceSel.Render(padCells(w.cat.T(item.TitleKey), 22))
-		} else {
+		case w.hovering(i):
+			// What the pointer is over, said quietly: the operator has not
+			// chosen it, they are only looking at it.
+			line = marker + w.theme.ChoiceHover.Render(padCells(icon, 3)+
+				padCells(w.cat.T(item.TitleKey), 22))
+		default:
 			line = marker + w.theme.Dim.Render(padCells(icon, 3)) +
 				w.theme.Body.Render(padCells(w.cat.T(item.TitleKey), 22))
 		}
@@ -150,9 +156,12 @@ func (w *Wizard) runsScreen(width int) (string, string, string) {
 			marker = w.theme.Accent.Render(w.glyphs.Focus) + " "
 		}
 		label := padCells(r.ID, 28) + padCells(r.When, 22) + r.Summary
-		if i == w.runSel {
+		switch {
+		case i == w.runSel:
 			label = w.theme.ChoiceSel.Render(label)
-		} else {
+		case w.hovering(i):
+			label = w.theme.ChoiceHover.Render(label)
+		default:
 			label = w.theme.Body.Render(label)
 		}
 		b.WriteString(marker + label + "\n")

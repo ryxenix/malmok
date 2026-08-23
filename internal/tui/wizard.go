@@ -328,6 +328,12 @@ type Wizard struct {
 	// into the thing that was clicked.
 	hits hitMap
 
+	// hoverKind and hoverIndex are what the pointer is over. Kept apart from
+	// the cursor: a pointer crossing the screen must not look like an
+	// operator changing their selection.
+	hoverKind  hitKind
+	hoverIndex int
+
 	// prefsErr is what went wrong saving the preferences, empty when nothing
 	// did.
 	prefsErr string
@@ -553,6 +559,10 @@ func (w *Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.MouseWheelMsg:
 		return w.wheel(msg.Mouse())
+
+	case tea.MouseMotionMsg:
+		w.setHover(msg.Mouse())
+		return w, nil
 	}
 	return w, nil
 }
@@ -640,6 +650,20 @@ func (w *Wizard) setCursor(index int) {
 	default:
 		w.cursor[w.step] = index
 	}
+}
+
+// setHover records what the pointer is over, so the next frame can show it.
+//
+// Only what is clickable hovers. Highlighting prose the pointer happens to
+// cross would teach the operator that the highlight means nothing.
+func (w *Wizard) setHover(m tea.Mouse) {
+	kind, index := w.hits.at(m.X, m.Y)
+	if kind == hitNone {
+		if i, ok := w.hits.item(m.Y); ok && m.X >= w.hits.contentCol {
+			kind, index = hitItem, i
+		}
+	}
+	w.hoverKind, w.hoverIndex = kind, index
 }
 
 // wheel moves the cursor, which is what a wheel means on a list.

@@ -70,12 +70,18 @@ type Theme struct {
 
 	Choice    lipgloss.Style
 	ChoiceSel lipgloss.Style
-	Field     lipgloss.Style
-	FieldSel  lipgloss.Style
+	// ChoiceHover is what the pointer is over, which is not what the cursor
+	// is on: hovering says "this is what you would get", selecting says "this
+	// is what you have". Drawing them the same way makes a pointer moving
+	// across the screen look like a selection changing under the operator.
+	ChoiceHover lipgloss.Style
+	Field       lipgloss.Style
+	FieldSel    lipgloss.Style
 
 	BtnPrimary   lipgloss.Style
 	BtnSecondary lipgloss.Style
 	BtnFocus     lipgloss.Style
+	BtnHover     lipgloss.Style
 
 	Bar     lipgloss.Style
 	BarFill lipgloss.Style
@@ -113,10 +119,12 @@ func NewTheme(mono bool) Theme {
 			Err:        plain.Bold(true),
 
 			Choice: plain, ChoiceSel: plain.Reverse(true),
-			Field: plain, FieldSel: plain.Reverse(true),
+			ChoiceHover: plain.Underline(true),
+			Field:       plain, FieldSel: plain.Reverse(true),
 
 			BtnPrimary: plain.Bold(true), BtnSecondary: plain,
 			BtnFocus: plain.Reverse(true).Bold(true),
+			BtnHover: plain.Underline(true).Bold(true),
 			Bar:      plain.Faint(true), BarFill: plain,
 
 			FocusBar: plain.Bold(true),
@@ -152,14 +160,16 @@ func NewTheme(mono bool) Theme {
 		Accent:  lipgloss.NewStyle().Foreground(accent).Bold(true),
 		Err:     lipgloss.NewStyle().Foreground(red).Bold(true),
 
-		Choice:    base,
-		ChoiceSel: lipgloss.NewStyle().Foreground(white).Bold(true),
-		Field:     base,
-		FieldSel:  lipgloss.NewStyle().Foreground(white),
+		Choice:      base,
+		ChoiceSel:   lipgloss.NewStyle().Foreground(white).Bold(true),
+		ChoiceHover: lipgloss.NewStyle().Background(lipgloss.Color("#232323")).Foreground(white),
+		Field:       base,
+		FieldSel:    lipgloss.NewStyle().Foreground(white),
 
 		BtnPrimary:   lipgloss.NewStyle().Background(accent).Foreground(white).Bold(true),
 		BtnSecondary: lipgloss.NewStyle().Foreground(ink),
 		BtnFocus:     lipgloss.NewStyle().Background(white).Foreground(lipgloss.Color("#101010")).Bold(true),
+		BtnHover:     lipgloss.NewStyle().Background(lipgloss.Color("#3a3a3a")).Foreground(white).Bold(true),
 		Bar:          lipgloss.NewStyle().Foreground(faint),
 		BarFill:      lipgloss.NewStyle().Foreground(accent),
 
@@ -209,6 +219,12 @@ type Frame struct {
 
 	Buttons []Button
 	Focused int
+
+	// HoverKind and HoverIndex are what the pointer is over, from the last
+	// frame's hit map. Nothing hovers by default, which is what a terminal
+	// that reports no mouse gives.
+	HoverKind  hitKind
+	HoverIndex int
 
 	// Hits is filled in as the frame is drawn: a terminal reports a click as
 	// a row and a column, and this is where the answer to "what was there"
@@ -299,7 +315,11 @@ func (t Theme) Render(f Frame, w, h int, g Glyphs) string {
 	contentCol := 2
 	if showRail {
 		contentCol = 1 + railW(w) + 2
-		rail := strings.Split(padTo(t.rail(f.Rail, g), bodyH), "\n")
+		railHover := -1
+		if f.HoverKind == hitRail {
+			railHover = f.HoverIndex
+		}
+		rail := strings.Split(padTo(t.rail(f.Rail, g, railHover), bodyH), "\n")
 		for i := range bodyLines {
 			left := padCells(rail[i], railW(w))
 			b.WriteString(t.Rail.Render(" "+left) + t.Divider.Render(g.VRule) + " " +
@@ -371,10 +391,15 @@ func (t Theme) blendRule(w int, truecolor bool, g Glyphs) string {
 	return b.String()
 }
 
-func (t Theme) rail(items []RailItem, g Glyphs) string {
+func (t Theme) rail(items []RailItem, g Glyphs, hover int) string {
 	var b strings.Builder
 	b.WriteString("\n")
 	for i, it := range items {
+		if i == hover && it.State != RailCurrent {
+			num := padCells(itoa(i+1), 2)
+			b.WriteString(t.ChoiceHover.Render(num+"  "+it.Label) + "\n")
+			continue
+		}
 		num := padCells(itoa(i+1), 2)
 		switch it.State {
 		case RailDone:
@@ -426,7 +451,8 @@ func (t Theme) footerAt(f Frame, w int, g Glyphs, row int) string {
 		if len(f.Buttons) > 0 {
 			rendered := make([]string, len(f.Buttons))
 			for i, btn := range f.Buttons {
-				rendered[i] = t.button(btn, i == f.Focused)
+				rendered[i] = t.buttonAt(btn, i == f.Focused,
+					f.HoverKind == hitButton && f.HoverIndex == i)
 			}
 			right = strings.Join(rendered, " ")
 		}
@@ -435,7 +461,7 @@ func (t Theme) footerAt(f Frame, w int, g Glyphs, row int) string {
 			// Bottom-left, away from the actions that move forward: the key
 			// that ends an install should not sit beside the one that
 			// continues it.
-			left = t.button(*f.Exit, f.Focused == exitFocus)
+			left = t.buttonAt(*f.Exit, f.Focused == exitFocus, f.HoverKind == hitExit)
 		}
 
 		gap := w - buttonMargin*2 - cells(left) - cells(right)
@@ -454,7 +480,8 @@ func (t Theme) footerAt(f Frame, w int, g Glyphs, row int) string {
 			}
 			at := 1 + cells(left) + gap
 			for i, btn := range f.Buttons {
-				width := cells(t.button(btn, i == f.Focused))
+				width := cells(t.buttonAt(btn, i == f.Focused,
+					f.HoverKind == hitButton && f.HoverIndex == i))
 				f.Hits.add(buttonRow, buttonRow, at, at+width-1, hitButton, i)
 				at += width + 1 // the space between buttons
 			}
@@ -471,10 +498,16 @@ func (t Theme) footerAt(f Frame, w int, g Glyphs, row int) string {
 const exitFocus = -2
 
 func (t Theme) button(btn Button, focused bool) string {
+	return t.buttonAt(btn, focused, false)
+}
+
+func (t Theme) buttonAt(btn Button, focused, hovered bool) string {
 	label := "  " + btn.Label + "  "
 	switch {
 	case focused:
 		return t.BtnFocus.Render("[" + label + "]")
+	case hovered:
+		return t.BtnHover.Render("[" + label + "]")
 	case btn.Primary:
 		return t.BtnPrimary.Render("[" + label + "]")
 	default:
@@ -487,7 +520,10 @@ func (t Theme) button(btn Button, focused bool) string {
 // ---------------------------------------------------------------------------
 
 // Radio renders a single-choice list with a description column.
-func (t Theme) Radio(labels, notes []string, chosen, cursor, w int, g Glyphs) string {
+// Radio draws a group of choices. hover is the row the pointer is over, or
+// -1 for none: it is drawn distinctly from the cursor, because "what you
+// would get" and "what you have" are different claims.
+func (t Theme) Radio(labels, notes []string, chosen, cursor, hover, w int, g Glyphs) string {
 	var b strings.Builder
 	labelW := 0
 	for _, l := range labels {
@@ -503,9 +539,12 @@ func (t Theme) Radio(labels, notes []string, chosen, cursor, w int, g Glyphs) st
 		if i < len(notes) && notes[i] != "" {
 			line += "  " + t.Dim.Render(truncCells(notes[i], max(w-cells(line)-4, 6)))
 		}
-		if i == cursor {
+		switch {
+		case i == cursor:
 			b.WriteString(t.FocusBar.Render(g.Focus) + " " + t.ChoiceSel.Render(line))
-		} else {
+		case i == hover:
+			b.WriteString("  " + t.ChoiceHover.Render(line))
+		default:
 			b.WriteString("  " + t.Choice.Render(line))
 		}
 		b.WriteString("\n")
@@ -525,7 +564,7 @@ func (t Theme) Section(title string, w int, g Glyphs) string {
 }
 
 // Fields renders labelled inputs, the way a form does in a graphical installer.
-func (t Theme) Fields(labels, values []string, cursor int, editing bool, w int, g Glyphs) string {
+func (t Theme) Fields(labels, values []string, cursor, hover int, editing bool, w int, g Glyphs) string {
 	var b strings.Builder
 	labelW := 0
 	for _, l := range labels {
@@ -541,9 +580,12 @@ func (t Theme) Fields(labels, values []string, cursor int, editing bool, w int, 
 		}
 
 		line := padCells(labels[i], labelW) + "  " + t.field(box, i == cursor, editing)
-		if i == cursor {
+		switch {
+		case i == cursor:
 			b.WriteString(t.FocusBar.Render(g.Focus) + " " + line)
-		} else {
+		case i == hover:
+			b.WriteString("  " + t.ChoiceHover.Render(line))
+		default:
 			b.WriteString("  " + line)
 		}
 		b.WriteString("\n")

@@ -112,6 +112,9 @@ func (w *Wizard) View() tea.View {
 	w.hits.reset()
 
 	f := Frame{
+		HoverKind:  w.hoverKind,
+		HoverIndex: w.hoverIndex,
+
 		Title:     w.cat.T("app.title"),
 		Crumb:     w.crumb(),
 		Info:      w.frameInfo(),
@@ -182,10 +185,10 @@ func (w *Wizard) View() tea.View {
 
 	v := tea.NewView(w.theme.Render(f, w.width, w.height, w.glyphs))
 	v.AltScreen = true
-	// Cell motion rather than all motion: the screen reacts to clicks and the
-	// wheel, and asking the terminal to report every pointer move would be a
-	// stream of events nothing reads.
-	v.MouseMode = tea.MouseModeCellMotion
+	// All motion, not just clicks: without the pointer's position there is no
+	// way to show what a click would land on, and an operator moving the
+	// mouse over a menu with nothing lighting up cannot tell the two apart.
+	v.MouseMode = tea.MouseModeAllMotion
 	return v
 }
 
@@ -309,12 +312,15 @@ func (w *Wizard) buttons() []Button {
 // asks for a value should not also be a place where the layout can differ.
 func (w *Wizard) formScreen(step Step, headingKey, helpKey string, width int) (string, string, string) {
 	cur := w.cursor[step]
-	body := w.inlineHelp(w.cat.T(helpKey), width) +
-		w.theme.Fields(w.labels(step), w.maskedValues(step), cur, w.editing, width, w.glyphs)
+
+	var b strings.Builder
+	b.WriteString(w.inlineHelp(w.cat.T(helpKey), width))
+	w.fields(&b, w.labels(step), w.maskedValues(step), cur, w.editing, width)
 
 	if h := w.inlineHint(int(step), cur); h != "" {
-		body += "\n" + w.dim(w.glyphs.Dot+" "+h, width)
+		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
 	}
+	body := b.String()
 
 	hint := w.cat.T("hint.edit")
 	if w.editing {
@@ -994,13 +1000,14 @@ func (w *Wizard) whereScreen(width int) (string, string, string) {
 	if w.cfg.Local {
 		chosen = 0
 	}
-	body := w.inlineHelp(w.cat.T("where.help"), width) +
-		w.theme.Radio(
-			[]string{w.cat.T("where.here"), w.cat.T("where.remote")},
-			[]string{here, w.cat.T("where.remote.note")},
-			chosen, w.cursor[StepWhere], width, w.glyphs)
+	var b strings.Builder
+	b.WriteString(w.inlineHelp(w.cat.T("where.help"), width))
+	w.radio(&b,
+		[]string{w.cat.T("where.here"), w.cat.T("where.remote")},
+		[]string{here, w.cat.T("where.remote.note")},
+		chosen, w.cursor[StepWhere], width)
 
-	return w.cat.T("where.heading"), body, w.cat.T("hint.select")
+	return w.cat.T("where.heading"), b.String(), w.cat.T("hint.select")
 }
 
 // nodesScreen is the form, with the address chooser above it when the machine

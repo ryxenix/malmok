@@ -519,3 +519,58 @@ func TestAnHTTPSListenerAlwaysNamesItsSecret(t *testing.T) {
 		t.Errorf("SecretRefs is %v, want the document's own name", refs)
 	}
 }
+
+// A listener that names no Secret of its own inherits the cluster's pki.mode,
+// and the cluster has to sign for it. Nothing did: the Gateway came up
+// referencing a Secret nobody created, the controller called it Programmed,
+// and every handshake was reset.
+//
+// The Certificates live here rather than in l2-pki because they live in the
+// Gateway's namespace, which does not exist until this phase makes it -- a
+// Certificate written earlier is rejected for a namespace nobody has created.
+func TestListenerCertificatesAreRequestedBeforeTheGateway(t *testing.T) {
+	spec := gatewaySpec()
+	spec.Gateway.Gateways[0].Listeners = []v1alpha1.ListenerSpec{
+		{Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443, Hostname: "*.acme.internal"},
+	}
+
+	body := ListenerCertificates(spec, "malmok")
+	if body == "" {
+		t.Fatal("an issuing document signed nothing for its HTTPS listener")
+	}
+	for _, want := range []string{
+		"kind: Certificate",
+		`secretName: "public-https-tls"`,
+		`- "*.acme.internal"`,
+		`name: "malmok"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the certificate is missing %q:\n%s", want, body)
+		}
+	}
+
+	// Nothing to sign with means nothing signed: byo-cert and none pass no
+	// issuer, and a Certificate against an issuer that does not exist waits
+	// for a signature that is not coming.
+	if got := ListenerCertificates(spec, ""); got != "" {
+		t.Errorf("a document that issues nothing still rendered:\n%s", got)
+	}
+
+	// Order: the certificate is requested and signed before the Gateway that
+	// terminates with it.
+	certs, gw := -1, -1
+	for i, s := range Steps(&exec.Fake{}, spec, Options{Issuer: "malmok"}) {
+		switch s.(*engine.ShellStep).Name {
+		case "listener-certs-ready":
+			certs = i
+		case "gateways":
+			gw = i
+		}
+	}
+	if certs == -1 {
+		t.Fatal("nothing waits for the listener certificate")
+	}
+	if certs > gw {
+		t.Errorf("the certificate is signed at step %d, after the gateway at %d", certs, gw)
+	}
+}

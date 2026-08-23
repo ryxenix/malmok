@@ -49,6 +49,11 @@ type Options struct {
 	// needs the document's directory and its secret policy.
 	Bundles map[string]*cert.Bundle
 
+	// Issuer is the ClusterIssuer that signs for listeners which name no
+	// Secret of their own. Empty means the document issues nothing in the
+	// cluster, and such listeners get no certificate from here.
+	Issuer string
+
 	Timeout time.Duration
 }
 
@@ -78,6 +83,24 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, o Options) []engine.St
 	// the reference rather than the missing material.
 	for _, ref := range sortedKeys(o.Bundles) {
 		steps = append(steps, add(secretStep(ref, namespaceOf(spec), o.Bundles[ref])))
+	}
+
+	// The namespace before everything that lives in it -- the Secrets above
+	// go to a fixed namespace RKE2 already has, but the certificates below do
+	// not.
+	steps = append(steps, add(rke2.ManifestStep(Phase, "namespaces", namespaceFile,
+		NamespaceManifest(spec), "namespace "+namespaceOf(spec), o.timeout())))
+
+	// Certificates the cluster signs, before the Gateway that terminates with
+	// them. Same reason the supplied bundles come first: a listener pointing
+	// at a Secret that does not exist yet reports a reference error rather
+	// than a missing certificate.
+	if body := ListenerCertificates(spec, o.Issuer); body != "" {
+		steps = append(steps,
+			add(rke2.ManifestStep(Phase, "listener-certs", listenerCertFile, body,
+				firstCertificate(spec), o.timeout())),
+			add(listenerCertsReadyStep(spec, o)),
+		)
 	}
 
 	steps = append(steps,
@@ -245,8 +268,10 @@ func indentProbes(ips []string, scheme string, port int) string {
 
 // Files this phase writes.
 const (
-	gatewayFile  = rke2.ManifestDir + "/malmok-gateways.yaml"
-	contractFile = rke2.ManifestDir + "/malmok-gateway-contract.yaml"
+	gatewayFile      = rke2.ManifestDir + "/malmok-gateways.yaml"
+	contractFile     = rke2.ManifestDir + "/malmok-gateway-contract.yaml"
+	listenerCertFile = rke2.ManifestDir + "/malmok-listener-certs.yaml"
+	namespaceFile    = rke2.ManifestDir + "/malmok-gateway-namespaces.yaml"
 )
 
 // secretStep installs one TLS Secret.
@@ -351,6 +376,28 @@ exit 1`, int(o.timeout().Seconds()), read, namespace, gw.Name, namespace, gw.Nam
 // ---------------------------------------------------------------------------
 // Manifests
 // ---------------------------------------------------------------------------
+
+// NamespaceManifest renders the namespaces the gateways live in.
+//
+// Its own file, applied before anything that goes inside them. It used to be
+// the first object of the gateway manifest, which was fine until something
+// else in the phase needed the namespace first: a listener's Certificate is
+// rejected outright for a namespace nobody has created, and the phase failed
+// on its own ordering.
+func NamespaceManifest(spec v1alpha1.ClusterSpec) string {
+	seen := map[string]bool{}
+	var b strings.Builder
+	b.WriteString(managedFileHeader + "\n")
+	for _, gw := range spec.Gateway.Gateways {
+		ns := namespaceOfGateway(gw)
+		if seen[ns] {
+			continue
+		}
+		seen[ns] = true
+		b.WriteString("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: " + yamlString(ns) + "\n---\n")
+	}
+	return b.String()
+}
 
 // GatewayManifest renders the namespace and every Gateway the document names.
 func GatewayManifest(spec v1alpha1.ClusterSpec) string {
@@ -553,6 +600,141 @@ func SecretRefs(spec v1alpha1.ClusterSpec) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// ListenerCertificates renders a cert-manager Certificate for every HTTPS
+// listener the cluster signs for.
+//
+// The Secret a Certificate writes and the Secret its Gateway references are
+// the same string on purpose: the schema says a listener without a tls block
+// inherits the cluster's pki.mode, and nothing implemented that -- the
+// Gateway came up referencing a Secret nobody created, the controller called
+// it Programmed, and every handshake was reset.
+//
+// Empty when nothing issues in the cluster: byo-cert supplies its own
+// material and `none` has no domain yet.
+func ListenerCertificates(spec v1alpha1.ClusterSpec, issuer string) string {
+	if issuer == "" {
+		return ""
+	}
+	listeners := IssuedListeners(spec)
+	if len(listeners) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(managedFileHeader + "\n")
+	for i, l := range listeners {
+		if i > 0 {
+			b.WriteString("---\n")
+		}
+		b.WriteString("apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n")
+		b.WriteString("  name: " + yamlString(l.Secret) + "\n")
+		b.WriteString("  namespace: " + yamlString(l.Namespace) + "\n")
+		b.WriteString("spec:\n")
+		b.WriteString("  secretName: " + yamlString(l.Secret) + "\n")
+		b.WriteString("  dnsNames:\n")
+		for _, host := range l.Hostnames {
+			b.WriteString("    - " + yamlString(host) + "\n")
+		}
+		b.WriteString("  issuerRef:\n    kind: ClusterIssuer\n    name: " + yamlString(issuer) + "\n")
+	}
+	return b.String()
+}
+
+// firstCertificate names one object the manifest step can look for, which is
+// what tells it the cluster took the file rather than merely holding it.
+func firstCertificate(spec v1alpha1.ClusterSpec) string {
+	l := IssuedListeners(spec)
+	if len(l) == 0 {
+		return ""
+	}
+	return "certificate -n " + l[0].Namespace + " " + l[0].Secret
+}
+
+// listenerCertsReadyStep waits for the certificates to be signed.
+//
+// A Certificate object is a request; the Secret appears when cert-manager has
+// signed it, and the listener terminates against that Secret. "The object
+// exists" is not the state anything downstream needs.
+func listenerCertsReadyStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
+	var checks []string
+	for _, l := range IssuedListeners(spec) {
+		checks = append(checks, fmt.Sprintf(
+			`s=$(kubectl -n %s get certificate %s -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}' 2>/dev/null || true)
+[ "$s" = True ] || { echo "the certificate %s/%s is not Ready (status '$s')"; exit 1; }`,
+			l.Namespace, l.Secret, l.Namespace, l.Secret))
+	}
+	ready := strings.Join(checks, "\n") + "\necho \"every listener certificate is signed\""
+	quiet := "(" + strings.Join(checks, " && ") + ") >/dev/null 2>&1"
+
+	return &engine.ShellStep{
+		Name:  "listener-certs-ready",
+		Check: kubectl + ready,
+		Do: kubectl + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
+while [ "$(date +%%s)" -lt "$deadline" ]; do
+  if %s
+  then exit 0
+  fi
+  sleep 5
+done
+echo "a listener certificate was never signed. The cluster reports:"
+kubectl get certificate -A 2>&1 | tail -5
+kubectl -n cert-manager logs -l app.kubernetes.io/name=cert-manager --tail=20 2>&1 | tail -20
+exit 1`, int(o.timeout().Seconds()), quiet),
+
+		Satisfied: "%s",
+		Missing:   "%s",
+		DoTimeout: o.timeout() + time.Minute,
+		Attempts:  1,
+	}
+}
+
+// IssuedListener is one HTTPS listener whose certificate the cluster issues.
+type IssuedListener struct {
+	// Secret is where the certificate has to land: the same name the Gateway
+	// references, or the listener terminates against nothing.
+	Secret string
+	// Namespace is the Gateway's, because a Gateway may only reference a
+	// Secret beside it without a ReferenceGrant.
+	Namespace string
+	// Hostnames are what the certificate must cover.
+	Hostnames []string
+}
+
+// IssuedListeners lists the HTTPS listeners that need a certificate issued in
+// the cluster: the ones that name no Secret of their own and supply no
+// material, which the schema says inherit the cluster's pki.mode.
+//
+// Exported for l2-pki, which owns issuance. The gateway phase must not issue
+// anything itself -- it runs after PKI, and a Gateway that referenced a Secret
+// its own phase created would have no way to wait for a certificate that
+// takes a moment to sign.
+func IssuedListeners(spec v1alpha1.ClusterSpec) []IssuedListener {
+	var out []IssuedListener
+	for _, gw := range spec.Gateway.Gateways {
+		for _, l := range gw.Listeners {
+			if l.Protocol != v1alpha1.ListenerHTTPS {
+				continue
+			}
+			// A listener that names an existing Secret, or hands over its own
+			// material, is already answered.
+			if l.TLS != nil && (l.TLS.Source == v1alpha1.TLSFromSecret || l.TLS.Source == v1alpha1.TLSFromBYO) {
+				continue
+			}
+			hosts := []string{l.Hostname}
+			if l.Hostname == "" {
+				hosts = []string{spec.Gateway.DomainSuffix}
+			}
+			out = append(out, IssuedListener{
+				Secret:    ListenerSecret(gw, l),
+				Namespace: namespaceOfGateway(gw),
+				Hostnames: hosts,
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Secret < out[j].Secret })
 	return out
 }
 

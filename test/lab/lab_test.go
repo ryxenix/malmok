@@ -67,7 +67,23 @@ func TestMatrix(t *testing.T) {
 	for _, c := range matrix.Cases() {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Logf("%s -- %s", c, c.Why)
-			run := &labRun{t: t, bin: bin, version: ch.Stable, newer: ch.Latest, dir: t.TempDir()}
+			// Not t.TempDir(): a failed case's run directory is the one
+			// thing worth keeping, and t.TempDir() deletes exactly that --
+			// twice in a row a failure was diagnosed by guesswork because the
+			// evidence the tool had written went with it.
+			dir, err := os.MkdirTemp("", "malmok-matrix-"+c.Name+"-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if t.Failed() {
+					t.Logf("the run is kept at %s", dir)
+					return
+				}
+				_ = os.RemoveAll(dir)
+			})
+
+			run := &labRun{t: t, bin: bin, version: ch.Stable, newer: ch.Latest, dir: dir}
 			run.wipe()
 			run.execute(c)
 		})

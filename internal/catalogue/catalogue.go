@@ -166,8 +166,12 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 		})
 	}
 
+	issuer := ""
+	if pki.Issues(spec.PKI.Mode) {
+		issuer = pki.IssuerName
+	}
 	if steps := gateway.Steps(control, spec, gateway.Options{
-		Bundles: m.Bundles, Timeout: o.Gateway.Timeout,
+		Bundles: m.Bundles, Issuer: issuer, Timeout: o.Gateway.Timeout,
 	}); len(steps) > 0 {
 		phases = append(phases, engine.Phase{
 			ID:        gateway.Phase,

@@ -146,6 +146,9 @@ func RequiredPairs() [][2]string {
 		// Supplied material terminating TLS: the listener has to name a
 		// Secret, and something has to put the certificate in it.
 		{DimPKI + "=byo-cert", DimExposure + "=lb-pool"},
+		// Issued material terminating TLS: the cluster has to sign for the
+		// listener, not merely stand up an issuer that signs nothing.
+		{DimPKI + "=private-ca", DimExposure + "=node-ips"},
 		// The bundled dataplane on more than one node, where nothing this
 		// tool writes is involved at all.
 		{DimNodes + "=2", DimDataplane + "=canal-traefik"},
@@ -342,9 +345,10 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 		} else {
 			gw.Address = lbAddress
 		}
-		// A certificate mode that supplies material gets a listener to serve
-		// it on; without one the material is installed and never used.
-		if c.PKI == "byo-cert" {
+		// A certificate mode gets a listener to serve on: supplied material
+		// nobody terminates with is material nobody can tell is broken, and
+		// an issuer that signs nothing proves only that it exists.
+		if c.PKI == "byo-cert" || c.PKI == "private-ca" {
 			gw.Listeners = append(gw.Listeners, v1alpha1.ListenerSpec{
 				Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443,
 				Hostname: "*." + domain,

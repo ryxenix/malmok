@@ -5,6 +5,38 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.61.0] - 2026-08-24
+
+### Added
+
+- **The cluster issues certificates for its own listeners.** An HTTPS
+  listener that names no Secret and supplies no material inherits the
+  cluster's `pki.mode` -- the schema has always said so, and until now
+  nothing did it: the Gateway came up referencing a Secret nobody created,
+  the controller reported it Programmed, and every handshake was reset. With
+  private-ca (and the ACME modes) the gateway phase now requests a
+  cert-manager Certificate per listener, named for the Secret the Gateway
+  references, and waits for it to be signed before creating the Gateway.
+  Verified on the wire: issuer Ready, certificate Ready, both listeners
+  Programmed.
+- The matrix covers it: the private-ca case gained an HTTPS listener and
+  `private-ca with node-ips` joined the required pairs, so an issuer that
+  signs nothing can no longer pass for a working one.
+
+### Changed
+
+- The gateway namespaces are their own manifest, applied before anything
+  that lives in them. They used to be the first object of the gateway file,
+  which was invisible until something in the same phase needed the namespace
+  first -- the listener certificates were rejected outright for a namespace
+  nobody had created yet.
+
+### Fixed
+
+- The lab harness keeps a failed case's run directory instead of deleting
+  it. Two diagnoses in a row were guesswork because the evidence the tool
+  had carefully written went out with `t.TempDir()`.
+
 ## [0.60.0] - 2026-08-22
 
 ### Added

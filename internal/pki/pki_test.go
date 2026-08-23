@@ -274,9 +274,28 @@ func TestWaitsUntilCertManagerAcceptsAnObject(t *testing.T) {
 // secret with a mismatched key or an unregistered ACME account shows up.
 func TestWaitsForTheIssuerToBeReady(t *testing.T) {
 	steps := Steps(&exec.Fake{}, specWith(v1alpha1.PKIPrivateCA), material(), Options{})
-	last := steps[len(steps)-1].(*engine.ShellStep)
-	if last.Name != "issuer-ready" {
-		t.Fatalf("the last step is %q", last.Name)
+
+	// Before anything that signs with it: a listener certificate requested
+	// against an issuer that cannot sign waits for a signature that is not
+	// coming, and the reason is on the issuer rather than the certificate.
+	var last *engine.ShellStep
+	ready, certs := -1, len(steps)
+	for i, st := range steps {
+		sh := st.(*engine.ShellStep)
+		switch sh.Name {
+		case "issuer-ready":
+			ready, last = i, sh
+		case "listener-certs", "listener-certs-ready":
+			if certs == len(steps) {
+				certs = i
+			}
+		}
+	}
+	if last == nil {
+		t.Fatalf("no issuer-ready step; steps: %v", names(steps))
+	}
+	if ready > certs {
+		t.Errorf("issuer-ready is step %d and the certificates are requested at %d", ready, certs)
 	}
 	if !strings.Contains(last.Check, "Ready") {
 		t.Error("the check does not read the Ready condition")

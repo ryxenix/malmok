@@ -159,6 +159,12 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, m Material, o Options)
 		add(issuerReadyStep(o)),
 	)
 
+	// The listeners' certificates are requested by the gateway phase, not
+	// here: they live in the Gateway's namespace, which does not exist until
+	// that phase creates it -- a Certificate written first is rejected for a
+	// namespace nobody has made yet. This phase's job is the issuer they are
+	// signed by, and it runs first so that issuer is ready when they arrive.
+
 	// Trust distribution is what makes a private CA usable by anything that did
 	// not get it from the node's own store. Without it, in-cluster clients
 	// reject the CA and the failure is an opaque x509 error.
@@ -377,6 +383,20 @@ spec:
       trust:
         namespace: ` + Namespace + `
 `
+}
+
+// Issues reports whether the mode signs certificates inside the cluster.
+//
+// byo-cert does not: the document handed the material over, and the gateway
+// phase installs it. none does not either, by definition. Exported because
+// the gateway phase asks before requesting a certificate from an issuer that
+// may not exist.
+func Issues(mode v1alpha1.PKIMode) bool {
+	switch mode {
+	case v1alpha1.PKIPrivateCA, v1alpha1.PKIACMEDNS01, v1alpha1.PKIACMEHTTP01:
+		return true
+	}
+	return false
 }
 
 // IssuerManifest renders the ClusterIssuer the document's mode implies.

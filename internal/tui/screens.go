@@ -79,6 +79,16 @@ var fallbacks = []choice{
 // asked for and whether images can be pulled at all, and it used to come only
 // from the profile -- so "homelab behind a proxy" was a document nobody could
 // produce from the wizard.
+// How a gateway is reached from outside. "none" first, because a cluster that
+// claims an address nobody assigned it is what IDC and air-gapped network
+// policy forbid -- and at a first build there is frequently no name to serve
+// yet either.
+var exposures = []choice{
+	{"none", "none", "expose.none"},
+	{"node-ips", "node-ips", "expose.nodeips"},
+	{"lb-pool", "lb-pool", "expose.pool"},
+}
+
 var networkModes = []choice{
 	{"online", "online", "netmode.online"},
 	{"proxy", "proxy", "netmode.proxy"},
@@ -151,6 +161,8 @@ func (w *Wizard) View() tea.View {
 		f.Heading, f.Body, f.Status = w.registryScreen(body)
 	case StepPKI:
 		f.Heading, f.Body, f.Status = w.pkiScreen(body)
+	case StepGateway:
+		f.Heading, f.Body, f.Status = w.gatewayScreen(body)
 	case StepOptions:
 		f.Heading, f.Body, f.Status = w.optionsScreen(body)
 	case StepPreflight:
@@ -243,7 +255,7 @@ func (w *Wizard) buttons() []Button {
 		// Back goes to the menu rather than nowhere: an operator who chose the
 		// wrong entry has to be able to leave without quitting.
 		return []Button{back, {Label: w.cat.T("btn.done"), Primary: true}}
-	case StepWhere, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI:
+	case StepWhere, StepNodes, StepNetwork, StepOptions, StepRegistry, StepPKI, StepGateway:
 		return []Button{back, {Label: w.cat.T("btn.next"), Primary: true}}
 	case StepOpen:
 		if len(w.openFiles) == 0 && strings.TrimSpace(w.cfg.DocPath) == "" {
@@ -382,6 +394,55 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 		b.WriteString("\n" + strings.TrimSuffix(note, "\n\n"))
 	}
 	return w.cat.T("options.heading"), b.String(), w.cat.T("hint.select")
+}
+
+// gatewayScreen asks how the cluster is reached from outside.
+//
+// It exists because a build without it produced a cluster with no way in and
+// said nothing about it: the wizard had no screen for gateways, so a document
+// it wrote named none, every LoadBalancer Service a workload created sat
+// Pending forever, and the operator found out from the workload.
+func (w *Wizard) gatewayScreen(width int) (string, string, string) {
+	var b strings.Builder
+	b.WriteString(w.inlineHelp(w.cat.T("gw.help"), width))
+
+	cur := w.cursor[StepGateway]
+	b.WriteString(w.theme.Section(w.cat.T("gw.exposure"), width, w.glyphs) + "\n")
+	w.radio(&b, labelsOf(exposures), notesOf(w.cat, exposures),
+		indexOf(exposures, w.cfg.Exposure), cur, width)
+
+	if fs := w.fieldsFor(StepGateway); len(fs) > 0 {
+		b.WriteString("\n")
+		w.fields(&b, w.labels(StepGateway), w.maskedValues(StepGateway),
+			w.fieldIndex(), w.editing, width)
+	}
+	if h := w.inlineHint(int(StepGateway), w.fieldIndex()); h != "" {
+		b.WriteString("\n" + w.dim(w.glyphs.Dot+" "+h, width))
+	}
+
+	// What the choice means for the listeners, said before the install rather
+	// than discovered after it.
+	if inline := w.inlineHelp(w.cat.T(w.gatewayNote()), width); inline != "" {
+		b.WriteString("\n" + strings.TrimSuffix(inline, "\n\n"))
+	}
+
+	hint := w.cat.T("hint.select")
+	if w.editing {
+		hint = w.cat.T("hint.editing")
+	}
+	return w.cat.T("gw.heading"), b.String(), hint
+}
+
+// gatewayNote is the sentence this exposure earns.
+func (w *Wizard) gatewayNote() string {
+	switch w.cfg.Exposure {
+	case "node-ips":
+		return "gw.note.nodeips"
+	case "lb-pool":
+		return "gw.note.pool"
+	default:
+		return "gw.note.none"
+	}
 }
 
 func (w *Wizard) summaryScreen(width int) (string, string, string) {
@@ -684,11 +745,32 @@ func (w *Wizard) builtRows() [][2]string {
 		{w.cat.T("options.storage"), w.cfg.Storage},
 		{w.cat.T("step.pki"), w.pkiSummary()},
 		{w.cat.T("step.registry"), w.cfg.RegistryMode},
+		// What the cluster will and will not answer on. A build that exposes
+		// nothing is a legitimate answer and an easy one to make by accident,
+		// so the summary says it rather than leaving it to be discovered by
+		// the first Service that stays Pending.
+		{w.cat.T("gw.exposure"), w.gatewaySummary()},
 	}
 	if d := w.elapsed(); d != "" {
 		rows = append(rows, [2]string{w.cat.T("done.elapsed"), d})
 	}
 	return rows
+}
+
+// gatewaySummary is the exposure in one phrase, with the address when there
+// is one to name.
+func (w *Wizard) gatewaySummary() string {
+	switch w.cfg.Exposure {
+	case "node-ips":
+		return w.cfg.Exposure + " (" + w.cfg.Server + ")"
+	case "lb-pool":
+		if w.cfg.GatewayAddress != "" {
+			return w.cfg.Exposure + " (" + w.cfg.GatewayAddress + ")"
+		}
+		return w.cfg.Exposure
+	default:
+		return w.cat.T("expose.none")
+	}
 }
 
 func (w *Wizard) pkiSummary() string {

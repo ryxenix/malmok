@@ -337,18 +337,18 @@ func TestRunSnapshotsAreListedAndMarked(t *testing.T) {
 
 // The two flows share their middle screens and differ at both ends.
 func TestTheSettingsFlowEndsAtSaveNotAtInstall(t *testing.T) {
-	w := wizard(t, LangEN, false, 96, 30, StepPKI)
+	w := wizard(t, LangEN, false, 96, 30, StepGateway)
 	w.mode = modeSettings
 	w.next()
 	if w.step != StepSave {
-		t.Errorf("after the certificates screen the settings flow reached %v", w.step)
+		t.Errorf("after the last configuration screen the settings flow reached %v", w.step)
 	}
 
-	w = wizard(t, LangEN, false, 96, 30, StepPKI)
+	w = wizard(t, LangEN, false, 96, 30, StepGateway)
 	w.mode = modeInstall
 	w.next()
 	if w.step != StepPreflight {
-		t.Errorf("after the certificates screen the install flow reached %v", w.step)
+		t.Errorf("after the last configuration screen the install flow reached %v", w.step)
 	}
 }
 
@@ -923,7 +923,7 @@ func TestWorkThatFailsBeforeAnythingRunsSaysWhy(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.width, w.height = 100, 24
-	w.step = StepPKI
+	w.step = StepGateway
 
 	_, cmd := w.next() // into the checks, which start the work
 	if cmd == nil {
@@ -1664,3 +1664,55 @@ func TestHoverIsSeparateFromSelection(t *testing.T) {
 
 // plainOf strips styling, which differs by terminal profile.
 func plainOf(s string) string { return plain(s) }
+
+// The wizard can now say how the cluster is reached, which it could not: it
+// had no screen for gateways, so every document it wrote named none, every
+// LoadBalancer Service a workload created sat Pending forever, and the
+// operator found out from the workload.
+func TestTheGatewayScreenWritesTheGateway(t *testing.T) {
+	w := wizard(t, LangEN, false, 120, 40, StepGateway)
+
+	// Nothing is exposed until it is asked for: an address the network did
+	// not assign is what an IDC or air-gapped policy refuses.
+	if w.cfg.Exposure != "none" {
+		t.Errorf("the default exposure is %q", w.cfg.Exposure)
+	}
+	if gws := w.cfg.ToSpec().Gateway.Gateways; len(gws) != 0 {
+		t.Errorf("a default document names %d gateway(s)", len(gws))
+	}
+
+	// The nodes' own addresses: no new address on the segment.
+	w.cursor[StepGateway] = indexOf(exposures, "node-ips")
+	w.selectUnderCursor()
+	gws := w.cfg.ToSpec().Gateway.Gateways
+	if len(gws) != 1 || gws[0].Exposure != v1alpha1.ExposureNodeIPs {
+		t.Fatalf("node-ips produced %+v", gws)
+	}
+	if gws[0].Address != "" {
+		t.Errorf("a node-ips gateway pinned the address %q, which is one more IP on the segment", gws[0].Address)
+	}
+	if len(gws[0].Listeners) != 1 || gws[0].Listeners[0].Port != 80 {
+		t.Errorf("listeners are %+v; with no certificates there is nothing to serve on 443", gws[0].Listeners)
+	}
+
+	// A pool address is pinned rather than allocated: the DNS record is
+	// requested before the install (PF-612).
+	w.cursor[StepGateway] = indexOf(exposures, "lb-pool")
+	w.selectUnderCursor()
+	w.cfg.GatewayAddress, w.cfg.LBPool = "10.0.0.240", []string{"10.0.0.240/29"}
+	gws = w.cfg.ToSpec().Gateway.Gateways
+	if len(gws) != 1 || gws[0].Address != "10.0.0.240" || gws[0].Exposure != "" {
+		t.Fatalf("lb-pool produced %+v", gws)
+	}
+
+	// HTTPS appears exactly where a certificate can exist.
+	w.cfg.PKIMode, w.cfg.Domain = "private-ca", "lab.example"
+	gws = w.cfg.ToSpec().Gateway.Gateways
+	if len(gws[0].Listeners) != 2 || gws[0].Listeners[1].Hostname != "*.lab.example" {
+		t.Errorf("listeners with certificates are %+v", gws[0].Listeners)
+	}
+	w.cfg.PKIMode = "none"
+	if gws := w.cfg.ToSpec().Gateway.Gateways; len(gws[0].Listeners) != 1 {
+		t.Errorf("an HTTPS listener survived the certificates being turned off: %+v", gws[0].Listeners)
+	}
+}

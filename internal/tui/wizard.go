@@ -51,6 +51,7 @@ const (
 	StepOptions
 	StepRegistry
 	StepPKI
+	StepGateway
 	StepPreflight
 	StepSummary
 	StepInstall
@@ -102,11 +103,11 @@ const (
 var (
 	installSteps = []Step{
 		StepWhere, StepNodes, StepNetwork, StepOptions,
-		StepRegistry, StepPKI, StepPreflight, StepSummary, StepInstall, StepDone,
+		StepRegistry, StepPKI, StepGateway, StepPreflight, StepSummary, StepInstall, StepDone,
 	}
 	settingsSteps = []Step{
 		StepOpen, StepNodes, StepNetwork, StepOptions,
-		StepRegistry, StepPKI, StepSave,
+		StepRegistry, StepPKI, StepGateway, StepSave,
 	}
 	// The upgrade asks two questions and then does one thing. It does not walk
 	// the configuration screens: an upgrade changes the version and nothing
@@ -120,6 +121,7 @@ var stepKeys = map[Step]string{
 	StepProfile: "step.profile", StepNodes: "step.nodes",
 	StepNetwork: "step.network", StepOptions: "step.options",
 	StepRegistry: "step.registry", StepPKI: "step.pki",
+	StepGateway:   "step.gateway",
 	StepPreflight: "step.preflight", StepSummary: "step.summary",
 	StepInstall: "step.install", StepDone: "step.done",
 	StepOpen: "step.open", StepSave: "step.save",
@@ -230,6 +232,17 @@ type Config struct {
 	ProxyHTTPS string
 	NoProxy    []string
 	LBPool     []string
+
+	// Exposure is how the gateway is reached: node-ips, lb-pool, or none at
+	// all. The default is none, because a cluster that claims an address
+	// nobody assigned it is the thing IDC and air-gapped policy forbids --
+	// and a first build frequently has no name to serve yet either.
+	Exposure    string
+	GatewayName string
+	// GatewayAddress pins the address a pool gateway takes. PF-612 asks for
+	// it at a customer site: the DNS record is requested before the install,
+	// so the address has to be decided rather than allocated.
+	GatewayAddress string
 
 	// SourceRefs, not values. cluster.yaml is handed over at the end of the
 	// engagement, so what is collected here is where to find a secret rather
@@ -425,6 +438,12 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			NetworkMode: "online", DowngradePolicy: "confirm",
 			Dataplane: "cilium-gw", Fallback: "canal-traefik", Storage: "local-path",
 			PKIMode: "none", RegistryMode: "embedded",
+			// No gateway until somebody asks for one. Every other default
+			// here is the answer most builds want; this one is the answer
+			// most networks require -- a pool address is another IP
+			// answering on the segment, and the sites this tool is for
+			// frequently allow only the addresses the nodes already hold.
+			Exposure: "none", GatewayName: "public",
 		},
 	}
 	// And the machine in front of the operator is the default target. An
@@ -898,6 +917,11 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 		if i := cur - len(w.fieldsFor(StepOpen)); i >= 0 && i < len(w.openFiles) {
 			w.cfg.DocPath = w.openFiles[i].Path
 		}
+	case StepGateway:
+		if cur < len(exposures) {
+			w.cfg.Exposure = exposures[cur].id
+		}
+
 	case StepRegistry:
 		switch {
 		case cur < len(registryModes):
@@ -1269,6 +1293,8 @@ func (w *Wizard) contentLen() int {
 	case StepNodes:
 		return len(w.versionChoices()) + len(osFamilies) +
 			w.localAddressCount() + len(w.fieldsFor(StepNodes))
+	case StepGateway:
+		return len(exposures) + len(w.fieldsFor(StepGateway))
 	case StepRegistry:
 		return len(registryModes) + w.registryExtraRows() + len(w.fieldsFor(StepRegistry))
 	case StepPKI:
@@ -1353,6 +1379,8 @@ func (w *Wizard) fieldIndex() int {
 	switch w.step {
 	case StepNodes:
 		i -= len(w.versionChoices()) + len(osFamilies)
+	case StepGateway:
+		i -= len(exposures)
 	case StepNetwork:
 		i -= len(networkModes) + 2 + len(routingModes)
 	case StepOptions:

@@ -5,6 +5,26 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.64.0] - 2026-08-24
+
+### Added
+
+- **A gateway screen.** The wizard had none, so every document it wrote named
+  no gateway: the cluster came up with no way in, a LoadBalancer Service a
+  workload created later sat Pending forever, and the operator found out from
+  the workload. The screen asks the one question that decides it -- how the
+  cluster is reached -- with three answers and what each costs:
+  - `none` (the default): nothing is exposed. An address the network did not
+    assign is exactly what IDC and air-gapped policy refuse, and at a first
+    build there is frequently no name to serve yet.
+  - `node-ips`: the nodes' own addresses answer, so nothing new appears on
+    the segment. A node that leaves takes its endpoint with it.
+  - `lb-pool`: an address from the pool, pinned rather than allocated,
+    because the DNS record is requested before the install (PF-612).
+  The HTTPS listener appears only where a certificate can exist; the summary
+  now states the exposure, so a build that exposes nothing says so before it
+  runs rather than after.
+
 ## [0.63.0] - 2026-08-24
 
 ### Changed

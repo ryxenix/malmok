@@ -114,6 +114,30 @@ func (w *Wizard) fieldsFor(step Step) []field {
 		)
 		return fs
 
+	case StepGateway:
+		if w.cfg.Exposure == "none" {
+			return nil
+		}
+		fs := []field{
+			{labelKey: "gw.name",
+				get: func(c *Config) string { return c.GatewayName },
+				set: func(c *Config, v string) { c.GatewayName = v }},
+		}
+		if w.cfg.Exposure == "lb-pool" {
+			// The pool it takes an address from, and the address itself: a
+			// site that needs the DNS record before the install needs to say
+			// which address it will be (PF-612) rather than discover it after.
+			fs = append(fs,
+				field{labelKey: "net.lbpool", hint: "hint.lbpool",
+					get: func(c *Config) string { return strings.Join(c.LBPool, ", ") },
+					set: func(c *Config, v string) { c.LBPool = splitList(v) }},
+				field{labelKey: "gw.address", hint: "hint.gwaddress",
+					get: func(c *Config) string { return c.GatewayAddress },
+					set: func(c *Config, v string) { c.GatewayAddress = v }},
+			)
+		}
+		return fs
+
 	case StepNetwork:
 		f := []field{
 			{labelKey: "net.lbpool", hint: "hint.lbpool",

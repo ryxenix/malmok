@@ -131,6 +131,41 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	s.PKI.Domain = c.Domain
 	s.Gateway.DomainSuffix = c.Domain
 
+	// The gateway the screen asked for. Rebuilt rather than merged: the
+	// exposure decides the whole shape of it, and a listener left over from a
+	// previous answer is a port the operator did not ask to open.
+	s.Gateway.Gateways = nil
+	if c.Exposure != "" && c.Exposure != "none" {
+		name := c.GatewayName
+		if name == "" {
+			name = "public"
+		}
+		gw := v1alpha1.Gateway{
+			Name:            name,
+			RouteNamespaces: "all",
+			Listeners: []v1alpha1.ListenerSpec{
+				{Name: "http", Protocol: v1alpha1.ListenerHTTP, Port: 80},
+			},
+		}
+		if c.Exposure == "node-ips" {
+			gw.Exposure = v1alpha1.ExposureNodeIPs
+		} else {
+			// Pinned rather than allocated: the DNS record is requested
+			// before the install, so the address has to be decided (PF-612).
+			gw.Address = c.GatewayAddress
+		}
+		// HTTPS only where a certificate can exist. A listener that
+		// terminates TLS with nothing to terminate it with resets every
+		// handshake, and the operator hears about it from a browser.
+		if c.PKIMode != "" && c.PKIMode != string(v1alpha1.PKINone) && c.Domain != "" {
+			gw.Listeners = append(gw.Listeners, v1alpha1.ListenerSpec{
+				Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443,
+				Hostname: "*." + c.Domain,
+			})
+		}
+		s.Gateway.Gateways = []v1alpha1.Gateway{gw}
+	}
+
 	// The mode decides which material block is legal, and the illegal one is
 	// cleared rather than left inert. A private-ca document that still carries
 	// an acme block is not harmless: the loader resolves every SourceRef it

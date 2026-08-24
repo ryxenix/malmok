@@ -11,6 +11,7 @@ step:
   network: Network
   registry: Registry
   pki: Certificates
+  gateway: Gateway
   preflight: Checks
   summary: Summary
   install: Install
@@ -316,3 +317,16 @@ topo:
   join: join
   here: this machine
   unresolved: not an address
+gw:
+  heading: How it is reached
+  help: "How traffic from outside reaches the cluster. Nothing is exposed until this says so: an address the network did not assign is the thing an IDC or air-gapped policy refuses."
+  exposure: Exposure
+  name: Gateway name
+  address: Gateway address
+  note.none: "Nothing is exposed. A Service of type LoadBalancer will stay Pending, because there is no address to give it -- which is the right answer until somebody says which address this cluster may answer on."
+  note.nodeips: "The nodes' own addresses answer on port 80 (and 443 where a certificate exists). No new address appears on the segment, which is what makes this the choice for a site that assigns none. A node that leaves takes its endpoint with it."
+  note.pool: "An address is taken from the pool and announced on the segment. Only where the network assigned that range to this cluster: announcing an address somebody else holds is an outage for both."
+expose:
+  none: nothing is exposed yet
+  nodeips: the nodes' own addresses
+  pool: an address from the pool

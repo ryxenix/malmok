@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -1288,9 +1289,11 @@ func TestMenuHasNoRailOrCounter(t *testing.T) {
 	if len(install.rail()) == 0 {
 		t.Error("the install flow lost its rail")
 	}
-	// Nodes is the second screen of ten: there is no profile chooser and the
-	// language lives in Settings.
-	if got := plain(install.View().Content); !strings.Contains(got, "2/10") {
+	// Nodes is the second screen: the counter says which of how many, and the
+	// count comes from the flow rather than from a number written here, so a
+	// screen added to the flow does not make this a lie.
+	want := fmt.Sprintf("2/%d", len(installSteps))
+	if got := plain(install.View().Content); !strings.Contains(got, want) {
 		t.Errorf("the install flow lost its counter:\n%s", got)
 	}
 }

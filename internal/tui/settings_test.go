@@ -1716,3 +1716,35 @@ func TestTheGatewayScreenWritesTheGateway(t *testing.T) {
 		t.Errorf("an HTTPS listener survived the certificates being turned off: %+v", gws[0].Listeners)
 	}
 }
+
+// A run failed when the run says so. Preflight emits its warnings as failed
+// events -- severity is what separates a warning from a block -- so a build
+// that finished with three advisory findings had this screen announcing that
+// the installation had stopped, while the cluster was up and its gateway was
+// answering.
+func TestAdvisoryFindingsDoNotFailAFinishedRun(t *testing.T) {
+	w := wizard(t, LangEN, false, 110, 40, StepDone)
+	w.fold(event.Event{Kind: event.KindRun, Status: event.StatusRunning, TS: ts(0)})
+	w.fold(event.Event{Kind: event.KindProbe, Phase: "preflight", Code: "PF-401",
+		Node: "10.0.0.11", Status: event.StatusFailed, Detail: "not a separate mount", TS: ts(5)})
+	w.fold(event.Event{Kind: event.KindRun, Status: event.StatusOK, TS: ts(60)})
+
+	screen := plain(render(t, w, nil))
+	if !strings.Contains(screen, w.cat.T("done.ok")) {
+		t.Errorf("a finished run does not say so:\n%s", screen)
+	}
+	if strings.Contains(screen, w.cat.T("done.failed")) {
+		t.Errorf("advisory findings made a finished run read as stopped:\n%s", screen)
+	}
+	// The findings still appear -- under a heading that says what they are.
+	if !strings.Contains(screen, "PF-401") {
+		t.Error("the findings vanished with the wrong verdict")
+	}
+
+	// And a step that really failed still fails the run.
+	w.fold(event.Event{Kind: event.KindStep, Phase: "l1-bootstrap", Step: "service",
+		Node: "10.0.0.11", Status: event.StatusFailed, Code: "EX-002", TS: ts(70)})
+	if screen := plain(render(t, w, nil)); !strings.Contains(screen, w.cat.T("done.failed")) {
+		t.Errorf("a failed step no longer stops the run:\n%s", screen)
+	}
+}

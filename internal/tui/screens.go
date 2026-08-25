@@ -680,7 +680,14 @@ func (w *Wizard) progressScreen(width int, kind string) (string, string, string)
 func (w *Wizard) doneScreen(width int) (string, string, string) {
 	var b strings.Builder
 
-	failed := w.workErr != nil || len(w.failures) > 0
+	// A run failed when the run says so -- not when the findings list has
+	// something in it. Preflight emits its warnings as failed events (the
+	// severity is what separates a warning from a block), so three advisory
+	// findings on a build that finished had this screen announcing that the
+	// installation had stopped. It had not: the cluster was up, the gateway
+	// was answering, and the operator was told otherwise.
+	failed := w.workErr != nil || w.anyBlocked() || w.anyFailedStep() ||
+		w.runStat == event.StatusFailed
 	// An upgrade that says "installation complete" describes something that did
 	// not happen, and the sentence an operator reads at the end is the one they
 	// repeat to whoever asks what was done.
@@ -694,11 +701,30 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T(ok)) + "\n")
 	}
 
-	// What failed goes above the record of what was built: it is the reason
-	// the operator is reading this screen, and it sat under two sections that
-	// a rail one step longer was enough to push off a short window.
-	if failed {
-		b.WriteString("\n" + w.theme.Err.Render(w.glyphs.SectionTick+" "+w.cat.T("done.problems")) + "\n")
+	// The run's own error, when there is one. A step failure lands in the
+	// list below; a run that stopped for anything else -- a connection that
+	// dropped, a deadline, a phase that refused to start -- has no step to
+	// its name, and the screen said "stopped" and listed three warnings
+	// while the actual reason went unsaid.
+	if w.workErr != nil {
+		b.WriteString("\n" + w.dim(wrapCells(w.workErr.Error(), width), width) + "\n")
+	}
+
+	// Findings go above the record of what was built: when they are why the
+	// run stopped, they are the reason the operator is reading this screen,
+	// and they sat under two sections that a rail one step longer was enough
+	// to push off a short window. Warnings are listed too -- a build that
+	// finished with advice worth reading should not hide it -- under a
+	// heading that says which of the two they are.
+	if len(w.failures) > 0 {
+		// The heading tells the truth about weight, the way the progress
+		// screen's does: three advisory findings under "what failed" read as
+		// three reasons the build stopped.
+		head := w.cat.T("done.problems")
+		if w.workErr == nil && !w.anyBlocked() && !w.anyFailedStep() {
+			head = w.cat.T("progress.warnings")
+		}
+		b.WriteString("\n" + w.theme.Err.Render(w.glyphs.SectionTick+" "+head) + "\n")
 		for _, e := range w.failures {
 			// The node first, because it is the subject and the phase is the
 			// stage. The column is fixed, so whichever comes second is what a

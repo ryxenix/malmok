@@ -5,6 +5,23 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.65.1] - 2026-08-25
+
+### Fixed
+
+- **A finished build was announced as a stopped one.** The finished screen
+  called a run failed whenever the findings list held anything, and preflight
+  emits its warnings as failed events -- severity is what separates a warning
+  from a block. So an IDC build that came up, with its gateway answering on
+  the node's address, told the operator the installation had stopped and
+  offered a resume command. A run now fails when the run says so: a step
+  failure, a blocking check, or an error that stopped the process. Warnings
+  are still listed, under a heading that says that is what they are.
+- The finished screen shows the run's own error. A step failure has a row in
+  the list; a run that stopped for anything else -- a dropped connection, a
+  deadline, a phase that never started -- had no row anywhere, and the screen
+  said "stopped" with nothing to say why.
+
 ## [0.65.0] - 2026-08-25
 
 Both entries come from one IDC build that spent forty-six minutes waiting for

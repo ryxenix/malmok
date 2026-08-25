@@ -1261,6 +1261,18 @@ func (w *Wizard) appendLog(e event.Event) {
 	}
 }
 
+// anyFailedStep reports whether a step -- rather than a check -- failed.
+// A probe emits its warnings as failed events too, so "something failed" and
+// "the build failed" are not the same question.
+func (w *Wizard) anyFailedStep() bool {
+	for _, e := range w.failures {
+		if e.Kind == event.KindStep {
+			return true
+		}
+	}
+	return false
+}
+
 // anyBlocked reports whether a collected finding actually stops the run.
 func (w *Wizard) anyBlocked() bool {
 	for _, e := range w.failures {

@@ -324,7 +324,8 @@ gw:
   name: Gateway name
   address: Gateway address
   note.none: "Nothing is exposed. A Service of type LoadBalancer will stay Pending, because there is no address to give it -- which is the right answer until somebody says which address this cluster may answer on."
-  note.nodeips: "The nodes' own addresses answer on port 80 (and 443 where a certificate exists). No new address appears on the segment, which is what makes this the choice for a site that assigns none. A node that leaves takes its endpoint with it."
+  note.nodeips: "The nodes' own addresses answer on port 80 (and 443 where a certificate exists). No new address appears on the segment, which is what makes this the choice for a site that assigns none. A node that leaves takes its endpoint with it, so point the DNS record at more than one, or put something in front of them."
+  note.nodeips_single: "This node's own address answers on port 80 (and 443 where a certificate exists). No new address appears on the segment, which is what makes this the choice for a site that assigns none -- and on a single node it is the only one, since there is nothing to spread traffic over and nothing to fail over to."
   note.pool: "An address is taken from the pool and announced on the segment. Only where the network assigned that range to this cluster: announcing an address somebody else holds is an outage for both."
 expose:
   none: nothing is exposed yet

@@ -5,6 +5,27 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.64.2] - 2026-08-25
+
+### Changed
+
+- The node-ips note says the cost only where there is one. An endpoint that
+  leaves with its node is a real trade when traffic is spread over several;
+  on a single node the node leaving takes the cluster with it, so the warning
+  was about nothing -- and a screen that warns about nothing teaches the
+  operator to skim the warnings that matter. One node now reads that this is
+  the only way to be reached without a new address, which is what the site it
+  is written for actually faces.
+
+### Fixed
+
+- The schema said node-ips works through the Service's externalIPs. It does
+  not, and cannot: Cilium owns that Service and strips a patched externalIPs
+  on its next reconcile, which is why the implementation binds the listener
+  port in the node's own network namespace instead. The comment now says what
+  the code does, including why the observable is "every named node answers"
+  rather than the Programmed condition.
+
 ## [0.64.1] - 2026-08-25
 
 ### Fixed

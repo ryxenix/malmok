@@ -65,7 +65,15 @@ type Gateway struct {
 	// Exposure is how the gateway gets an address the outside can reach.
 	//
 	//   "" / "loadBalancer" -> LB-IPAM hands it one from loadBalancerPool
-	//   "node-ips"          -> the nodes' own addresses, Service externalIPs
+	//   "node-ips"          -> the nodes' own addresses, bound directly
+	//
+	// node-ips was implemented through the generated Service's externalIPs
+	// first, and that does not hold: Cilium owns the Service completely and
+	// strips a patched externalIPs on its next reconcile. What works is a
+	// host-networked gateway -- Envoy binds the listener port in the node's
+	// own network namespace -- so the observable is not the Programmed
+	// condition (Cilium never gives such a gateway a pool address) but
+	// whether every named node answers on the port.
 	//
 	// node-ips exists for the same site acceptNodeRegistration does: a pool
 	// address is one more IP answering on the segment, and IDC and air-gapped

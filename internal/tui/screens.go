@@ -437,6 +437,14 @@ func (w *Wizard) gatewayScreen(width int) (string, string, string) {
 func (w *Wizard) gatewayNote() string {
 	switch w.cfg.Exposure {
 	case "node-ips":
+		// The cost of a node-ips gateway -- an endpoint that leaves with its
+		// node -- exists only where traffic is spread over several. On one
+		// node the node leaving takes the cluster with it, so saying it there
+		// is a warning about nothing, and a screen that warns about nothing
+		// teaches the operator to skim the warnings that matter.
+		if len(w.cfg.Agents) == 0 {
+			return "gw.note.nodeips_single"
+		}
 		return "gw.note.nodeips"
 	case "lb-pool":
 		return "gw.note.pool"

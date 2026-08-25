@@ -83,6 +83,9 @@ func (n *Node) Probe(ctx context.Context) NodeCapability {
 		n.CheckPortsFree(ctx),
 		n.CheckCNILeftovers(ctx),
 		n.CheckPacketFilterLeftovers(ctx),
+		// The address the document pins is the one an existing datastore has
+		// to agree with; disagreement is a start that never completes.
+		n.CheckEtcdMemberAddress(ctx, n.advertisedAddress()),
 	}
 
 	for _, r := range results {

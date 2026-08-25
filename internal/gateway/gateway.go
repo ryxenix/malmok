@@ -673,10 +673,15 @@ func listenerCertsReadyStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellS
 		Name:  "listener-certs-ready",
 		Check: kubectl + ready,
 		Do: kubectl + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
+started=$(date +%%s)
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   if %s
   then exit 0
   fi
+  # Signing is usually seconds and occasionally not: an issuer that cannot
+  // sign looks exactly like one that has not signed yet, until this says
+  # which certificates are still waiting.
+  echo "waiting $(( $(date +%%s) - started ))s: $(kubectl get certificate -A --no-headers 2>/dev/null | awk '$3!="True" {print $1"/"$2}' | tr '\n' ' ')"
   sleep 5
 done
 echo "a listener certificate was never signed. The cluster reports:"

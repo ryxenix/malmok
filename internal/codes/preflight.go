@@ -423,6 +423,13 @@ var preflightCodes = []Code{
 		Severity: SeverityWarn,
 	},
 
+	{
+		ID: "PF-806", Family: FamilyPreflight, Category: catResidue,
+		Summary:  "An existing etcd member matches the address this document advertises",
+		Message:  "A previous installation registered this node in etcd under a different address; rke2 will not start until the datastore is reset",
+		Severity: SeverityBlock,
+	},
+
 	// --- PF-9xx · Certificate material (docs/20-cert.md §4) ---------------
 	// Gates on the INPUT FILES. Wire behaviour is PV-xxx; passing this block
 	// says nothing about what the server actually sends.

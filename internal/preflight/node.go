@@ -3,6 +3,7 @@ package preflight
 import (
 	"context"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -78,6 +79,21 @@ func (n *Node) run(ctx context.Context, cmd string) exec.Result {
 	}
 	n.cache[cmd] = res
 	return res
+}
+
+// advertisedAddress is what this node will tell the cluster it is, which is
+// the document's nodeIP when it names one and its host address when that is
+// already an address rather than a name. It mirrors ServerConfig's rule: the
+// two must agree, or preflight checks something the install will not do.
+func (n *Node) advertisedAddress() string {
+	if ip := strings.TrimSpace(n.Spec.NodeIP); ip != "" {
+		return ip
+	}
+	host := strings.TrimSpace(n.Spec.Host)
+	if net.ParseIP(host) != nil {
+		return host
+	}
+	return ""
 }
 
 // unmeasured is the result for a probe that could not run.

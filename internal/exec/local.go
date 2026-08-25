@@ -1,7 +1,6 @@
 package exec
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net"
@@ -55,10 +54,16 @@ func NewLocal(host string) *LocalRunner {
 // program: a local path that ran argv instead would be a second dialect, and
 // the two would drift on the first pipe somebody wrote.
 func (l *LocalRunner) Run(ctx context.Context, cmd string) (Result, error) {
+	return l.RunStream(ctx, cmd, nil)
+}
+
+// RunStream executes a command and reports each line of output as it arrives.
+func (l *LocalRunner) RunStream(ctx context.Context, cmd string, onLine func(string)) (Result, error) {
 	c := osexec.CommandContext(ctx, "sh", "-c", cmd)
 
-	var stdout, stderr bytes.Buffer
-	c.Stdout, c.Stderr = &stdout, &stderr
+	stdout := &lineWriter{onLine: onLine}
+	stderr := &lineWriter{onLine: onLine}
+	c.Stdout, c.Stderr = stdout, stderr
 
 	err := c.Run()
 	res := Result{Stdout: stdout.String(), Stderr: stderr.String()}

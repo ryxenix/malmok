@@ -39,7 +39,7 @@ func TestPreflightInventory(t *testing.T) {
 		// registry / PKI
 		"PF-701", "PF-702", "PF-703", "PF-704", "PF-705", "PF-706", "PF-707", "PF-708",
 		// residue
-		"PF-801", "PF-802", "PF-803", "PF-804", "PF-805",
+		"PF-801", "PF-802", "PF-803", "PF-804", "PF-805", "PF-806",
 		// certificate material
 		"PF-901", "PF-902", "PF-903", "PF-904", "PF-905", "PF-906",
 		"PF-910", "PF-911", "PF-912",
@@ -121,7 +121,7 @@ func TestOtherInventories(t *testing.T) {
 // definition and became PF-612, the EX family added 9 for the phase runner,
 // and PF-109 (machine UUID) arrived with the handoff.
 func TestTotalInventory(t *testing.T) {
-	const want = 140
+	const want = 141
 	if got := len(All()); got != want {
 		t.Errorf("registry holds %d codes, want %d", got, want)
 	}

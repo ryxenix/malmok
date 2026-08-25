@@ -14,14 +14,14 @@ outlive releases.
 
 | Family | Codes | block | degrade | warn | info |
 |---|--:|--:|--:|--:|--:|
-| `PF` | 68 | 35 | 11 | 18 | 4 |
+| `PF` | 69 | 36 | 11 | 18 | 4 |
 | `PV` | 8 | 4 | — | 3 | 1 |
 | `UP` | 8 | 6 | — | 1 | 1 |
 | `EX` | 9 | 8 | — | 1 | — |
 | `MC` | 42 | — | — | — | — |
 | `DG` | 5 | — | — | — | — |
 
-Total: 140 codes.
+Total: 141 codes.
 
 ---
 
@@ -127,6 +127,7 @@ Source: docs/10-preflight-plan.md, docs/20-cert.md §4
 | `PF-803` | block | Control-plane ports are free | Port 6443 or 9345 is already bound by another process |
 | `PF-804` | warn | No leftover CNI interfaces | Leftover CNI interfaces are present (cni0, flannel.1, cilium_host) |
 | `PF-805` | warn | No leftover packet filter rules | Leftover iptables or nftables rules from a previous installation are present |
+| `PF-806` | block | An existing etcd member matches the address this document advertises | A previous installation registered this node in etcd under a different address; rke2 will not start until the datastore is reset |
 
 ### Certificate material
 

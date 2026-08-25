@@ -101,7 +101,7 @@ func (s *ShellStep) Observe(ctx context.Context) (Observation, error) {
 // comes from re-observing) and on the unhappy one it names the command that
 // failed.
 func (s *ShellStep) Apply(ctx context.Context) error {
-	res, err := s.run(ctx, "set -x\n"+s.Do, s.DoTimeout)
+	res, err := s.stream(ctx, "set -x\n"+s.Do, s.DoTimeout)
 	if err != nil {
 		return Fail("EX-002", fmt.Errorf("%s: could not be applied on %s: %w", s.Name, s.Host, err))
 	}
@@ -116,6 +116,35 @@ func (s *ShellStep) Apply(ctx context.Context) error {
 			s.Name, s.Host, res.ExitCode, clip(said)))
 	}
 	return nil
+}
+
+// stream runs a script and reports the lines it prints while it runs.
+//
+// A step that waits -- for a node to be Ready, for a certificate to be
+// signed, for the dataplane to take a configuration -- says nothing for
+// minutes, and a screen with a spinner and no words cannot be told apart from
+// a hung one. The waits print where they have got to; this carries those
+// lines out as they appear rather than when the step ends.
+//
+// Trace lines are dropped: `set -x` echoes every command to stderr, which is
+// exactly what a failure needs and exactly what nobody wants scrolling past
+// while things are working. They are still collected for the failure.
+func (s *ShellStep) stream(ctx context.Context, cmd string, timeout time.Duration) (exec.Result, error) {
+	st, ok := s.Runner.(exec.Streamer)
+	if !ok {
+		return s.run(ctx, cmd, timeout)
+	}
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return st.RunStream(ctx, cmd, func(line string) {
+		if strings.HasPrefix(line, "+") {
+			return
+		}
+		Logf(ctx, "%s", CleanForEvent(line))
+	})
 }
 
 func (s *ShellStep) run(ctx context.Context, cmd string, timeout time.Duration) (exec.Result, error) {

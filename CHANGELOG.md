@@ -5,6 +5,30 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.65.0] - 2026-08-25
+
+Both entries come from one IDC build that spent forty-six minutes waiting for
+something that could never happen, and said nothing while it did.
+
+### Added
+
+- Waits report where they have got to. A step that waits for a node to be
+  Ready, for Cilium to take a configuration, or for a certificate to be
+  signed used to print nothing until it finished, so a screen with a spinner
+  and an empty log could not be told from a hung one. The waits now print a
+  line every few seconds -- containers started and what the node says, the
+  agents rolled and what cilium-config carries, which certificates are still
+  unsigned -- and the runners carry those lines out while the step is still
+  running rather than when it ends.
+- **PF-806**: an existing etcd datastore must advertise the address this
+  document pins. A node built once and built again keeps its datastore, and
+  that datastore records the address the member advertises; pinning node-ip
+  afterwards -- which is what this tool now does for a multi-homed node --
+  leaves rke2 refusing to start and retrying every five seconds, silently,
+  forever. That is what the forty-six minutes were. The state is readable in
+  twenty seconds, so preflight reads it and says which addresses disagree and
+  what to run.
+
 ## [0.64.2] - 2026-08-25
 
 ### Changed

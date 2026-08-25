@@ -563,3 +563,49 @@ func TestFailedProbesCarryTheirRegisteredSeverity(t *testing.T) {
 		t.Errorf("PF-204 = %s/%s; registered degrade, the plan's cue to fall back", r2.Status, r2.Severity)
 	}
 }
+
+// An earlier build's etcd datastore records the address this member
+// advertises. When the document now pins a different one -- exactly what
+// happens to a node whose first build advertised its default route and whose
+// second pins an internal address -- rke2 refuses to start and retries
+// silently, five seconds at a time, until somebody gives up. Forty-six
+// minutes of that on the first real IDC build is why this is read up front.
+func TestEtcdMemberAddressMustMatchTheDocument(t *testing.T) {
+	const etcdRead = "db/etcd/config"
+
+	t.Run("no datastore is not a problem", func(t *testing.T) {
+		n, _ := ubuntuProber(t, map[string]exec.Result{etcdRead: {Stdout: "\n"}})
+		if got := n.CheckEtcdMemberAddress(t.Context(), "192.168.0.24"); got.Failed() {
+			t.Errorf("a fresh node failed: %s", got.Detail)
+		}
+	})
+
+	t.Run("the same address passes", func(t *testing.T) {
+		n, _ := ubuntuProber(t, map[string]exec.Result{
+			etcdRead: {Stdout: "https://192.168.0.24:2380\n"}})
+		if got := n.CheckEtcdMemberAddress(t.Context(), "192.168.0.24"); got.Failed() {
+			t.Errorf("a matching member failed: %s", got.Detail)
+		}
+	})
+
+	t.Run("a different address blocks, and says what to do", func(t *testing.T) {
+		n, _ := ubuntuProber(t, map[string]exec.Result{
+			etcdRead: {Stdout: "https://198.51.100.24:2380\n"}})
+		got := n.CheckEtcdMemberAddress(t.Context(), "192.168.0.24")
+		if got.Code != "ETCD_MEMBER_ADDRESS" {
+			t.Fatalf("PF-806 is %s/%s: %s", got.Status, got.Code, got.Detail)
+		}
+		for _, want := range []string{"198.51.100.24", "192.168.0.24", "rke2-uninstall.sh"} {
+			if !strings.Contains(got.Detail, want) {
+				t.Errorf("the finding does not mention %q:\n%s", want, got.Detail)
+			}
+		}
+	})
+
+	t.Run("a document that pins nothing is not measured", func(t *testing.T) {
+		n, _ := ubuntuProber(t, nil)
+		if got := n.CheckEtcdMemberAddress(t.Context(), ""); got.Status != StatusSkip {
+			t.Errorf("PF-806 is %s with no address pinned", got.Status)
+		}
+	})
+}

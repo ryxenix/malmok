@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -133,7 +132,13 @@ func Dial(ctx context.Context, cfg SSHConfig) (*SSHRunner, error) {
 //
 // A session per command is the SSH protocol's own model; the expensive part is
 // the connection, which is shared.
+// Run executes a command and returns when it is done.
 func (r *SSHRunner) Run(ctx context.Context, cmd string) (Result, error) {
+	return r.RunStream(ctx, cmd, nil)
+}
+
+// RunStream executes a command and reports each line of output as it arrives.
+func (r *SSHRunner) RunStream(ctx context.Context, cmd string, onLine func(string)) (Result, error) {
 	r.mu.Lock()
 	closed := r.closed
 	r.mu.Unlock()
@@ -147,9 +152,10 @@ func (r *SSHRunner) Run(ctx context.Context, cmd string) (Result, error) {
 	}
 	defer sess.Close()
 
-	var stdout, stderr strings.Builder
-	sess.Stdout = &stdout
-	sess.Stderr = &stderr
+	stdout := &lineWriter{onLine: onLine}
+	stderr := &lineWriter{onLine: onLine}
+	sess.Stdout = stdout
+	sess.Stderr = stderr
 
 	done := make(chan error, 1)
 	go func() { done <- sess.Run(cmd) }()

@@ -412,10 +412,15 @@ kubectl -n kube-system rollout status ds/cilium --timeout=10s >/dev/null 2>&1 ||
 echo "cilium-config carries the configuration this document implies"`, gw, hostnet),
 
 		Do: kubectl + agrees + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
+started=$(date +%%s)
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   if carries && kubectl -n kube-system rollout status ds/cilium --timeout=20s >/dev/null 2>&1; then
     exit 0
   fi
+  # The helm controller re-runs the chart and every agent restarts; that is
+  # minutes, and a step that says nothing for minutes reads as a hung one.
+  ready=$(kubectl -n kube-system get ds cilium -o jsonpath='{.status.numberReady}/{.status.desiredNumberScheduled}' 2>/dev/null || true)
+  echo "waiting $(( $(date +%%s) - started ))s: cilium-config '$v', agents ${ready:-unknown}"
   sleep 10
 done
 echo "cilium did not take the new configuration within %ds; cilium-config carries '$v' and the document implies enable-gateway-api=%s hostnetwork=%s. The install job reports:"
@@ -469,12 +474,14 @@ fi
 # this branch is not reached.
 %s
 deadline=$(( $(date +%%s) + %d ))
+started=$(date +%%s)
 # A verdict window, not a vigil: if no operator is running two minutes in,
 # nothing is ever going to accept this class, and the timeout would only
 # delay the same answer.
 verdict=$(( $(date +%%s) + 120 ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   [ "$(%s)" = True ] && exit 0
+  echo "waiting $(( $(date +%%s) - started ))s: GatewayClass not accepted yet, operator $(kubectl -n kube-system get pods -l io.cilium/app=operator --no-headers 2>/dev/null | awk '{print $3}' | tr '\n' ' ')"
   if [ "$(date +%%s)" -gt "$verdict" ] && [ "$(%s)" = 0 ]; then
     echo "no cilium-operator pod is Running, so nothing can accept the GatewayClass:"
     kubectl -n kube-system get pods -l io.cilium/app=operator -o wide 2>&1 | tail -5

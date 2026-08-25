@@ -296,10 +296,23 @@ else
   systemctl enable --now %s
 fi
 deadline=$(( $(date +%%s) + %d ))
+started=$(date +%%s)
+said=0
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   if [ -f %s ] && %s | grep -q '=True$'; then exit 0; fi
   if ! systemctl is-active --quiet %s; then
     echo "%s stopped while starting:"; journalctl -u %s -n 30 --no-pager 2>&1 | tail -30; exit 1
+  fi
+  # Every fifteen seconds, where it has got to. A first start unpacks a few
+  # hundred megabytes and brings up five static pods, which is minutes of
+  # silence otherwise -- and silence is indistinguishable from a hang.
+  now=$(date +%%s)
+  if [ $(( now - said )) -ge 15 ]; then
+    said=$now
+    pods=$(ctr -a /run/k3s/containerd/containerd.sock -n k8s.io c ls 2>/dev/null | grep -c . || echo 0)
+    node=no-kubeconfig-yet
+    [ -f %s ] && node=$(%s | tr '\n' ' ')
+    echo "waiting $(( now - started ))s: $pods container(s), node: ${node:-not registered}"
   fi
   sleep 5
 done
@@ -307,7 +320,9 @@ echo "%s did not report a Ready node within %ds:"
 journalctl -u %s -n 40 --no-pager 2>&1 | tail -40
 exit 1`,
 			unit, unit, unit, int(o.readyTimeout().Seconds()),
-			Kubeconfig, ready, unit, unit, unit, unit, int(o.readyTimeout().Seconds()), unit),
+			Kubeconfig, ready, unit, unit, unit,
+			Kubeconfig, ready,
+			unit, int(o.readyTimeout().Seconds()), unit),
 
 		Satisfied: "%s",
 		Missing:   "%s",

@@ -53,6 +53,45 @@ type Runner interface {
 	Close() error
 }
 
+// Streamer is a Runner that can report output while the command is still
+// running.
+//
+// It exists for the waits. A step that waits ten minutes for a node to become
+// Ready produces nothing until it is done, so the screen shows a spinner and
+// an operator cannot tell waiting from hung -- which is the same confusion
+// this tool spent a week removing from its own findings. A step that prints
+// where it has got to needs somebody to carry those lines out while it runs.
+type Streamer interface {
+	RunStream(ctx context.Context, cmd string, onLine func(string)) (Result, error)
+}
+
+// lineWriter collects everything and reports whole lines as they arrive.
+type lineWriter struct {
+	buf    strings.Builder
+	pend   strings.Builder
+	onLine func(string)
+}
+
+func (w *lineWriter) Write(p []byte) (int, error) {
+	w.buf.Write(p)
+	if w.onLine == nil {
+		return len(p), nil
+	}
+	for _, b := range p {
+		if b != '\n' {
+			w.pend.WriteByte(b)
+			continue
+		}
+		if line := strings.TrimSpace(w.pend.String()); line != "" {
+			w.onLine(line)
+		}
+		w.pend.Reset()
+	}
+	return len(p), nil
+}
+
+func (w *lineWriter) String() string { return w.buf.String() }
+
 // ErrNotConnected is returned when a runner is used after it was closed.
 var ErrNotConnected = errors.New("exec: not connected")
 

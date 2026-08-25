@@ -549,6 +549,52 @@ func (n *Node) CheckCNILeftovers(ctx context.Context) ProbeResult {
 		strings.Join(found, ", "))
 }
 
+// CheckEtcdMemberAddress implements PF-806.
+//
+// A node that was built once and is being built again keeps its etcd
+// datastore, and that datastore records the address this member advertises.
+// If the document now asks for a different one -- which is exactly what
+// pinning node-ip does to a node whose first build advertised its default
+// route -- rke2 refuses to start, forever, five seconds at a time:
+//
+//	this server is not a member of the etcd cluster.
+//	Found [x=https://203.0.113.7:2380], expect: x=https://10.0.0.7:2380
+//
+// Found on the first real IDC build, after forty-six minutes of a wait that
+// could never end. The state is readable in twenty seconds, so it is read
+// here instead.
+func (n *Node) CheckEtcdMemberAddress(ctx context.Context, want string) ProbeResult {
+	if want == "" {
+		return skipped("PF-806", "the document pins no address for this node")
+	}
+
+	// The peer URLs the datastore holds, from the file rke2 keeps them in.
+	// Reading the database itself would need etcdctl and a running server --
+	// neither of which exists when this matters.
+	r := n.run(ctx, `grep -ho 'https://[0-9.]*:2380' `+
+		`/var/lib/rancher/rke2/server/db/etcd/config `+
+		`/var/lib/rancher/rke2/server/db/etcd/name 2>/dev/null | sort -u | tr '\n' ' '`)
+	if r.ExitCode < 0 {
+		return unmeasured("PF-806", "the node could not be asked: "+r.Err())
+	}
+
+	found := strings.Fields(r.Out())
+	if len(found) == 0 {
+		return passf("PF-806", "no etcd datastore from an earlier build is present")
+	}
+	for _, url := range found {
+		if url == "https://"+want+":2380" {
+			return passf("PF-806", "the existing etcd member advertises %s, which is what this document asks for", want)
+		}
+	}
+	return failf("PF-806", "ETCD_MEMBER_ADDRESS",
+		"an earlier build registered this node in etcd as %s and this document advertises %s; "+
+			"rke2 refuses to start with that mismatch and retries silently rather than failing. "+
+			"Nothing in the datastore is worth keeping if this build never finished: "+
+			"`rke2-killall.sh && rke2-uninstall.sh` and run again",
+		strings.Join(found, ", "), "https://"+want+":2380")
+}
+
 // CheckPacketFilterLeftovers implements PF-805.
 //
 // Requires root: both nft and iptables refuse to read the ruleset otherwise,

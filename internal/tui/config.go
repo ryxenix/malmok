@@ -64,7 +64,19 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	}
 
 	ssh := v1alpha1.SSHSpec{User: c.SSHUser, Port: atoiOr(c.SSHPort, 22)}
-	s.Topology.Servers = mergeNodes(s.Topology.Servers, []string{c.Server}, v1alpha1.RoleServer, ssh)
+	// A node this machine is, is not a node this machine dials, so it carries
+	// no login. The screens already hide the SSH fields there; writing them
+	// anyway did more than clutter the document -- the kubeconfig step reads
+	// that account to decide whose copy to make, saw the seeded "root", and
+	// concluded the operator already had it. On a build run under sudo the
+	// person at the keyboard is $SUDO_USER, which is exactly what the step
+	// falls back to when the document names nobody. An IDC build finished
+	// with no kubeconfig for the account that ran it because of this line.
+	local := ssh
+	if c.Local {
+		local = v1alpha1.SSHSpec{}
+	}
+	s.Topology.Servers = mergeNodes(s.Topology.Servers, []string{c.Server}, v1alpha1.RoleServer, local)
 	s.Topology.Agents = mergeNodes(s.Topology.Agents, c.Agents, v1alpha1.RoleAgent, ssh)
 
 	s.Kubernetes.Version = c.Version

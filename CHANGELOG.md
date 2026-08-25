@@ -5,6 +5,19 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.65.2] - 2026-08-25
+
+### Fixed
+
+- A local build left the operator with no kubeconfig. The wizard wrote the
+  seeded SSH account onto a node this machine *is* -- a node it never dials
+  -- and the kubeconfig step reads that account to decide whose copy to make:
+  it saw "root", concluded the operator could already read the original, and
+  copied nothing. So an IDC build finished with the cluster up, kubectl
+  installed and `kubectl get nodes` refusing to connect. A local node now
+  carries no login, which is both true and what makes the step fall back to
+  the account sudo elevated. Remote nodes are unchanged.
+
 ## [0.65.1] - 2026-08-25
 
 ### Fixed

@@ -1748,3 +1748,30 @@ func TestAdvisoryFindingsDoNotFailAFinishedRun(t *testing.T) {
 		t.Errorf("a failed step no longer stops the run:\n%s", screen)
 	}
 }
+
+// A node this machine is, is not a node this machine dials. Writing an SSH
+// account for it did more than clutter the document: the kubeconfig step
+// reads that account to decide whose copy to make, saw the seeded "root",
+// and concluded the operator already had it -- so an IDC build finished with
+// kubectl installed, a cluster running, and no kubeconfig for the account
+// that ran the install.
+func TestALocalNodeCarriesNoLogin(t *testing.T) {
+	w := wizard(t, LangEN, false, 110, 30, StepNodes)
+	w.setLocal(true)
+	w.cfg.Server, w.cfg.Agents = "10.0.0.11", []string{"10.0.0.12"}
+
+	spec := w.cfg.ToSpec()
+	if got := spec.Topology.Servers[0].SSH.User; got != "" {
+		t.Errorf("the local server names the login %q", got)
+	}
+	// An agent is still dialled, and still needs one.
+	if got := spec.Topology.Agents[0].SSH.User; got == "" {
+		t.Error("a remote agent lost its login")
+	}
+
+	// And a remote server keeps it.
+	w.setLocal(false)
+	if got := w.cfg.ToSpec().Topology.Servers[0].SSH.User; got == "" {
+		t.Error("a remote server lost its login")
+	}
+}

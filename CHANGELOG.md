@@ -5,6 +5,21 @@ All notable changes to malmok are recorded here.
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking
 schema changes land in MINOR releases rather than MAJOR ones.
 
+## [0.64.1] - 2026-08-25
+
+### Fixed
+
+- The gateway screen wrote over what no screen shows. It rebuilt the gateway
+  from its three fields, which deleted the listeners, TLS references and
+  namespaces a loaded document may carry -- the one thing the edit flow
+  exists not to do. It now edits the gateway in place, creates one only when
+  the document has none, and leaves a gateway that names no listeners alone
+  so the validator still reports it rather than the wizard quietly repairing
+  it. A document that already names a gateway opens on the answer it holds.
+- What failed moved above what was built on the finished screen. It sat under
+  two record sections, and an eleventh step in the rail was enough to push
+  the reason for the failure off a short window.
+
 ## [0.64.0] - 2026-08-24
 
 ### Added

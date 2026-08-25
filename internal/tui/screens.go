@@ -686,20 +686,9 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 		b.WriteString(w.theme.Accent.Render(w.glyphs.OK+" "+w.cat.T(ok)) + "\n")
 	}
 
-	// What was built, where it went, and what to run next. A final screen that
-	// says only "finished" leaves the operator to guess all three.
-	b.WriteString("\n" + w.theme.Section(w.cat.T("done.cluster"), width, w.glyphs) + "\n")
-	for _, r := range w.builtRows() {
-		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
-			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
-	}
-
-	b.WriteString("\n" + w.theme.Section(w.cat.T("done.artifacts"), width, w.glyphs) + "\n")
-	for _, r := range w.artifactRows() {
-		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
-			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
-	}
-
+	// What failed goes above the record of what was built: it is the reason
+	// the operator is reading this screen, and it sat under two sections that
+	// a rail one step longer was enough to push off a short window.
 	if failed {
 		b.WriteString("\n" + w.theme.Err.Render(w.glyphs.SectionTick+" "+w.cat.T("done.problems")) + "\n")
 		for _, e := range w.failures {
@@ -723,6 +712,23 @@ func (w *Wizard) doneScreen(width int) (string, string, string) {
 				w.theme.Dim.Render(padCells(truncCells(where, 24), 26)) +
 				w.theme.Body.Render(truncCells(e.Detail, max(width-42, 10))) + "\n")
 		}
+	}
+
+	// What was built, where it went, and what to run next. A final screen that
+	// says only "finished" leaves the operator to guess all three.
+	b.WriteString("\n" + w.theme.Section(w.cat.T("done.cluster"), width, w.glyphs) + "\n")
+	for _, r := range w.builtRows() {
+		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
+			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
+	}
+
+	b.WriteString("\n" + w.theme.Section(w.cat.T("done.artifacts"), width, w.glyphs) + "\n")
+	for _, r := range w.artifactRows() {
+		b.WriteString("  " + w.theme.Dim.Render(padCells(r[0], 16)) +
+			w.theme.Body.Render(truncCells(r[1], max(width-20, 10))) + "\n")
+	}
+
+	if failed {
 		b.WriteString("\n" + w.dim(w.cat.T("done.resume"), width) + "\n")
 		b.WriteString("  " + w.theme.Body.Render(w.resumeCommand()) + "\n")
 	} else {

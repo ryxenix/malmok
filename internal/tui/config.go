@@ -131,39 +131,66 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	s.PKI.Domain = c.Domain
 	s.Gateway.DomainSuffix = c.Domain
 
-	// The gateway the screen asked for. Rebuilt rather than merged: the
-	// exposure decides the whole shape of it, and a listener left over from a
-	// previous answer is a port the operator did not ask to open.
-	s.Gateway.Gateways = nil
-	if c.Exposure != "" && c.Exposure != "none" {
+	// The gateway the screen asked for, written onto whatever the document
+	// already had.
+	//
+	// Edited rather than rebuilt: a document may name listeners, TLS
+	// references, zones and namespaces this wizard has no screen for, and
+	// replacing it with three fields would delete them silently -- the one
+	// thing ApplyTo exists to prevent. What the screen owns is the exposure,
+	// the name and the pinned address; everything else stays as written.
+	switch {
+	case c.Exposure == "":
+		// The screen was never visited (a document opened straight into
+		// another flow). Nothing to say, nothing to change.
+
+	case c.Exposure == "none":
+		// An explicit answer, so an explicit removal: the operator said this
+		// cluster answers on nothing.
+		s.Gateway.Gateways = nil
+
+	default:
 		name := c.GatewayName
 		if name == "" {
 			name = "public"
 		}
-		gw := v1alpha1.Gateway{
-			Name:            name,
-			RouteNamespaces: "all",
-			Listeners: []v1alpha1.ListenerSpec{
-				{Name: "http", Protocol: v1alpha1.ListenerHTTP, Port: 80},
-			},
+		existing := len(s.Gateway.Gateways) > 0
+		gw := v1alpha1.Gateway{Name: name, RouteNamespaces: "all"}
+		if existing {
+			gw = s.Gateway.Gateways[0]
+			gw.Name = name
 		}
 		if c.Exposure == "node-ips" {
-			gw.Exposure = v1alpha1.ExposureNodeIPs
+			gw.Exposure, gw.Address = v1alpha1.ExposureNodeIPs, ""
 		} else {
 			// Pinned rather than allocated: the DNS record is requested
 			// before the install, so the address has to be decided (PF-612).
-			gw.Address = c.GatewayAddress
+			gw.Exposure, gw.Address = "", c.GatewayAddress
 		}
-		// HTTPS only where a certificate can exist. A listener that
-		// terminates TLS with nothing to terminate it with resets every
-		// handshake, and the operator hears about it from a browser.
-		if c.PKIMode != "" && c.PKIMode != string(v1alpha1.PKINone) && c.Domain != "" {
-			gw.Listeners = append(gw.Listeners, v1alpha1.ListenerSpec{
-				Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443,
-				Hostname: "*." + c.Domain,
-			})
+		// Listeners are written only for a gateway this screen is creating. A
+		// document that names a gateway with none has a problem, and filling
+		// it in here would hide it from the validation that exists to report
+		// it -- the wizard repairing what it cannot see is worse than the
+		// wizard leaving it alone.
+		if !existing {
+			gw.Listeners = []v1alpha1.ListenerSpec{
+				{Name: "http", Protocol: v1alpha1.ListenerHTTP, Port: 80},
+			}
+			// HTTPS only where a certificate can exist. A listener that
+			// terminates TLS with nothing to terminate it with resets every
+			// handshake, and the operator hears about it from a browser.
+			if c.PKIMode != "" && c.PKIMode != string(v1alpha1.PKINone) && c.Domain != "" {
+				gw.Listeners = append(gw.Listeners, v1alpha1.ListenerSpec{
+					Name: "https", Protocol: v1alpha1.ListenerHTTPS, Port: 443,
+					Hostname: "*." + c.Domain,
+				})
+			}
 		}
-		s.Gateway.Gateways = []v1alpha1.Gateway{gw}
+		if len(s.Gateway.Gateways) > 0 {
+			s.Gateway.Gateways[0] = gw
+		} else {
+			s.Gateway.Gateways = []v1alpha1.Gateway{gw}
+		}
 	}
 
 	// The mode decides which material block is legal, and the illegal one is
@@ -243,6 +270,9 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 
 		DowngradePolicy: string(s.Kubernetes.Dataplane.DowngradePolicy),
 		LBPool:          s.Kubernetes.Dataplane.LoadBalancerPool,
+		Exposure:        exposureOf(s),
+		GatewayName:     gatewayNameOf(s),
+		GatewayAddress:  gatewayAddressOf(s),
 
 		RegistryHost:     s.Registry.SystemDefaultRegistry,
 		RegistryUser:     string(s.Registry.Username),
@@ -435,4 +465,30 @@ func (c Config) MatchedProfile() v1alpha1.ProfileName {
 		// it, which is what makes the match meaningful.
 		RequirePinnedGatewayAddress: c.PinnedGateway,
 	})
+}
+
+// exposureOf reads back what a document says about being reached, so the
+// screen opens on the answer already written rather than on the default.
+func exposureOf(s v1alpha1.ClusterSpec) string {
+	if len(s.Gateway.Gateways) == 0 {
+		return "none"
+	}
+	if s.Gateway.Gateways[0].Exposure == v1alpha1.ExposureNodeIPs {
+		return "node-ips"
+	}
+	return "lb-pool"
+}
+
+func gatewayNameOf(s v1alpha1.ClusterSpec) string {
+	if len(s.Gateway.Gateways) == 0 {
+		return "public"
+	}
+	return s.Gateway.Gateways[0].Name
+}
+
+func gatewayAddressOf(s v1alpha1.ClusterSpec) string {
+	if len(s.Gateway.Gateways) == 0 {
+		return ""
+	}
+	return s.Gateway.Gateways[0].Address
 }

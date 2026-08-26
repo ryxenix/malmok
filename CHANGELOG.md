@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.68.0] - 2026-08-26
+
+### Fixed
+- `MALMOK_ASCII` was still read under the tool's former name, so the
+  documented way to force the fallback character set did nothing: an operator
+  on a serial console or an IPMI viewer set the variable, saw box characters
+  anyway, and had no reason to suspect the variable rather than the terminal.
+  A test now walks the whole tree for the old name -- a rename that misses one
+  place has usually missed others, and the changelog is the only file allowed
+  to remember what the tool used to be called.
+- The run list assembled its summary from English literals -- "2 phases,
+  1 failed" -- while every other line on the screen came from a catalogue.
+  Switching to Korean translated the whole wizard except the one screen an
+  operator opens after something has already gone wrong. The three words are
+  now keys, and the run's own outcome renders through the status catalogue
+  that already existed.
+- README claimed the wizard opens by running `malmok` with no arguments. It
+  prints help; the wizard is `malmok apply --tui`. Both language editions were
+  wrong in the same way, which is what happens when one is translated from the
+  other rather than checked against the program.
+
+### Added
+- `TestTheRunSummarySpeaksTheChosenLanguage` renders a real run against both
+  catalogues. A test that merely asserted the keys exist would have passed
+  throughout the period the screen ignored them.
+
+### Changed
+- Test environment variables in `internal/spec` carry the current name.
+
 ## [0.67.0] - 2026-08-26
 
 ### Added

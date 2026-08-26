@@ -47,7 +47,7 @@ func (w *Wizard) loadRuns() []RunEntry {
 			ID:      e.Name(),
 			Dir:     dir,
 			When:    info.ModTime().Local().Format("2006-01-02 15:04"),
-			Summary: summarise(path),
+			Summary: summarise(path, w.cat),
 		})
 	}
 
@@ -58,7 +58,12 @@ func (w *Wizard) loadRuns() []RunEntry {
 }
 
 // summarise reads a run's outcome without loading all of it into the screen.
-func summarise(path string) string {
+//
+// It takes the catalogue because this line is screen text like any other. It
+// was the last English left in the wizard after the strings moved out: three
+// words short enough to read past, on the one screen an operator opens when
+// something has already gone wrong.
+func summarise(path string, cat *Catalogue) string {
 	f, err := os.Open(path)
 	if err != nil {
 		return ""
@@ -84,16 +89,17 @@ func summarise(path string) string {
 
 	parts := []string{}
 	if phases > 0 {
-		parts = append(parts, itoa(phases)+" phases")
+		parts = append(parts, itoa(phases)+" "+cat.T("runs.phases"))
 	}
 	if failed > 0 {
-		parts = append(parts, itoa(failed)+" failed")
+		parts = append(parts, itoa(failed)+" "+cat.T("runs.failed"))
 	}
 	if blocked > 0 {
-		parts = append(parts, itoa(blocked)+" blocked")
+		parts = append(parts, itoa(blocked)+" "+cat.T("runs.blocked"))
 	}
 	if outcome != "" {
-		parts = append(parts, outcome)
+		// The run's own status word, which the status catalogue already has.
+		parts = append(parts, cat.T("status."+outcome))
 	}
 	return strings.Join(parts, ", ")
 }

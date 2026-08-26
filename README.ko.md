@@ -11,7 +11,7 @@ TUI 마법사와 CLI를 같은 엔진 위에 얹었고, 런타임 의존성은 �
 > 읽고 판단하십시오.
 
 ```
-malmok                 # TUI 마법사 (구축·확장·재개·업그레이드)
+malmok apply --tui     # TUI 마법사 (구축·확장·재개·업그레이드)
 malmok preflight       # 읽기 전용 사전 점검
 malmok plan            # 무엇이 설치될지 계산 (네트워크 접근 없음)
 malmok apply           # cluster.yaml 로 구축
@@ -72,8 +72,9 @@ malmok report
 설치 없이 화면만 보려면 `malmok apply --demo` — 노드에 접속하지 않고
 전 과정을 흉내 냅니다.
 
-TUI로 하려면 인자 없이 `malmok`을 실행하십시오. 마법사가 `cluster.yaml`을
-만들어 주고, 같은 화면에서 설치까지 진행합니다.
+TUI로 하려면 `malmok apply --tui`를 실행하십시오. 마법사가 `cluster.yaml`을
+만들어 주고, 같은 화면에서 설치까지 진행합니다. 화면 언어는 영어가 기본이고
+`--lang ko` 또는 설정 화면에서 한국어로 바꿀 수 있습니다(선택은 저장됩니다).
 
 최소 `cluster.yaml`:
 

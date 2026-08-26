@@ -326,7 +326,7 @@ func TestDetectASCII(t *testing.T) {
 		{"dumb", map[string]string{"TERM": "dumb"}, true},
 		{"latin1", map[string]string{"TERM": "xterm", "LANG": "en_US.ISO-8859-1"}, true},
 		{"no locale", map[string]string{"TERM": "xterm"}, true},
-		{"forced", map[string]string{"TERM": "xterm", "LANG": "en_US.UTF-8", "PLATFORMCTL_ASCII": "1"}, true},
+		{"forced", map[string]string{"TERM": "xterm", "LANG": "en_US.UTF-8", "MALMOK_ASCII": "1"}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

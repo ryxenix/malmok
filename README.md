@@ -12,7 +12,7 @@ wizard and a CLI over the same engine, with nothing to install on the nodes.
 > this at anything you care about.
 
 ```
-malmok                 # TUI wizard: build, grow, resume, upgrade
+malmok apply --tui     # TUI wizard: build, grow, resume, upgrade
 malmok preflight       # read-only measurement of the nodes
 malmok plan            # what would be installed; no network access
 malmok apply           # build from cluster.yaml
@@ -70,8 +70,9 @@ malmok apply -f cluster.yaml
 malmok report
 ```
 
-Run `malmok` with no arguments for the wizard: it writes the `cluster.yaml`
-and installs from the same screen. `malmok apply --demo` walks the whole
+`malmok apply --tui` opens the wizard instead: it writes the `cluster.yaml`
+and installs from the same screen, in English or Korean (`--lang ko`, or the
+settings screen, which remembers). `malmok apply --demo` walks the whole
 sequence without touching a node, if you want to see the shape of a run first.
 
 A minimal document:

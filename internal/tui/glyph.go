@@ -109,7 +109,7 @@ func DetectASCII(env func(string) string) bool {
 	if env == nil {
 		env = os.Getenv
 	}
-	if v := env("PLATFORMCTL_ASCII"); v != "" && v != "0" {
+	if v := env("MALMOK_ASCII"); v != "" && v != "0" {
 		return true
 	}
 	switch env("TERM") {

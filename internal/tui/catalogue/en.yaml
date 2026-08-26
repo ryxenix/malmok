@@ -87,6 +87,9 @@ runs:
   col_id: run
   col_when: when
   col_summary: what happened
+  phases: phases
+  failed: failed
+  blocked: blocked
 where:
   heading: Where to build
   help: "Which machine is this cluster being built on? The first server can be this machine, in which case nothing is connected to and its address is taken from the machine itself."

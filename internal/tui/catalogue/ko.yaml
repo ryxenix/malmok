@@ -86,6 +86,9 @@ runs:
   col_id: 실행
   col_when: 시각
   col_summary: 결과
+  phases: 단계 완료
+  failed: 실패
+  blocked: 차단
 where:
   heading: 설치 위치
   help: "이 클러스터를 어디에 설치할까요? 이 서버를 고르면 SSH 접속 없이 여기서 바로 설치하고, 주소도 서버에서 직접 읽어옵니다."

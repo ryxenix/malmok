@@ -338,17 +338,17 @@ func TestResolve(t *testing.T) {
 	doc := parse(t, minimal)
 	doc.Path = filepath.Join(dir, "cluster.yaml")
 
-	t.Setenv("PLATFORMCTL_TEST_VALUE", "from-env")
+	t.Setenv("MALMOK_TEST_VALUE", "from-env")
 
 	tests := []struct {
 		name, ref, want, wantErr string
 		secret                   bool
 	}{
 		{name: "file relative to the document", ref: "file://./value.txt", want: "from-file"},
-		{name: "env", ref: "env://PLATFORMCTL_TEST_VALUE", want: "from-env"},
+		{name: "env", ref: "env://MALMOK_TEST_VALUE", want: "from-env"},
 		{name: "literal", ref: "literal://plain", want: "plain"},
 		{name: "empty is not an error", ref: "", want: ""},
-		{name: "missing env var", ref: "env://PLATFORMCTL_ABSENT", wantErr: "is not set"},
+		{name: "missing env var", ref: "env://MALMOK_ABSENT", wantErr: "is not set"},
 		{name: "no scheme", ref: "/etc/passwd", wantErr: "no scheme"},
 		{name: "unknown scheme", ref: "vault://secret", wantErr: "unknown scheme"},
 		// Recognised and refused, rather than read as a filename.

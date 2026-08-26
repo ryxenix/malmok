@@ -48,7 +48,8 @@ var registryModes = []choice{
 // first build the domain is usually not decided yet.
 var pkiModes = []choice{
 	{"none", "none", "pkimode.none"},
-	{"acme-dns01", "acme-dns01", "pkimode.acme"},
+	{"acme-http01", "acme-http01", "pkimode.acme_http"},
+	{"acme-dns01", "acme-dns01", "pkimode.acme_dns"},
 	{"private-ca", "private-ca", "pkimode.ca"},
 	{"byo-cert", "byo-cert", "pkimode.byo"},
 }

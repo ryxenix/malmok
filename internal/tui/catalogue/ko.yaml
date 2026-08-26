@@ -293,7 +293,8 @@ pki:
   trust.nodes.note: CA 가 필요한 파드는 직접 마운트합니다
 pkimode:
   none: 나중에 결정 · 게이트웨이는 HTTP
-  acme: 공인 인증서 · DNS 제어 필요
+  acme_http: 공인 인증서 · 80 포트 도달 필요
+  acme_dns: 공인 인증서 · DNS API 권한 필요 · 와일드카드 가능
   ca: 사설 CA 가 클러스터 내부에서 발급
   byo: 고객사가 인증서를 제공
 regmode:

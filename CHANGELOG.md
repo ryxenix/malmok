@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.73.0] - 2026-08-26
+
+### Changed
+- HTTP-01 is the default way to get a public certificate. The wizard offers
+  `acme-http01` above `acme-dns01`, and the company-prod profile picks it.
+
+  It asks the operator for nothing they do not already have: a gateway that
+  answers on port 80 and a DNS record pointing at it, both of which exist
+  before anyone thinks about certificates. DNS-01 needs an API credential for
+  the zone, which is a separate request to a separate team at most sites --
+  worth it for a wildcard, and a poor first thing to require.
+
+  Per-listener issuance stays the default. A wildcard is what
+  `hostname: "*.example.com"` on an HTTPS listener now means in practice, and
+  it needs DNS-01: an ACME wildcard cannot be proven over HTTP.
+
 ## [0.72.1] - 2026-08-26
 
 ### Fixed

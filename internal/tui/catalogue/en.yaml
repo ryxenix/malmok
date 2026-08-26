@@ -294,7 +294,8 @@ pki:
   trust.nodes.note: pods that need the CA mount it themselves
 pkimode:
   none: decide later, gateways on HTTP
-  acme: public certificates, needs DNS control
+  acme_http: public certificates, needs port 80 reachable
+  acme_dns: public certificates, needs DNS API access; wildcards
   ca: private CA issues inside the cluster
   byo: the customer supplies a bundle
 regmode:

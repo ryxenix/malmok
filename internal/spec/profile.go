@@ -60,7 +60,7 @@ var baselines = map[v1alpha1.ProfileName]Baseline{
 		Routing:   v1alpha1.RoutingOverlay,
 		Dataplane: v1alpha1.DataplaneCiliumGW, Fallback: v1alpha1.DataplaneCanalTraefik,
 		DowngradePolicy: v1alpha1.DowngradeAuto,
-		PKIMode:         v1alpha1.PKIACMEDNS01, Storage: v1alpha1.StorageLonghorn,
+		PKIMode:         v1alpha1.PKIACMEHTTP01, Storage: v1alpha1.StorageLonghorn,
 		RegistryMode: v1alpha1.RegistryEmbedded, GitOpsSource: v1alpha1.GitOpsGit,
 	},
 	v1alpha1.ProfileOnpremDMZ: {

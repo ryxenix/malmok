@@ -566,8 +566,15 @@ func TestEveryProfileIsReachableByComposing(t *testing.T) {
 				m.cfg.CAIntermediate = "file://./pki/inter.crt"
 				m.cfg.CAKey = "env://CA_KEY"
 			}
-			if b.PKIMode == v1alpha1.PKIACMEDNS01 {
+			// Both ACME modes need an account address. Only the DNS one needs
+			// a provider and a credential to write the record with -- HTTP-01
+			// proves control by answering on port 80, which is why it is the
+			// default: it asks the operator for nothing they do not already
+			// have.
+			if b.PKIMode == v1alpha1.PKIACMEDNS01 || b.PKIMode == v1alpha1.PKIACMEHTTP01 {
 				m.cfg.ACMEEmail = "ops@acme.co.kr"
+			}
+			if b.PKIMode == v1alpha1.PKIACMEDNS01 {
 				m.cfg.ACMEProvider = "cloudflare"
 				m.cfg.ACMEToken = "env://ACME_API_TOKEN"
 			}

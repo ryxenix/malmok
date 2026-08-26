@@ -125,12 +125,18 @@ profile:
   airgap_rocky: Rocky 9 · 폐쇄망 · 사설 CA
   airgap_cons: Rocky 9 · 폐쇄망 · canal 폴백
 options:
+  observability: 관측
   heading: 플랫폼 옵션
   help: dataplane 은 CNI · 게이트웨이 · LB IP 공급원을 하나로 묶은 선택입니다. 셋은 독립적이지 않습니다.
   dataplane: dataplane
   storage: 스토리지
   downgrade: 노드가 못 돌릴 때
   fallback: 대신 쓸 것
+obs:
+  off: 끄기
+  on: 켜기
+  off.note: 메트릭 스택 없음 · kubectl 이 보여주는 것만 남습니다
+  on.note: VictoriaMetrics · 기본 7일 보존, 10Gi
 os:
   auto: 노드에서 직접 읽음
   ubuntu: Ubuntu 22.04 또는 24.04

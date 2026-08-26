@@ -26,9 +26,14 @@ type Baseline struct {
 	Fallback        v1alpha1.DataplanePreset
 	DowngradePolicy v1alpha1.DowngradePolicy
 	PKIMode         v1alpha1.PKIMode
-	Storage         v1alpha1.StorageDriver
-	RegistryMode    v1alpha1.RegistryMode
-	GitOpsSource    v1alpha1.GitOpsSourceType
+	// Observability is the metrics stack. On where the cluster has a network:
+	// a platform nobody can see the load of is one whose first capacity
+	// problem is discovered by a user. Off in an airgap, where every image has
+	// to be seeded into the registry before a chart can pull it.
+	Observability bool
+	Storage       v1alpha1.StorageDriver
+	RegistryMode  v1alpha1.RegistryMode
+	GitOpsSource  v1alpha1.GitOpsSourceType
 
 	// EncryptNodeTraffic defaults to on wherever nodes can straddle a network
 	// boundary: customer security teams object to cleartext inter-node traffic
@@ -54,6 +59,7 @@ var baselines = map[v1alpha1.ProfileName]Baseline{
 		// No registry to stand up, no credentials to keep alive for the life of
 		// the cluster: RKE2 shares images between nodes that already hold them.
 		RegistryMode: v1alpha1.RegistryEmbedded, GitOpsSource: v1alpha1.GitOpsGit,
+		Observability: true,
 	},
 	v1alpha1.ProfileCompanyProd: {
 		OSFamily: v1alpha1.OSUbuntu, NetworkMode: v1alpha1.NetworkOnline,
@@ -62,6 +68,7 @@ var baselines = map[v1alpha1.ProfileName]Baseline{
 		DowngradePolicy: v1alpha1.DowngradeAuto,
 		PKIMode:         v1alpha1.PKIACMEHTTP01, Storage: v1alpha1.StorageLonghorn,
 		RegistryMode: v1alpha1.RegistryEmbedded, GitOpsSource: v1alpha1.GitOpsGit,
+		Observability: true,
 	},
 	v1alpha1.ProfileOnpremDMZ: {
 		OSFamily: v1alpha1.OSUbuntu, NetworkMode: v1alpha1.NetworkProxy,
@@ -73,6 +80,7 @@ var baselines = map[v1alpha1.ProfileName]Baseline{
 		PKIMode:         v1alpha1.PKIPrivateCA, Storage: v1alpha1.StorageLonghorn,
 		RegistryMode: v1alpha1.RegistryExternal, GitOpsSource: v1alpha1.GitOpsOCI,
 		EncryptNodeTraffic: true, RequirePinnedGatewayAddress: true,
+		Observability: true,
 	},
 	v1alpha1.ProfileAirgapUbuntu: {
 		OSFamily: v1alpha1.OSUbuntu, NetworkMode: v1alpha1.NetworkAirgap,
@@ -177,6 +185,18 @@ func (d *Document) ApplyProfile() ([]string, error) {
 	set("registry.mode", s.Registry.Mode == "", func() { s.Registry.Mode = b.RegistryMode })
 	set("platform.gitops.source", s.Platform.GitOps.Source == "",
 		func() { s.Platform.GitOps.Source = b.GitOpsSource })
+
+	// A document that says nothing about observability gets the profile's
+	// answer, and a document that says false keeps it: the pointer is what
+	// distinguishes "not mentioned" from "not wanted", which is the whole
+	// reason it is a pointer.
+	set("platform.observability.enabled", s.Platform.Observability.Enabled == nil, func() {
+		on := b.Observability
+		s.Platform.Observability.Enabled = &on
+	})
+	set("platform.observability.stack",
+		s.Platform.Observability.Stack == "" && b.Observability,
+		func() { s.Platform.Observability.Stack = v1alpha1.ObservabilityVictoriaMetrics })
 
 	// rke2-ingress-nginx is disabled whatever the document says: it reached EOL
 	// in March 2026 and receives no security patches (ADR-005). Recording it in

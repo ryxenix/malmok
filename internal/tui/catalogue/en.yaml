@@ -126,12 +126,18 @@ profile:
   airgap_rocky: Rocky 9, air-gapped, private CA
   airgap_cons: Rocky 9, air-gapped, canal fallback
 options:
+  observability: Observability
   heading: Platform options
   help: The dataplane binds CNI, gateway and load balancer IP as one choice; they are not independent.
   dataplane: Dataplane
   storage: Storage
   downgrade: If a node cannot run it
   fallback: Fall back to
+obs:
+  off: "off"
+  on: "on"
+  off.note: no metrics stack; the cluster reports only what kubectl shows
+  on.note: VictoriaMetrics, 7 days on 10Gi by default
 os:
   auto: read from the node itself
   ubuntu: Ubuntu 22.04 or 24.04

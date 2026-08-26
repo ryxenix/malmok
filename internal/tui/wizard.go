@@ -244,6 +244,11 @@ type Config struct {
 	// so the address has to be decided rather than allocated.
 	GatewayAddress string
 
+	// Observability is the platform's metrics stack. On by profile where the
+	// cluster has a network: a platform nobody can see the load of is one
+	// whose first capacity problem is found by a user.
+	Observability bool
+
 	// HTTP2 offers HTTP/2 on the TLS listeners. Off by default: turning it on
 	// also turns on backend protocol selection, which changes how the gateway
 	// speaks to a Service that already declares an appProtocol.
@@ -443,6 +448,11 @@ func NewWizard(runID string, ascii, mono bool, lang Lang, preflight, install Wor
 			NetworkMode: "online", DowngradePolicy: "confirm",
 			Dataplane: "cilium-gw", Fallback: "canal-traefik", Storage: "local-path",
 			PKIMode: "none", RegistryMode: "embedded",
+			// On, like the profiles that have a network. A platform whose
+			// load nobody can see is one whose first capacity problem is
+			// found by a user, and the volume it takes is one screen away
+			// from being refused.
+			Observability: true,
 			// No gateway until somebody asks for one. Every other default
 			// here is the answer most builds want; this one is the answer
 			// most networks require -- a pool address is another IP
@@ -966,6 +976,9 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 			w.cfg.DowngradePolicy = downgradePolicies[cur-len(dataplanes)-len(storages)].id
 		case cur < len(dataplanes)+len(storages)+len(downgradePolicies)+len(fallbacks):
 			w.cfg.Fallback = fallbacks[cur-len(dataplanes)-len(storages)-len(downgradePolicies)].id
+		case cur < len(dataplanes)+len(storages)+len(downgradePolicies)+len(fallbacks)+observabilityRows:
+			w.cfg.Observability = cur ==
+				len(dataplanes)+len(storages)+len(downgradePolicies)+len(fallbacks)+1
 		}
 	}
 	return w, nil
@@ -1320,7 +1333,7 @@ func (w *Wizard) contentLen() int {
 	case StepPKI:
 		return len(pkiModes) + w.pkiExtraRows() + len(w.fieldsFor(StepPKI))
 	case StepOptions:
-		return len(dataplanes) + len(storages) + len(downgradePolicies) +
+		return observabilityRows + len(dataplanes) + len(storages) + len(downgradePolicies) +
 			len(fallbacks) + len(w.fieldsFor(StepOptions))
 	case StepWhere:
 		return 2
@@ -1404,7 +1417,7 @@ func (w *Wizard) fieldIndex() int {
 	case StepNetwork:
 		i -= len(networkModes) + 2 + len(routingModes)
 	case StepOptions:
-		i -= len(dataplanes) + len(storages) + len(downgradePolicies) + len(fallbacks)
+		i -= len(dataplanes) + len(storages) + len(downgradePolicies) + len(fallbacks) + observabilityRows
 	case StepRegistry:
 		i -= len(registryModes) + w.registryExtraRows()
 	case StepPKI:

@@ -592,11 +592,49 @@ type GitOpsSpec struct {
 	BootstrapApps []string `yaml:"bootstrapApps,omitempty" json:"bootstrapApps,omitempty"`
 }
 
+// ObservabilitySpec is the metrics stack the platform runs.
+//
+// Platform, not application: every workload needs the same answer to "is the
+// node out of memory", and a cluster where each chart brings its own collector
+// has telemetry rather than observability.
 type ObservabilitySpec struct {
-	Enabled   *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
-	Stack     string `yaml:"stack,omitempty"   json:"stack,omitempty"` // vm-loki-tempo
+	// Enabled defaults per profile: on where the cluster has a network, off in
+	// an airgap, where every image has to be seeded into the registry first
+	// and a chart that pulls from the internet fails opaquely.
+	Enabled *bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+
+	// Stack names what is installed. Only victoria-metrics is implemented.
+	//
+	// VictoriaMetrics rather than Prometheus: same query language and the same
+	// scrape configs, an order of magnitude less memory for the same series
+	// count, and Apache-2.0 throughout.
+	Stack ObservabilityStack `yaml:"stack,omitempty" json:"stack,omitempty"`
+
+	// Retention is how long samples are kept, in VictoriaMetrics' notation:
+	// 7d, 4w, 1y. Short by default -- metrics land on whatever the default
+	// StorageClass gives them, which on a single node is the same filesystem
+	// as etcd and the image store (PF-401). A full disk there is not a lost
+	// dashboard, it is a stopped cluster.
 	Retention string `yaml:"retention,omitempty" json:"retention,omitempty"`
+
+	// StorageSize is the volume the metrics database asks for.
+	StorageSize string `yaml:"storageSize,omitempty" json:"storageSize,omitempty"`
+
+	// Grafana adds the dashboard suite. Off unless asked: Grafana OSS is
+	// AGPL-3.0, which is a licence a customer's legal review may refuse, and
+	// VictoriaMetrics answers ad-hoc queries through its own UI without it.
+	Grafana *bool `yaml:"grafana,omitempty" json:"grafana,omitempty"`
 }
+
+// ObservabilityStack names a metrics stack.
+type ObservabilityStack string
+
+const (
+	// ObservabilityVictoriaMetrics is victoria-metrics-k8s-stack: the
+	// operator, a single-node database, the scraper, rule evaluation and
+	// alerting, with kube-state-metrics and node-exporter feeding them.
+	ObservabilityVictoriaMetrics ObservabilityStack = "victoria-metrics"
+)
 
 type SecretsSpec struct {
 	Provider string    `yaml:"provider,omitempty" json:"provider,omitempty"` // sops-age

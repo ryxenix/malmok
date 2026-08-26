@@ -1024,6 +1024,7 @@ func TestEveryBaselineFieldIsReachableOrDeliberatelyNot(t *testing.T) {
 		"RegistryMode":       true,
 		"DowngradePolicy":    true,
 		"EncryptNodeTraffic": true,
+		"Observability":      true,
 	}
 	// Document-only, on purpose.
 	documentOnly := map[string]string{

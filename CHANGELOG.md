@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.75.0] - 2026-08-27
+
+### Added
+- `l2-observability`: the platform's metrics stack, which until now existed in
+  the schema and nowhere else. A cluster built by this tool reported only what
+  `kubectl` shows, and the first capacity problem on it was found by a user.
+
+  Observability is platform work, not application work -- the same boundary
+  ADR-006 draws for routes, read from the other side. Every workload needs the
+  same answer to "is this node out of memory"; what an application owns is
+  which of its own series to expose.
+
+  **VictoriaMetrics**, not Prometheus: `victoria-metrics-k8s-stack` 0.91.2
+  (VM v1.150.0) brings the operator, a single-node database, the scraper, rule
+  evaluation, alerting, kube-state-metrics and node-exporter. PromQL and the
+  same scrape configuration for an order of magnitude less memory, and
+  Apache-2.0 throughout.
+
+  **Grafana is off.** The chart ships it on and Grafana OSS is AGPL-3.0 -- a
+  licence arriving in a customer's cluster because an upstream default said so
+  is not a decision anybody made. VictoriaMetrics answers ad-hoc queries
+  through its own UI. `platform.observability.grafana: true` adds it.
+
+  **Seven days on ten gigabytes**, against the chart's month on twenty. Metrics
+  land on whatever the default StorageClass gives them, which on a single node
+  is the filesystem holding etcd and the image store (PF-401). A full disk
+  there is not a lost dashboard, it is a stopped cluster. `retention` and
+  `storageSize` raise it.
+
+  On by default for the profiles with a network, off for the airgap ones,
+  where every image has to be seeded into the registry before a chart can pull
+  it. The options screen carries the choice and the summary states what will
+  be installed.
+
+  The phase waits for the database to serve rather than for the release to
+  exist: a HelmChart that reports installed while vmsingle crash-loops on a
+  volume it cannot bind is the state an operator finds weeks later, the first
+  time they go looking for a graph. A timeout prints the pods and the PVCs,
+  which is where the answer usually is.
+
 ## [0.74.0] - 2026-08-27
 
 ### Added

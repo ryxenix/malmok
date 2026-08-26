@@ -87,6 +87,19 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	s.Network.Routing = v1alpha1.RoutingMode(c.Routing)
 
 	s.Storage.Driver = v1alpha1.StorageDriver(c.Storage)
+
+	// Written in both directions, but only once the answer exists. A document
+	// that never mentioned observability and is left off stays silent: writing
+	// an explicit false into every document that was never asked the question
+	// makes reading a file and writing it back a change, and the whole point
+	// of the round trip is that it is not one.
+	if s.Platform.Observability.Enabled != nil || c.Observability {
+		obs := c.Observability
+		s.Platform.Observability.Enabled = &obs
+	}
+	if c.Observability && s.Platform.Observability.Stack == "" {
+		s.Platform.Observability.Stack = v1alpha1.ObservabilityVictoriaMetrics
+	}
 	if c.Storage == string(v1alpha1.StorageNFS) {
 		s.Storage.NFS = &v1alpha1.NFSSpec{Server: c.NFSServer, Path: c.NFSPath}
 	} else {
@@ -172,6 +185,7 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 			gw = s.Gateway.Gateways[0]
 			gw.Name = name
 		}
+		// (gateway block below)
 		// Cluster-wide rather than per gateway: Cilium's ALPN setting is a
 		// chart value, so it is written where it takes effect. Only when true
 		// -- an explicit false in every document that never thought about it
@@ -293,6 +307,7 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		DowngradePolicy: string(s.Kubernetes.Dataplane.DowngradePolicy),
 		LBPool:          s.Kubernetes.Dataplane.LoadBalancerPool,
 		Exposure:        exposureOf(s),
+		Observability:   s.Platform.Observability.Enabled != nil && *s.Platform.Observability.Enabled,
 		HTTP2:           s.Gateway.HTTP2 != nil && *s.Gateway.HTTP2,
 		GatewayName:     gatewayNameOf(s),
 		GatewayAddress:  gatewayAddressOf(s),
@@ -481,6 +496,7 @@ func (c Config) MatchedProfile() v1alpha1.ProfileName {
 		RegistryMode:       v1alpha1.RegistryMode(c.RegistryMode),
 		GitOpsSource:       v1alpha1.GitOpsSourceType(c.GitOpsSource),
 		EncryptNodeTraffic: c.Encrypt,
+		Observability:      c.Observability,
 
 		// Not composed anywhere: it is a profile's own strictness about
 		// requiring a DNS record before install (PF-612), not a setting. A

@@ -11,6 +11,7 @@ import (
 	"github.com/ryxen/malmok/api/v1alpha1"
 	"github.com/ryxen/malmok/internal/event"
 	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxen/malmok/internal/observability"
 )
 
 // One function per step, each returning the Frame the chrome draws. Keeping the
@@ -385,6 +386,16 @@ func (w *Wizard) optionsScreen(width int) (string, string, string) {
 		indexOf(fallbacks, w.cfg.Fallback),
 		cur-len(dataplanes)-len(storages)-len(downgradePolicies), width)
 
+	// The platform's own telemetry, beside the dataplane rather than on a
+	// screen of its own: it is one decision, and a screen per decision is how
+	// a wizard becomes a form nobody reads.
+	b.WriteString("\n" + w.theme.Section(w.cat.T("options.observability"), width, w.glyphs) + "\n")
+	w.radio(&b,
+		[]string{w.cat.T("obs.off"), w.cat.T("obs.on")},
+		[]string{w.cat.T("obs.off.note"), w.cat.T("obs.on.note")},
+		boolIndex(!w.cfg.Observability),
+		cur-len(dataplanes)-len(storages)-len(downgradePolicies)-len(fallbacks), width)
+
 	if fs := w.fieldsFor(StepOptions); len(fs) > 0 {
 		b.WriteString("\n")
 		w.fields(&b, w.labels(StepOptions), w.maskedValues(StepOptions),
@@ -445,6 +456,15 @@ func (w *Wizard) gatewayScreen(width int) (string, string, string) {
 	return w.cat.T("gw.heading"), b.String(), hint
 }
 
+// observabilitySummary is the metrics stack in one line, or nothing.
+func (w *Wizard) observabilitySummary() string {
+	if !w.cfg.Observability {
+		return ""
+	}
+	return string(v1alpha1.ObservabilityVictoriaMetrics) + ", " +
+		observability.DefaultRetention + " / " + observability.DefaultStorageSize
+}
+
 // gatewayNote is the sentence this exposure earns.
 func (w *Wizard) gatewayNote() string {
 	switch w.cfg.Exposure {
@@ -493,6 +513,10 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 		[2]string{w.cat.T("summary.profile"), string(w.cfg.MatchedProfile())},
 		[2]string{w.cat.T("options.dataplane"), w.cfg.Dataplane},
 		[2]string{w.cat.T("options.storage"), w.cfg.Storage},
+		// What the platform runs for everything else. Empty when it is off,
+		// which the row builder drops -- a summary listing "Observability:
+		// none" spends a line to say nothing was chosen.
+		[2]string{w.cat.T("options.observability"), w.observabilitySummary()},
 	)
 
 	var b strings.Builder
@@ -511,7 +535,7 @@ func (w *Wizard) summaryScreen(width int) (string, string, string) {
 		}
 		b.WriteString("\n")
 	}
-	split := len(rows) - 3
+	split := len(rows) - 4
 	writeRows(w.cat.T("summary.cluster"), rows[:split])
 	writeRows(w.cat.T("summary.platform"), rows[split:])
 	if n := len(w.failures); n > 0 {
@@ -1287,6 +1311,11 @@ func (w *Wizard) networkScreen(width int) (string, string, string) {
 }
 
 // boolIndex maps a yes/no onto the two rows of a radio.
+// observabilityRows is how many rows the metrics choice occupies on the
+// options screen. Two, for the reason the registry's TLS choice has two: the
+// answer not taken should be visible beside the one that was.
+const observabilityRows = 2
+
 func boolIndex(on bool) int {
 	if on {
 		return 0

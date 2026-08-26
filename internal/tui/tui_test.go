@@ -531,6 +531,7 @@ func compose(m *Wizard, b spec.Baseline) {
 	m.cfg.GitOpsSource = string(b.GitOpsSource)
 	m.cfg.Encrypt = b.EncryptNodeTraffic
 	m.cfg.PinnedGateway = b.RequirePinnedGatewayAddress
+	m.cfg.Observability = b.Observability
 }
 
 // Every validated combination has to be reachable by composing, and has to be
@@ -578,6 +579,7 @@ func TestEveryProfileIsReachableByComposing(t *testing.T) {
 				m.cfg.ACMEProvider = "cloudflare"
 				m.cfg.ACMEToken = "env://ACME_API_TOKEN"
 			}
+			m.cfg.Observability = b.Observability
 			if b.Storage == v1alpha1.StorageNFS {
 				m.cfg.NFSServer, m.cfg.NFSPath = "10.0.0.30", "/export"
 			}
@@ -1036,8 +1038,10 @@ func TestMixedScreenKeysFollowTheCursor(t *testing.T) {
 	}
 
 	// On a field row below every choice group. The groups above the fields are
-	// the dataplane, the storage, the downgrade policy and its fallback.
-	m.cursor[StepOptions] = len(dataplanes) + len(storages) + len(downgradePolicies) + len(fallbacks)
+	// the dataplane, the storage, the downgrade policy, its fallback and the
+	// observability choice.
+	m.cursor[StepOptions] = len(dataplanes) + len(storages) + len(downgradePolicies) +
+		len(fallbacks) + observabilityRows
 	if !m.cursorIsField() {
 		t.Error("the NFS server row is not reported as a field")
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/ryxen/malmok/internal/event"
 	"github.com/ryxen/malmok/internal/exec"
 	"github.com/ryxen/malmok/internal/gateway"
+	"github.com/ryxen/malmok/internal/observability"
 	"github.com/ryxen/malmok/internal/plan"
 	"github.com/ryxen/malmok/internal/preflight"
 	"github.com/ryxen/malmok/internal/report"
@@ -188,6 +189,9 @@ func (s *Session) Install(ctx context.Context, spec v1alpha1.ClusterSpec,
 		RKE2:      rke2.Options{InstallTimeout: 20 * time.Minute, ReadyTimeout: 15 * time.Minute},
 		Dataplane: dataplane.Options{Timeout: 15 * time.Minute},
 		Gateway:   gateway.Options{Timeout: 10 * time.Minute},
+		// The metrics stack pulls several images and waits on a volume, which
+		// takes longer than a chart that only writes CRDs.
+		Observability: observability.Options{Timeout: 15 * time.Minute},
 	})
 	if err != nil {
 		return err

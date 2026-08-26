@@ -24,6 +24,7 @@ import (
 	"github.com/ryxen/malmok/internal/exec"
 	"github.com/ryxen/malmok/internal/gateway"
 	"github.com/ryxen/malmok/internal/nodeprep"
+	"github.com/ryxen/malmok/internal/observability"
 	"github.com/ryxen/malmok/internal/pki"
 	"github.com/ryxen/malmok/internal/platform"
 	"github.com/ryxen/malmok/internal/rke2"
@@ -63,6 +64,8 @@ type Options struct {
 	Gateway   gateway.Options
 	PKI       pki.Options
 	Platform  platform.Options
+
+	Observability observability.Options
 }
 
 // Build returns the phases for a document, in the order they must run.
@@ -175,6 +178,19 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 	}); len(steps) > 0 {
 		phases = append(phases, engine.Phase{
 			ID:        gateway.Phase,
+			Grade:     engine.GradeAdditive,
+			Traversal: engine.TraversalCluster,
+			Steps:     func(string) []engine.Step { return steps },
+		})
+	}
+
+	// Observability before GitOps and after the gateway: the stack is
+	// ordinary workload, and putting it ahead of the handover means the first
+	// application ArgoCD deploys is already being scraped rather than
+	// invisible until somebody notices.
+	if steps := observability.Steps(control, spec, o.Observability); len(steps) > 0 {
+		phases = append(phases, engine.Phase{
+			ID:        observability.Phase,
 			Grade:     engine.GradeAdditive,
 			Traversal: engine.TraversalCluster,
 			Steps:     func(string) []engine.Step { return steps },

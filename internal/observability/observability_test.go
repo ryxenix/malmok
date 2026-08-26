@@ -94,13 +94,61 @@ func TestAnUnknownStackFailsRatherThanSubstitutes(t *testing.T) {
 // go looking for a graph.
 func TestReadinessMeasuresTheDatabaseNotTheRelease(t *testing.T) {
 	step := databaseReadyStep(Options{})
-	if !strings.Contains(step.Check, "app.kubernetes.io/name=vmsingle") {
-		t.Errorf("the check does not look at vmsingle:\n%s", step.Check)
+	if !strings.Contains(step.Check, "get deploy vmsingle-"+NamePrefix) {
+		t.Errorf("the check does not read the vmsingle deployment:\n%s", step.Check)
+	}
+	// The install job is where a chart that failed to render says why, and it
+	// is in kube-system rather than beside the pods that never appeared.
+	if !strings.Contains(step.Do, "helm-install-victoria-metrics") {
+		t.Errorf("a timeout does not report the install job:\n%s", step.Do)
 	}
 	if !strings.Contains(step.Do, "waiting $") {
 		t.Errorf("the wait says nothing while it waits:\n%s", step.Do)
 	}
 	if !strings.Contains(step.Do, "get pvc") {
 		t.Errorf("a timeout does not report the volume, the usual cause:\n%s", step.Do)
+	}
+}
+
+// Kubernetes allows 63 characters for a name and 63 bytes for a label value,
+// and this chart appends its own suffixes to whatever it is called: a Service
+// named "-kube-controller-manager", a StatefulSet label carrying a revision
+// hash. Left to the chart's default the prefix is the release name and the
+// chart name concatenated, which overruns both -- the install fails, RKE2
+// reinstalls on failure, and pods appear and disappear for as long as anybody
+// watches. That happened on a live cluster.
+//
+// The arithmetic rather than the symptom: a name that fits today and not after
+// the chart adds one more suffix is the same defect deferred.
+func TestGeneratedNamesFitKubernetesLimits(t *testing.T) {
+	if !strings.Contains(StackChart(spec(), Options{}), `fullnameOverride: "`+NamePrefix+`"`) {
+		t.Fatalf("the chart does not pin a name prefix:\n%s", StackChart(spec(), Options{}))
+	}
+
+	// The longest names this chart is known to build from the prefix. The
+	// StatefulSet one is the worst: a pod label is the set name plus a ten
+	// character revision hash.
+	suffixes := []string{
+		"-kube-controller-manager",
+		"-kube-proxy",
+		"-victoria-metrics-operator",
+		"-prometheus-node-exporter",
+	}
+	for _, suffix := range suffixes {
+		if n := len(NamePrefix + suffix); n > 63 {
+			t.Errorf("%q is %d characters, over the 63 a name may have", NamePrefix+suffix, n)
+		}
+	}
+	// vmalertmanager-<prefix>-<revision hash>, as a pod label value.
+	label := "vmalertmanager-" + NamePrefix + "-" + strings.Repeat("d", 10)
+	if len(label) > 63 {
+		t.Errorf("the alertmanager pod label %q is %d bytes, over 63", label, len(label))
+	}
+
+	// Room left for a suffix nobody has added yet. A prefix that exactly fits
+	// today is one chart release away from this bug returning.
+	if margin := 63 - len(NamePrefix) - len("-victoria-metrics-operator"); margin < 20 {
+		t.Errorf("only %d characters are left for a new suffix; the prefix %q is too long",
+			margin, NamePrefix)
 	}
 }

@@ -45,6 +45,15 @@ const (
 // Namespace is where the stack lives.
 const Namespace = "observability"
 
+// NamePrefix is what every generated object is named after.
+//
+// Short on purpose. Kubernetes allows 63 characters for a name and 63 bytes
+// for a label value, and this chart appends things like
+// "-kube-controller-manager" and a StatefulSet's revision hash to it. The
+// budget is what is left after the longest of those, and the chart's own
+// default spends it before it starts.
+const NamePrefix = "vm"
+
 // Defaults the document inherits when it says nothing.
 //
 // Short and small on purpose. Metrics land on whatever the default
@@ -159,6 +168,15 @@ spec:
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-
+    # Every name the chart generates starts with this.
+    #
+    # Without it the chart concatenates the release name and its own name --
+    # "victoria-metrics-victoria-metrics-k8s-stack" -- and the Service it
+    # creates for the controller-manager scrape target lands at 66 characters
+    # against Kubernetes' limit of 63. The install fails, RKE2's helm
+    # controller reinstalls on failure, and the result is pods appearing and
+    # disappearing for as long as anybody watches. Found on a live cluster.
+    fullnameOverride: ` + yamlString(NamePrefix) + `
     vmsingle:
       spec:
         retentionPeriod: ` + yamlString(Retention(spec)) + `
@@ -185,30 +203,35 @@ spec:
 // databaseReadyStep waits for the metrics database to answer.
 //
 // The observable is the database serving, not the Helm release existing: a
-// HelmChart that reports installed while vmsingle crash-loops on a volume it
-// cannot bind is exactly the state an operator would otherwise find weeks
-// later, the first time they went looking for a graph.
+// HelmChart that reports installed while vmsingle cannot bind its volume is
+// exactly the state an operator finds weeks later, the first time they go
+// looking for a graph.
+//
+// It reads the Deployment the operator creates rather than a label selector.
+// The name follows from the prefix this phase pins -- vmsingle-<prefix> -- so
+// it is a fact about the document, while a label is a guess about what the
+// operator writes.
 func databaseReadyStep(o Options) *engine.ShellStep {
 	const kubectl = `export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 export PATH=$PATH:/var/lib/rancher/rke2/bin
 `
-	ready := fmt.Sprintf(`kubectl -n %s get pods -l app.kubernetes.io/name=vmsingle `+
-		`-o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true`, Namespace)
+	deploy := "vmsingle-" + NamePrefix
+	ready := fmt.Sprintf(`kubectl -n %s get deploy %s `+
+		`-o jsonpath='{.status.readyReplicas}' 2>/dev/null || true`, Namespace, deploy)
 
 	return &engine.ShellStep{
 		Name: "metrics-ready",
 		Check: kubectl + fmt.Sprintf(`v=$(%s)
-case "$v" in
-  *True*) echo "the metrics database is serving" ;;
-  "") echo "no vmsingle pod exists yet"; exit 1 ;;
-  *) echo "vmsingle is present and not Ready: $v"; exit 1 ;;
-esac`, ready),
+case "${v:-0}" in
+  0) echo "%s has no ready replica"; exit 1 ;;
+  *) echo "the metrics database is serving (%s: $v ready)" ;;
+esac`, ready, deploy, deploy),
 		Do: kubectl + fmt.Sprintf(`set -e
 started=$(date +%%s)
 deadline=$(( started + %d ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
   v=$(%s)
-  case "$v" in *True*) echo "the metrics database is serving"; exit 0 ;; esac
+  case "${v:-0}" in 0) ;; *) echo "the metrics database is serving"; exit 0 ;; esac
   # Named so a wait can be told from a hang, which is the difference between
   # an operator leaving it alone and an operator killing it.
   pods=$(kubectl -n %s get pods --no-headers 2>/dev/null | awk '{print $1"="$3}' | tr '\n' ' ')
@@ -218,6 +241,8 @@ done
 echo "the metrics database did not become Ready within %ds. The namespace holds:"
 kubectl -n %s get pods 2>&1 | tail -20
 kubectl -n %s get pvc 2>&1 | tail -10
+# The install job is where a chart that never rendered says why.
+kubectl -n kube-system logs -l job-name=helm-install-victoria-metrics --tail=20 2>&1 | tail -20
 exit 1`, int(o.timeout().Seconds()), ready, Namespace,
 			int(o.timeout().Seconds()), Namespace, Namespace),
 		Satisfied: "%s",

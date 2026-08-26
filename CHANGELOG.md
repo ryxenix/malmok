@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.75.1] - 2026-08-27
+
+### Fixed
+- The metrics stack could not install. Helm names its objects after the
+  release and the chart together -- "victoria-metrics" plus
+  "victoria-metrics-k8s-stack" -- and the Service the chart creates for the
+  controller-manager scrape target came to 66 characters against Kubernetes'
+  limit of 63. The install failed, RKE2's helm controller reinstalls on
+  failure, and the cluster spent its time creating and deleting the same pods:
+
+      Service "victoria-metrics-victoria-metrics-k8s-stack-kube-controller-manager"
+      is invalid: metadata.name: must be no more than 63 characters
+
+  `fullnameOverride` now pins every generated name to a two-character prefix,
+  and a test does the arithmetic for the longest suffixes the chart is known
+  to append -- including a StatefulSet's revision hash, which lands in a pod
+  label where the limit is 63 bytes rather than characters. It also requires
+  headroom, because a prefix that exactly fits today is one chart release away
+  from this returning.
+
+  Found by installing it on a live cluster; no test would have caught it,
+  because the length only exists once Helm has both names.
+- The readiness step waited on a label selector this package guessed at. It
+  now reads the Deployment the operator creates, whose name follows from the
+  prefix the phase pins -- a fact about the document rather than a guess about
+  the operator. A timeout also prints the install job's log, which is where a
+  chart that never rendered says why.
+
 ## [0.75.0] - 2026-08-27
 
 ### Added

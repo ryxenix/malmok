@@ -331,6 +331,11 @@ gw:
   note.nodeips: "The nodes' own addresses answer on port 80 (and 443 where a certificate exists). No new address appears on the segment, which is what makes this the choice for a site that assigns none. A node that leaves takes its endpoint with it, so point the DNS record at more than one, or put something in front of them."
   note.nodeips_single: "This node's own address answers on port 80 (and 443 where a certificate exists). No new address appears on the segment, which is what makes this the choice for a site that assigns none -- and on a single node it is the only one, since there is nothing to spread traffic over and nothing to fail over to."
   note.pool: "An address is taken from the pool and announced on the segment. Only where the network assigned that range to this cluster: announcing an address somebody else holds is an outage for both."
+  http2: HTTP/2
+  http2.off: "off"
+  http2.on: "on"
+  http2.off.note: HTTP/1.1 only, which every client understands
+  http2.on.note: offers HTTP/2, falling back to 1.1; required by gRPC
 expose:
   none: nothing is exposed yet
   nodeips: the nodes' own addresses

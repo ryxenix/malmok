@@ -1775,3 +1775,26 @@ func TestALocalNodeCarriesNoLogin(t *testing.T) {
 		t.Error("a remote server lost its login")
 	}
 }
+
+// The gateway screen's HTTP/2 answer has to reach the document, and come back
+// out of one. A toggle that renders and writes nothing is the same defect as a
+// value written and never read.
+func TestTheGatewayScreenCarriesHTTP2BothWays(t *testing.T) {
+	c := Config{Server: "192.0.2.10", Exposure: "node-ips", Domain: "example.com", HTTP2: true}
+	s := c.ToSpec()
+	if s.Gateway.HTTP2 == nil || !*s.Gateway.HTTP2 {
+		t.Fatalf("HTTP/2 chosen on the screen does not reach the document: %+v", s.Gateway.HTTP2)
+	}
+
+	back := FromSpec(s)
+	if !back.HTTP2 {
+		t.Error("a document that asks for HTTP/2 opens the screen with it off")
+	}
+
+	// Unasked stays absent rather than an explicit false, so a document nobody
+	// thought about it in does not grow a line about it.
+	off := Config{Server: "192.0.2.10", Exposure: "node-ips", Domain: "example.com"}
+	if v := off.ToSpec().Gateway.HTTP2; v != nil {
+		t.Errorf("a document that never asked carries http2: %v", *v)
+	}
+}

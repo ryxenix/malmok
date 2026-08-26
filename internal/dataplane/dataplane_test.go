@@ -382,3 +382,41 @@ func TestCiliumWithoutAGatewayControllerSkipsGatewayWork(t *testing.T) {
 		}
 	}
 }
+
+// HTTP/2 on a TLS listener is Cilium's ALPN setting, and it is off unless the
+// document asks. Enabling it also enables backend protocol selection, which
+// changes how the gateway talks to any Service that already declares an
+// appProtocol -- a decision about somebody's running workload rather than a
+// performance knob to flip for them.
+func TestHTTP2IsWrittenAndObserved(t *testing.T) {
+	on := true
+	spec := ciliumSpec()
+	spec.Gateway.HTTP2 = &on
+
+	values := CiliumHelmConfig(spec)
+	if !strings.Contains(values, "enableAlpn: true") {
+		t.Errorf("the chart does not enable ALPN:\n%s", values)
+	}
+
+	// Writing the value is half of it. The step that decides whether cilium
+	// already carries this configuration has to read the key too, or turning
+	// HTTP/2 on in the document is satisfied by a cluster that does not have
+	// it -- the same shape as a check that measures something other than what
+	// it claims.
+	step := ciliumAppliedStep(spec, Options{})
+	if !strings.Contains(step.Check, "enable-gateway-api-alpn") {
+		t.Errorf("the check does not read the alpn key:\n%s", step.Check)
+	}
+	if !strings.Contains(step.Check, `agrees "$al" true`) {
+		t.Errorf("the check does not compare alpn against the document:\n%s", step.Check)
+	}
+
+	// And off by default.
+	plain := CiliumHelmConfig(ciliumSpec())
+	if strings.Contains(plain, "enableAlpn") {
+		t.Errorf("ALPN is enabled without being asked for:\n%s", plain)
+	}
+	if !strings.Contains(ciliumAppliedStep(ciliumSpec(), Options{}).Check, `agrees "$al" false`) {
+		t.Error("a document that never mentions HTTP/2 does not require it to be off")
+	}
+}

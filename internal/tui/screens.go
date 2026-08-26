@@ -412,6 +412,17 @@ func (w *Wizard) gatewayScreen(width int) (string, string, string) {
 	w.radio(&b, labelsOf(exposures), notesOf(w.cat, exposures),
 		indexOf(exposures, w.cfg.Exposure), cur, width)
 
+	// Two rows rather than a toggle, for the same reason the registry's TLS
+	// choice has two: the answer that was not taken should be visible beside
+	// the one that was.
+	if w.gatewayExtraRows() > 0 {
+		b.WriteString("\n" + w.theme.Section(w.cat.T("gw.http2"), width, w.glyphs) + "\n")
+		w.radio(&b,
+			[]string{w.cat.T("gw.http2.off"), w.cat.T("gw.http2.on")},
+			[]string{w.cat.T("gw.http2.off.note"), w.cat.T("gw.http2.on.note")},
+			boolIndex(!w.cfg.HTTP2), cur-len(exposures), width)
+	}
+
 	if fs := w.fieldsFor(StepGateway); len(fs) > 0 {
 		b.WriteString("\n")
 		w.fields(&b, w.labels(StepGateway), w.maskedValues(StepGateway),

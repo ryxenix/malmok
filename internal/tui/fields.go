@@ -421,6 +421,18 @@ func (w *Wizard) localAddressCount() int {
 // Whether to accept a certificate the registry cannot prove is a decision, not
 // a field, and it only arises for a registry this document points at: the
 // embedded mirror and a plain upstream pull have no such question.
+// gatewayExtraRows is how many choice rows sit below the exposure choice.
+//
+// Only when something is exposed. HTTP/2 is a property of a TLS listener, and
+// a gateway that serves nothing has none -- asking there is a question with no
+// consequence, which is how a wizard teaches people to stop reading it.
+func (w *Wizard) gatewayExtraRows() int {
+	if w.cfg.Exposure == "" || w.cfg.Exposure == "none" {
+		return 0
+	}
+	return 2
+}
+
 func (w *Wizard) registryExtraRows() int {
 	if w.registryHasAddress() {
 		return 2

@@ -172,6 +172,16 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 			gw = s.Gateway.Gateways[0]
 			gw.Name = name
 		}
+		// Cluster-wide rather than per gateway: Cilium's ALPN setting is a
+		// chart value, so it is written where it takes effect. Only when true
+		// -- an explicit false in every document that never thought about it
+		// would be noise.
+		if c.HTTP2 {
+			on := true
+			s.Gateway.HTTP2 = &on
+		} else {
+			s.Gateway.HTTP2 = nil
+		}
 		if c.Exposure == "node-ips" {
 			gw.Exposure, gw.Address = v1alpha1.ExposureNodeIPs, ""
 		} else {
@@ -283,6 +293,7 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		DowngradePolicy: string(s.Kubernetes.Dataplane.DowngradePolicy),
 		LBPool:          s.Kubernetes.Dataplane.LoadBalancerPool,
 		Exposure:        exposureOf(s),
+		HTTP2:           s.Gateway.HTTP2 != nil && *s.Gateway.HTTP2,
 		GatewayName:     gatewayNameOf(s),
 		GatewayAddress:  gatewayAddressOf(s),
 

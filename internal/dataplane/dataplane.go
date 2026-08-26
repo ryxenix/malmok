@@ -385,11 +385,13 @@ func ciliumAppliedStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
 	}
 	gw := want(WantsGatewayAPI(spec))
 	hostnet := want(NodeIPGateways(spec))
+	alpn := want(WantsHTTP2(spec))
 
 	// The three keys in one read, separated so an absent key stays visible as
 	// an empty field rather than collapsing into its neighbour.
 	read := `kubectl -n kube-system get cm cilium-config ` +
-		`-o jsonpath='{.data.kube-proxy-replacement}|{.data.enable-gateway-api}|{.data.gateway-api-hostnetwork-enabled}' 2>/dev/null || true`
+		`-o jsonpath='{.data.kube-proxy-replacement}|{.data.enable-gateway-api}` +
+		`|{.data.gateway-api-hostnetwork-enabled}|{.data.enable-gateway-api-alpn}' 2>/dev/null || true`
 
 	// A key Cilium never wrote and a key it wrote as false mean the same
 	// thing to a document that asked for neither.
@@ -398,18 +400,20 @@ func ciliumAppliedStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
 }
 carries() {
   v="$(` + read + `)"
-  kp=${v%%|*}; rest=${v#*|}; ga=${rest%%|*}; hn=${rest##*|}
-  agrees "$kp" true && agrees "$ga" ` + gw + ` && agrees "$hn" ` + hostnet + `
+  kp=${v%%|*}; r1=${v#*|}
+  ga=${r1%%|*}; r2=${r1#*|}
+  hn=${r2%%|*}; al=${r2##*|}
+  agrees "$kp" true && agrees "$ga" ` + gw + ` && agrees "$hn" ` + hostnet + ` && agrees "$al" ` + alpn + `
 }
 `
 
 	return &engine.ShellStep{
 		Name: "cilium-applied",
 		Check: kubectl + agrees + fmt.Sprintf(`carries || {
-  echo "cilium-config carries '$v', the document implies kube-proxy-replacement=true enable-gateway-api=%s hostnetwork=%s"; exit 1; }
+  echo "cilium-config carries '$v', the document implies kube-proxy-replacement=true enable-gateway-api=%s hostnetwork=%s alpn=%s"; exit 1; }
 kubectl -n kube-system rollout status ds/cilium --timeout=10s >/dev/null 2>&1 || {
   echo "cilium is reconfigured and its pods have not finished rolling"; exit 1; }
-echo "cilium-config carries the configuration this document implies"`, gw, hostnet),
+echo "cilium-config carries the configuration this document implies"`, gw, hostnet, alpn),
 
 		Do: kubectl + agrees + fmt.Sprintf(`deadline=$(( $(date +%%s) + %d ))
 started=$(date +%%s)
@@ -423,9 +427,9 @@ while [ "$(date +%%s)" -lt "$deadline" ]; do
   echo "waiting $(( $(date +%%s) - started ))s: cilium-config '$v', agents ${ready:-unknown}"
   sleep 10
 done
-echo "cilium did not take the new configuration within %ds; cilium-config carries '$v' and the document implies enable-gateway-api=%s hostnetwork=%s. The install job reports:"
+echo "cilium did not take the new configuration within %ds; cilium-config carries '$v' and the document implies enable-gateway-api=%s hostnetwork=%s alpn=%s. The install job reports:"
 kubectl -n kube-system logs -l job-name=helm-install-rke2-cilium --tail=40 2>&1 | tail -40
-exit 1`, int(o.timeout().Seconds()), int(o.timeout().Seconds()), gw, hostnet),
+exit 1`, int(o.timeout().Seconds()), int(o.timeout().Seconds()), gw, hostnet, alpn),
 
 		Satisfied: "%s",
 		Missing:   "%s",
@@ -513,6 +517,15 @@ exit 1`, exists, restartOperator, int(o.timeout().Seconds()), read, operatorRunn
 // runs a load balancer on every node that forwards to whichever server is up,
 // so this bakes in no peer -- and it avoids the circle the VIP would create,
 // where Cilium needs the API to start and kube-vip needs Cilium to route to it.
+// WantsHTTP2 reports whether the TLS listeners should offer HTTP/2.
+//
+// Cilium calls it ALPN. Off unless the document asks: enabling it also enables
+// Backend Protocol selection, which changes how the gateway speaks to any
+// Service that already carries an appProtocol.
+func WantsHTTP2(spec v1alpha1.ClusterSpec) bool {
+	return WantsGatewayAPI(spec) && spec.Gateway.HTTP2 != nil && *spec.Gateway.HTTP2
+}
+
 func CiliumHelmConfig(spec v1alpha1.ClusterSpec) string {
 	var b strings.Builder
 	b.WriteString(managedFileHeader + "\n")
@@ -540,6 +553,9 @@ spec:
 		// the API without it produces Gateways that are accepted and never
 		// serve anything.
 		b.WriteString("    gatewayAPI:\n      enabled: true\n")
+		if WantsHTTP2(spec) {
+			b.WriteString("      enableAlpn: true\n")
+		}
 		if NodeIPGateways(spec) {
 			// Envoy binds the listener ports in the node's own network
 			// namespace, which is what makes <node>:<port> the endpoint with no

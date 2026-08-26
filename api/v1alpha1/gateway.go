@@ -35,6 +35,20 @@ type GatewaySpec struct {
 
 	Gateways []Gateway `yaml:"gateways" json:"gateways"`
 
+	// HTTP2 offers HTTP/2 on the TLS listeners.
+	//
+	// Off by default, which is Cilium's default and not an oversight of this
+	// tool: turning ALPN on also turns on Backend Protocol selection
+	// (GEP-1911), so a Service that already carries an appProtocol changes how
+	// the gateway talks to it. That is a decision about somebody's running
+	// workload, not a performance knob to flip on their behalf.
+	//
+	// It is negotiation, not a switch: the listener offers h2 and http/1.1,
+	// and a client that speaks only 1.1 gets 1.1. Nothing that works today
+	// stops working. gRPC needs it -- a GRPCRoute on a TLS listener has no
+	// way to work without h2.
+	HTTP2 *bool `yaml:"http2,omitempty" json:"http2,omitempty"`
+
 	DNS DNSSpec `yaml:"dns,omitempty" json:"dns,omitempty"`
 
 	// ContractConfigMap: name of the ConfigMap the engine writes so that

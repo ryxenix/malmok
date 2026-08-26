@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.74.0] - 2026-08-27
+
+### Added
+- `gateway.http2` offers HTTP/2 on the TLS listeners, with a two-row choice on
+  the gateway screen. Cilium calls the setting ALPN and ships it off, which is
+  why a certificate issued through this tool served HTTP/1.1: the listener
+  advertised no protocols, so a browser asking for h2 got no answer and fell
+  back.
+
+  It stays off by default here too, and not out of deference. Enabling ALPN
+  also enables Backend Protocol selection (GEP-1911), so a Service that
+  already declares an `appProtocol` changes how the gateway speaks to it --
+  a decision about somebody's running workload, not a performance knob to
+  flip on their behalf. Downstream it is pure negotiation: a client that
+  speaks only HTTP/1.1 is served HTTP/1.1, and nothing that works stops
+  working. gRPC needs it; a GRPCRoute on a TLS listener cannot work without
+  h2.
+
+  The `cilium-applied` check reads `enable-gateway-api-alpn` alongside the
+  keys it already compared. Writing a chart value the check does not read
+  would let a cluster without HTTP/2 satisfy a document that asks for it --
+  the same shape as a probe that measures something other than what it
+  reports.
+
 ## [0.73.2] - 2026-08-26
 
 ### Changed

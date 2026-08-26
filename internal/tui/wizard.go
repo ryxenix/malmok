@@ -244,6 +244,11 @@ type Config struct {
 	// so the address has to be decided rather than allocated.
 	GatewayAddress string
 
+	// HTTP2 offers HTTP/2 on the TLS listeners. Off by default: turning it on
+	// also turns on backend protocol selection, which changes how the gateway
+	// speaks to a Service that already declares an appProtocol.
+	HTTP2 bool
+
 	// SourceRefs, not values. cluster.yaml is handed over at the end of the
 	// engagement, so what is collected here is where to find a secret rather
 	// than the secret itself.
@@ -918,8 +923,11 @@ func (w *Wizard) selectUnderCursor() (tea.Model, tea.Cmd) {
 			w.cfg.DocPath = w.openFiles[i].Path
 		}
 	case StepGateway:
-		if cur < len(exposures) {
+		switch {
+		case cur < len(exposures):
 			w.cfg.Exposure = exposures[cur].id
+		case cur < len(exposures)+w.gatewayExtraRows():
+			w.cfg.HTTP2 = cur == len(exposures)+1
 		}
 
 	case StepRegistry:
@@ -1306,7 +1314,7 @@ func (w *Wizard) contentLen() int {
 		return len(w.versionChoices()) + len(osFamilies) +
 			w.localAddressCount() + len(w.fieldsFor(StepNodes))
 	case StepGateway:
-		return len(exposures) + len(w.fieldsFor(StepGateway))
+		return len(exposures) + w.gatewayExtraRows() + len(w.fieldsFor(StepGateway))
 	case StepRegistry:
 		return len(registryModes) + w.registryExtraRows() + len(w.fieldsFor(StepRegistry))
 	case StepPKI:
@@ -1392,7 +1400,7 @@ func (w *Wizard) fieldIndex() int {
 	case StepNodes:
 		i -= len(w.versionChoices()) + len(osFamilies)
 	case StepGateway:
-		i -= len(exposures)
+		i -= len(exposures) + w.gatewayExtraRows()
 	case StepNetwork:
 		i -= len(networkModes) + 2 + len(routingModes)
 	case StepOptions:

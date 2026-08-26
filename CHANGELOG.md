@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.72.1] - 2026-08-26
+
+### Fixed
+- PF-708 blocked `acme-http01` on a gateway with `exposure: node-ips`,
+  demanding a pinned address. Such a gateway is never given one -- Envoy binds
+  the port in the node's own network namespace, so its addresses are the ones
+  the nodes already hold, which is precisely the condition the check exists to
+  establish. The only value that would have satisfied it, the node's public
+  address, would have landed in the Gateway's `spec.addresses`, which is not
+  how a host-networked gateway works. Found on a live single-node install
+  whose challenge would have been delivered correctly.
+
+  A gateway that takes an allocated address still has to name one: a DNS
+  record cannot be made for an address LB-IPAM has not handed out yet.
+
 ## [0.72.0] - 2026-08-26
 
 ### Fixed

@@ -451,3 +451,30 @@ func TestCheckACME(t *testing.T) {
 		})
 	}
 }
+
+// A node-ips gateway has no address to pin. Envoy binds the port in the
+// node's own network namespace, so the addresses are the nodes' own and were
+// settled before anyone wrote the document -- which is exactly what the check
+// wants to be true. It blocked a live install anyway, on a cluster whose
+// HTTP-01 challenge would have been delivered correctly.
+func TestHTTP01AcceptsANodeIPsGateway(t *testing.T) {
+	spec := acmeSpec(v1alpha1.PKIACMEHTTP01)
+	spec.Gateway.Gateways = []v1alpha1.Gateway{
+		{Name: "public", Exposure: v1alpha1.ExposureNodeIPs},
+	}
+	var p *Prober
+	if got := p.CheckACME(t.Context(), spec, true); got.Failed() {
+		t.Errorf("a node-ips gateway is blocked: %s %s", got.Code, got.Detail)
+	}
+
+	// A gateway that does take an allocated address still has to name it: a
+	// DNS record cannot be created for an address LB-IPAM has not handed out
+	// yet.
+	spec.Gateway.Gateways = []v1alpha1.Gateway{
+		{Name: "public", Exposure: v1alpha1.ExposureLoadBalancer},
+	}
+	got := p.CheckACME(t.Context(), spec, true)
+	if !got.Failed() || got.Code != "ACME_HTTP01_UNPINNED" {
+		t.Errorf("an unpinned loadBalancer gateway is allowed through: %s %s", got.Code, got.Detail)
+	}
+}

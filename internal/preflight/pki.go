@@ -311,10 +311,25 @@ func (p *Prober) CheckACME(ctx context.Context, spec v1alpha1.ClusterSpec, token
 	}
 
 	// HTTP-01 needs the challenge to arrive from the internet, which means a
-	// gateway with a pinned address and a DNS record already pointing at it.
+	// gateway whose address is known before the install rather than allocated
+	// during it -- the DNS record has to exist for the challenge to be
+	// delivered at all.
+	//
+	// A node-ips gateway already satisfies that. It is not given an address:
+	// Envoy binds the port in the node's own network namespace, so the
+	// addresses are the ones the nodes already hold, and they were decided
+	// long before this document was written. Demanding a pin there asked the
+	// operator to write down an address the gateway does not use, and the one
+	// value that would look right -- the node's public address -- lands in the
+	// Gateway's spec.addresses, which is not how a host-networked gateway
+	// works. Found on a live single-node install where the check blocked an
+	// issue that would otherwise have succeeded.
 	if mode == v1alpha1.PKIACMEHTTP01 {
 		var unpinned []string
 		for _, gw := range spec.Gateway.Gateways {
+			if gw.Exposure == v1alpha1.ExposureNodeIPs {
+				continue
+			}
 			if gw.Address == "" {
 				unpinned = append(unpinned, gw.Name)
 			}

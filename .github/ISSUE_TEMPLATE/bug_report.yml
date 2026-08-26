@@ -1,0 +1,47 @@
+name: Bug report
+description: Something the tool did that it should not have
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Not for vulnerabilities.** See [SECURITY.md](../blob/main/SECURITY.md).
+
+        Every run writes an event stream to `out/runs/<id>/events.jsonl`. That
+        file usually answers this issue faster than any description does --
+        please attach it, after removing anything sensitive.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`malmok --version`"
+      placeholder: v0.66.0
+    validations: { required: true }
+  - type: input
+    id: code
+    attributes:
+      label: Diagnostic code
+      description: "The code it failed with, if there was one -- PF-601, EX-101, ..."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you asked for, what you expected, what you got.
+    validations: { required: true }
+  - type: textarea
+    id: document
+    attributes:
+      label: cluster.yaml
+      description: The relevant part, with secrets removed.
+      render: yaml
+  - type: textarea
+    id: events
+    attributes:
+      label: Events
+      description: "The tail of `out/runs/<id>/events.jsonl`, or the whole file as an attachment."
+      render: shell
+  - type: textarea
+    id: nodes
+    attributes:
+      label: Nodes
+      description: OS and version, how many, physical or virtual, anything unusual about the network.

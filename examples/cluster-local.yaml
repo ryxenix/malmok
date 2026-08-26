@@ -22,20 +22,20 @@ network:
 topology:
   # A VIP, not the node's own address: adding a second server later would
   # otherwise mean re-joining every node (ADR-008).
-  registrationAddress: 192.168.88.210
+  registrationAddress: 192.0.2.10
   vip:
     provider: kube-vip
-    address: 192.168.88.210
+    address: 192.0.2.10
     mode: arp
   servers:
-    - host: 192.168.88.241
+    - host: 192.0.2.41
 
 kubernetes:
   version: v1.35.7+rke2r1
   dataplane:
     preset: cilium-gw
     loadBalancerPool:
-      - 192.168.88.216/29
+      - 192.0.2.16/29
 
 pki:
   # Decide the service domain later. Gateways come up on HTTP and certificates

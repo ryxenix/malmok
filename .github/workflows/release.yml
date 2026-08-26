@@ -1,0 +1,57 @@
+# Cut a release from a tag.
+#
+# Malmok is one static binary by design -- the whole point is that a customer's
+# node needs nothing installed on it. That property is worth nothing if the
+# only way to get the binary is to have a Go toolchain, so a tag produces
+# ready-to-run builds for the machines operators actually drive clusters from.
+#
+#   git tag v0.66.0 && git push origin v0.66.0
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # A release that does not pass its own tests is not a release.
+      - name: test
+        run: go test ./...
+
+      - name: build
+        run: ./scripts/release.sh "${GITHUB_REF_NAME}"
+
+      # The notes come from CHANGELOG.md rather than generated commit titles:
+      # the changelog says why something changed, which is the part an operator
+      # deciding whether to upgrade actually needs.
+      - name: notes
+        run: |
+          awk -v tag="${GITHUB_REF_NAME#v}" '
+            $0 ~ "^## \\[" tag "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > dist/notes.md
+          if [ ! -s dist/notes.md ]; then
+            echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file dist/notes.md \
+            dist/malmok_* dist/SHA256SUMS

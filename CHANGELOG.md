@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.67.0] - 2026-08-26
+
+### Added
+- `scripts/release.sh` and `.github/workflows/release.yml`. Pushing a `v*` tag
+  now produces static binaries for linux and darwin on amd64 and arm64, with
+  `SHA256SUMS`, and release notes taken from the matching CHANGELOG section
+  rather than generated commit titles -- an operator deciding whether to
+  upgrade needs the why, not the list. The script runs identically on a
+  workstation, so a maintainer can inspect a release before tagging and a
+  user who distrusts the published binary can rebuild and compare hashes.
+  It refuses to build when the tag and the newest CHANGELOG entry disagree;
+  a binary that reports a version it was not released under costs an hour
+  during an incident.
+- `SECURITY.md`. This tool holds SSH credentials, writes kubeconfigs and
+  installs software as root, so it needs a private reporting path and an
+  explicit scope. `--insecure-host-key` accepting any host key is named as
+  out of scope, because that is what the flag exists to do.
+- `CONTRIBUTING.md`, recording the rules that are decisions rather than
+  preferences, and the one lesson this project keeps relearning: observe the
+  thing itself. Nearly every defect found so far inferred a state instead of
+  measuring it.
+- `README.ko.md`, and issue templates that ask for `events.jsonl` -- the event
+  stream answers a bug report faster than prose does.
+
+### Changed
+- `README.md` is now English, with the Korean text moved to `README.ko.md` and
+  the two cross-linked. English is what a public Go repository is read in;
+  the design documents stay Korean.
+- `scripts/matrix.sh` no longer defaults to the author's lab addresses. The
+  script wipes both machines before every case, so a default address is a
+  loaded gun pointed at whatever happens to sit at that address on a
+  contributor's network. It now refuses to run until both are named.
+- `examples/cluster-local.yaml` uses the documentation range (RFC 5737)
+  instead of real lab addresses, since examples get copied.
+- `examples/cluster-dmz.yaml` no longer references `sops://`. The document
+  passed validation but could never run: `sops://` is recognised and rejected
+  at resolution time because it is not implemented.
+
+### Fixed
+- The issue template quoted `EX-204`, a code that does not exist. The
+  registry's own `TestNoDanglingReferences` caught it -- the test scans the
+  whole repository, including files added in this change.
+
 ## [0.66.0] - 2026-08-26
 
 ### Added

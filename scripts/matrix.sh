@@ -1,18 +1,21 @@
 #!/bin/bash
 # Run the verification matrix against the lab nodes.
 #
-# It wipes both machines before every case, so it is pointed at the throwaway
-# segment and nothing else. NODE_PASSWORD must be set; the addresses default
-# to the lab pair and can be overridden.
+# It WIPES BOTH MACHINES before every case. There are no default addresses on
+# purpose: a default here is a loaded gun pointed at whatever happens to live
+# at that address on somebody else's network. Name the nodes explicitly, and
+# name only nodes you are willing to lose.
 #
+#   export MALMOK_LAB_SERVER=192.0.2.41 MALMOK_LAB_AGENT=192.0.2.44
 #   NODE_PASSWORD=... scripts/matrix.sh                 # every case
 #   NODE_PASSWORD=... scripts/matrix.sh -run idc-single # one case
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 : "${NODE_PASSWORD:?set NODE_PASSWORD to the password for the lab account}"
-export MALMOK_LAB_SERVER="${MALMOK_LAB_SERVER:-192.168.88.241}"
-export MALMOK_LAB_AGENT="${MALMOK_LAB_AGENT:-192.168.88.244}"
+: "${MALMOK_LAB_SERVER:?set MALMOK_LAB_SERVER -- this machine gets wiped}"
+: "${MALMOK_LAB_AGENT:?set MALMOK_LAB_AGENT -- this machine gets wiped}"
+export MALMOK_LAB_SERVER MALMOK_LAB_AGENT
 
 # The binary the operator runs, not a fresh build of maybe-different code.
 [ -x bin/malmok ] || { echo "no bin/malmok -- run scripts/build.sh first" >&2; exit 1; }

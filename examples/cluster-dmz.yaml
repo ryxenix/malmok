@@ -86,7 +86,9 @@ registry:
   mode: external
   systemDefaultRegistry: harbor.acme.internal
   username: env://REGISTRY_USER
-  password: sops://secrets.enc.yaml#registry.password
+  # sops:// 는 아직 구현되지 않았다 (문서 검증은 통과하지만 실행 시 거부된다).
+  # sops 로 관리한다면 배포 직전에 복호화해 파일로 떨어뜨리고 file:// 로 가리킨다.
+  password: env://REGISTRY_PASSWORD
   caCert: file://./pki/acme-root.crt
 
 storage:

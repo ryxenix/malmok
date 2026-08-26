@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.73.1] - 2026-08-26
+
+### Fixed
+- PF-612 warned that a `node-ips` gateway had no pinned address. Nothing
+  allocates one: the gateway answers on the addresses the nodes already hold,
+  so the DNS record can be written the day the machines are racked, which is
+  exactly the condition the warning asks about. Same false premise as PF-708
+  in the previous release, in the plan rather than in preflight -- and a
+  warning that fires on the configuration where it is least likely to be right
+  teaches operators to ignore it.
+
 ## [0.73.0] - 2026-08-26
 
 ### Changed

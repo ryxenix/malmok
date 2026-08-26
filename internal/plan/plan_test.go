@@ -363,3 +363,37 @@ func equal(a, b []string) bool {
 	}
 	return true
 }
+
+// PF-612 asks for an address that can be put in a DNS record before the
+// install. A node-ips gateway answers on the nodes' own addresses, so that is
+// already true and there is nothing to pin -- the same false premise that made
+// PF-708 block a working install.
+func TestPF612SkipsANodeIPsGateway(t *testing.T) {
+	spec := v1alpha1.ClusterSpec{}
+	spec.Gateway.Gateways = []v1alpha1.Gateway{
+		{Name: "public", Exposure: v1alpha1.ExposureNodeIPs},
+	}
+	p := &Plan{}
+	p.checkGatewayAddresses(spec)
+	for _, w := range p.Warnings {
+		if w.Code == "PF-612" {
+			t.Errorf("a node-ips gateway is warned about: %s", w.Detail)
+		}
+	}
+
+	// A gateway that takes an allocated address still has to name one.
+	spec.Gateway.Gateways = []v1alpha1.Gateway{
+		{Name: "public", Exposure: v1alpha1.ExposureLoadBalancer},
+	}
+	p = &Plan{}
+	p.checkGatewayAddresses(spec)
+	found := false
+	for _, w := range p.Warnings {
+		if w.Code == "PF-612" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("an unpinned loadBalancer gateway is not warned about")
+	}
+}

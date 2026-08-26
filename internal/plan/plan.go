@@ -336,9 +336,18 @@ func (p *Plan) decideStorage(spec v1alpha1.ClusterSpec, caps []preflight.NodeCap
 // The DNS record has to be requested before install starts, so the address has
 // to be decided up front; letting LB-IPAM pick one is fine in a homelab and
 // unacceptable where somebody else runs the DNS (PF-612).
+//
+// A node-ips gateway is not in that position. Nothing allocates it an address:
+// Envoy binds the port in the node's own network namespace, so the addresses
+// are the ones the nodes already have and the record can be written the day
+// the machines are racked. Warning there taught operators to ignore PF-612 on
+// the configuration where it is least likely to be wrong.
 func (p *Plan) checkGatewayAddresses(spec v1alpha1.ClusterSpec) {
 	var unpinned []string
 	for _, gw := range spec.Gateway.Gateways {
+		if gw.Exposure == v1alpha1.ExposureNodeIPs {
+			continue
+		}
 		if gw.Address == "" {
 			unpinned = append(unpinned, gw.Name)
 		}

@@ -162,7 +162,8 @@ cluster. So the untested rows are in the same table as the tested ones.
 | RKE2 upgrade | **verified on hardware** | verification matrix |
 | Cilium dataplane + Gateway API | **verified on hardware** | reachable from a public address |
 | private-CA listener certificates | **verified on hardware** | lab harness |
-| ACME (Let's Encrypt) certificates | not verified | needs public DNS and an account |
+| ACME HTTP-01 certificates | **verified on hardware** | Let's Encrypt issued on the production cluster; TLS 1.3, chain and hostname checked |
+| ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
 | Three-server HA (etcd quorum) | **not verified** | no hardware yet |
 | Airgap / proxy | **not verified** | schema only |
 | External registry mirror | **not verified** | schema only |

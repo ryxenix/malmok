@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.73.2] - 2026-08-26
+
+### Changed
+- The README's coverage table said ACME certificates were unverified. HTTP-01
+  now has evidence: a Let's Encrypt certificate issued on a production cluster
+  through the gateway this tool built, with TLS 1.3, the chain and the
+  hostname checked from another machine. DNS-01 stays unverified -- the
+  route53 credential path was written the same day and has never been run end
+  to end, and a table that treats "implemented" as "verified" is the thing
+  this table exists to prevent.
+
 ## [0.73.1] - 2026-08-26
 
 ### Fixed

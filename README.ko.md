@@ -185,21 +185,6 @@ kubernetes:
 | 전 노드 동시 재시작 | 1대씩, Ready 확인 후 진행 |
 | `cluster.yaml`에 평문 시크릿 저장 | `SourceRef` 간접 참조만 받습니다 |
 
-## 문서
-
-| 문서 | 내용 |
-|---|---|
-| [`docs/00-architecture.md`](docs/00-architecture.md) | ADR 13건, 레이어 분해, 로드맵 |
-| [`docs/10-preflight-plan.md`](docs/10-preflight-plan.md) | 프로브 카탈로그, 강등 결정 트리 |
-| [`docs/11-execute.md`](docs/11-execute.md) | phase 계약, 멱등성, 재개, 이벤트 스키마 |
-| [`docs/20-cert.md`](docs/20-cert.md) | 인증서 조립·검증·갱신 |
-| [`docs/30-maintenance.md`](docs/30-maintenance.md) | 정기 점검, 보고서 |
-| [`docs/40-verification-matrix.md`](docs/40-verification-matrix.md) | 검증 매트릭스 |
-| [`docs/99-codes.md`](docs/99-codes.md) | 진단 코드 레지스트리 (생성물) |
-
-문서는 한국어로 작성돼 있습니다. 로그·이벤트·에러 코드는 영어 고정입니다
-— 한글 로그는 grep과 이슈 검색을 깨뜨리기 때문입니다.
-
 ## 진단 코드
 
 실패는 전부 코드를 답니다. `PF-105`(swap 활성), `PF-601`(포트 도달 불가),

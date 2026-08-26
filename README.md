@@ -184,21 +184,6 @@ offline test fails. See
 | Restart all nodes at once | one at a time, each back to Ready first |
 | Store plaintext secrets in `cluster.yaml` | references only (`file://`, `env://`) |
 
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [`docs/00-architecture.md`](docs/00-architecture.md) | 13 ADRs, layering, roadmap |
-| [`docs/10-preflight-plan.md`](docs/10-preflight-plan.md) | probe catalogue, downgrade decision tree |
-| [`docs/11-execute.md`](docs/11-execute.md) | phase contract, idempotency, resume, event schema |
-| [`docs/20-cert.md`](docs/20-cert.md) | certificate assembly, verification, renewal |
-| [`docs/30-maintenance.md`](docs/30-maintenance.md) | periodic checks, reports |
-| [`docs/40-verification-matrix.md`](docs/40-verification-matrix.md) | the verification matrix |
-| [`docs/99-codes.md`](docs/99-codes.md) | diagnostic code registry (generated) |
-
-The design documents are written in Korean. Logs, events and diagnostic codes
-are English and stay English -- Korean log lines break grep and issue search.
-
 ## Diagnostic codes
 
 Every failure carries a code: `PF-105` (swap is on), `PF-601` (a port is not

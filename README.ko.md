@@ -1,14 +1,52 @@
 # Malmok (말목)
 
-RKE2 클러스터를 **구축하고, 확장하고, 업그레이드하는** 단일 정적 바이너리.
-TUI 마법사와 CLI를 같은 엔진 위에 얹었고, 런타임 의존성은 없습니다.
+[![ci](https://github.com/ryxen/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxen/malmok/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/ryxen/malmok?sort=semver)](https://github.com/ryxen/malmok/releases)
+[![go](https://img.shields.io/github/go-mod/go-version/ryxen/malmok)](go.mod)
+[![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+
+**RKE2 클러스터를 구축·확장·업그레이드하는 단일 정적 바이너리.** TUI 마법사와
+CLI가 같은 엔진 위에 있고, 노드에는 아무것도 설치하지 않습니다.
 
 *[English README](README.md)*
 
+```
+ Malmok  클러스터 설치 ▸ 완료                                                         11/11
+────────────────────────────────────────────────────────────────────────────────────────────
+                   │
+ 1 ✓ 설치 위치     │ 완료
+ 2 ✓ 노드          │
+ 3 ✓ 네트워크      │ ✓ 설치가 끝났습니다
+ 4 ✓ 옵션          │
+ 5 ✓ 레지스트리    │ ▎ 구축 결과 ─────────────────────────────────────────────────────────
+ 6 ✓ 인증서        │   프로파일        custom
+ 7 ✓ 게이트웨이    │   노드            1 (192.0.2.10)
+ 8 ✓ 사전 검사     │   dataplane       cilium-gw
+ 9 ✓ 요약          │   스토리지        local-path
+ 10✓ 설치          │   인증서          발급 안 함, 인증서는 나중에
+ ▌11 완료          │   레지스트리      embedded
+                   │   노출 방식       아직 노출하지 않음
+                   │   소요 시간       3m28s
+                   │
+                   │ ▎ 산출물 위치 ───────────────────────────────────────────────────────
+                   │   실행 디렉터리   out/runs/01M0YE88WPJRQ501888CG9R8JS
+                   │   cluster.yaml    out/runs/01M0YE88WPJRQ501888CG9R8JS/cluster.yaml
+                   │   events.jsonl    out/runs/01M0YE88WPJRQ501888CG9R8JS/events.jsonl
+                   │   state.json      out/runs/01M0YE88WPJRQ501888CG9R8JS/state.json
+                   │
+                   │ 이 실행에 다시 붙으려면
+                   │   malmok attach --run 01M0YE88WPJRQ501888CG9R8JS
+────────────────────────────────────────────────────────────────────────────────────────────
+ [  종료  ]                                                                  [  메뉴로  ]
+```
+
+<sub>`malmok apply --tui --lang ko`. 같은 실행을 화면 없이 하려면
+`malmok apply -f cluster.yaml`, 노드 없이 흉내만 내려면 `malmok apply --demo`.</sub>
+
 > **상태: 알파.** 단일 노드와 2노드 구성은 실제 장비에서 반복 검증했고
 > IDC 프로덕션 서버 구축에 사용했습니다. **3서버 HA·에어갭·외부
-> 레지스트리는 아직 미검증입니다.** 아래 [검증 범위](#검증-범위)를
-> 읽고 판단하십시오.
+> 레지스트리는 아직 미검증입니다.** 아래 [검증 범위](#검증-범위)를 먼저
+> 읽으십시오.
 
 ```
 malmok apply --tui     # TUI 마법사 (구축·확장·재개·업그레이드)

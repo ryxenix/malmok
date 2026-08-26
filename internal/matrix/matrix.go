@@ -372,10 +372,16 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 
 // Lab addresses. They belong to the throwaway segment the harness is pointed
 // at, and they are constants here so a case reads without a lookup.
+//
+// The documentation ranges (RFC 5737, RFC 2606) rather than somebody's real
+// network: these are defaults in a public repository, and a default that names
+// a real address is a default aimed at whatever answers there. The harness
+// takes the node addresses from the environment; only the values a case needs
+// to be internally consistent are fixed here.
 const (
-	vipAddress = "192.168.88.210"
-	lbPool     = "192.168.88.216/29"
-	lbAddress  = "192.168.88.216"
+	vipAddress = "192.0.2.10"
+	lbPool     = "192.0.2.16/29"
+	lbAddress  = "192.0.2.16"
 	domain     = "lab.example.com"
 )
 

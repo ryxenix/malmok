@@ -170,7 +170,7 @@ platform:
     enabled: true
     source: oci                     # 폐쇄망에 Git 서버 불필요
     ociRepo: harbor.acme.internal/charts
-    bootstrapApps: ["platform-base", "citation-service"]
+    bootstrapApps: ["platform-base", "example-service"]
   observability:
     enabled: true
     stack: vm-loki-tempo

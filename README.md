@@ -1,15 +1,53 @@
 # Malmok (말목)
 
-One static binary that **builds, grows and upgrades RKE2 clusters**. A TUI
+[![ci](https://github.com/ryxen/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxen/malmok/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/ryxen/malmok?sort=semver)](https://github.com/ryxen/malmok/releases)
+[![go](https://img.shields.io/github/go-mod/go-version/ryxen/malmok)](go.mod)
+[![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+
+**One static binary that builds, grows and upgrades RKE2 clusters.** A TUI
 wizard and a CLI over the same engine, with nothing to install on the nodes.
 
 *[한국어 README](README.ko.md)*
 
+```
+ Malmok  Install a cluster ▸ Finished                                                 11/11
+────────────────────────────────────────────────────────────────────────────────────────────
+                   │
+ 1 ✓ Where         │ Finished
+ 2 ✓ Nodes         │
+ 3 ✓ Network       │ ✓ Installation complete
+ 4 ✓ Options       │
+ 5 ✓ Registry      │ ▎ What was built ────────────────────────────────────────────────────
+ 6 ✓ Certificates  │   Matches profile custom
+ 7 ✓ Gateway       │   Nodes           1 (192.0.2.10)
+ 8 ✓ Checks        │   Dataplane       cilium-gw
+ 9 ✓ Summary       │   Storage         local-path
+ 10✓ Install       │   Certificates    none, add certificates later
+ ▌11 Finished      │   Registry        embedded
+                   │   Exposure        nothing is exposed yet
+                   │   Elapsed         30s
+                   │
+                   │ ▎ Where it went ─────────────────────────────────────────────────────
+                   │   Run directory   out/runs/01M0YDTEC40H4VQE5SR4JCCE11
+                   │   cluster.yaml    out/runs/01M0YDTEC40H4VQE5SR4JCCE11/cluster.yaml
+                   │   events.jsonl    out/runs/01M0YDTEC40H4VQE5SR4JCCE11/events.jsonl
+                   │   state.json      out/runs/01M0YDTEC40H4VQE5SR4JCCE11/state.json
+                   │
+                   │ Reattach to this run with
+                   │   malmok attach --run 01M0YDTEC40H4VQE5SR4JCCE11
+────────────────────────────────────────────────────────────────────────────────────────────
+ [  Quit  ]                                                                    [  Menu  ]
+  ←→  move    ↵  activate    tab  back to content    s  steps
+```
+
+<sub>`malmok apply --tui`. The same run headless is `malmok apply -f cluster.yaml`; try it
+against nothing with `malmok apply --demo`.</sub>
+
 > **Status: alpha.** Single-node and two-node clusters are verified repeatedly
 > on real hardware, and the tool has built a production cluster in a data
 > centre. **Three-server HA, airgapped installs and external registries are
-> not verified.** Read [what is verified](#what-is-verified) before pointing
-> this at anything you care about.
+> not verified.** Read [what is verified](#what-is-verified) first.
 
 ```
 malmok apply --tui     # TUI wizard: build, grow, resume, upgrade

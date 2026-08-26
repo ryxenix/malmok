@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.69.0] - 2026-08-26
+
+### Changed
+- Removed things that belong to the author rather than to the tool, ahead of
+  making the repository public:
+  - `lab.example.com` was the default gateway domain in the verification
+    matrix and the lab harness. A real domain as a default in a public
+    repository is a default aimed at a real host -- and the ACME case would
+    have asked a certificate authority for it. Now `lab.example.com`, with
+    the address constants moved to the documentation ranges (RFC 5737, 2606).
+  - A production public IP sat in a preflight fixture, from the day PF-806 was
+    written against the machine that showed the fault. Replaced with the
+    documentation range.
+  - `docs/00-architecture.md` named three unrelated services of the author's
+    in its layer table. They are not what L3 means; the row now describes the
+    layer.
+- `docs/00-architecture.md` §6 was a week-by-week plan that stopped matching
+  reality some time ago -- it still listed Ansible for L0/L1, which ADR-012
+  later forbade, and the layer table said the same. A stale plan in a public
+  repository misleads more effectively than no plan, so the section is now
+  what is verified on hardware, what is unverified, and what is unimplemented.
+
+### Added
+- README opens with what the tool looks like: a verbatim capture of the
+  finished screen, English and Korean, plus CI, release, Go and licence
+  badges. It described a terminal program without showing one.
+
 ## [0.68.0] - 2026-08-26
 
 ### Fixed

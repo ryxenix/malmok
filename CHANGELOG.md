@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.71.0] - 2026-08-26
+
+### Added
+- `internal/tools` carries helm and k9s inside the binary for airgapped sites,
+  and `scripts/release.sh` produces `malmok-airgap_*` alongside the ordinary
+  builds: 121MB with the payload, against 10MB without it. The payload is
+  downloaded at release time and is not in the repository -- it is 108MB of
+  somebody else's binaries, which belongs in a release artifact and not in git
+  history.
+
+  Both Linux architectures are carried, not the build's own: the operator's
+  machine and the customer's node are regularly not the same architecture.
+
+  `malmok --version` reports what a binary holds. The two builds are otherwise
+  identical and told apart by filename, which lasts exactly as long as nobody
+  renames the file -- and being handed the wrong one at a customer site means
+  the tools are simply absent.
+
+  A first attempt produced an airgap binary byte-for-byte the size of the
+  ordinary one. Nothing imported the package, so the linker dropped it and the
+  embed never happened. An embedded payload with no reference in the program
+  is not in the program.
+
 ## [0.70.0] - 2026-08-26
 
 ### Added

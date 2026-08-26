@@ -63,7 +63,10 @@ malmok report          # audit report and DNS record sheet
 Give it SSH access to some machines and a `cluster.yaml` describing what you
 want. It produces a working RKE2 cluster: kernel parameters, swap, firewall
 and other host preparation, then RKE2 itself, the Cilium dataplane, Gateway
-API, cert-manager and ArgoCD.
+API, cert-manager and ArgoCD. It also leaves `kubectl`, `helm` and `k9s` on
+the operator's PATH -- RKE2 buries kubectl where nothing finds it and ships no
+helm CLI at all, so a finished install used to hand you credentials to a
+cluster you could not address.
 
 Three properties shape the design:
 

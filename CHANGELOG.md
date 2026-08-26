@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.70.0] - 2026-08-26
+
+### Added
+- The operator-tools step installs `helm` alongside kubectl and k9s. RKE2
+  bundles the helm *controller*, which reconciles HelmChart resources, and
+  nothing else -- so an operator who wanted to see what was installed, or add
+  a chart by hand, had no CLI to do it with. Like k9s it is fetched from the
+  vendor's release page and therefore skipped off-line, where the check does
+  not ask for it either: a step that reports a missing tool an airgapped site
+  cannot fetch never settles.
+
+  The version comes from helm's own pointer file rather than a number written
+  into the step, which would quietly age into installing something years old.
+  That lookup is an assignment with a fallback, because a command substitution
+  that fails under `set -e` ends the script -- the defect that once left a
+  CRD wait loop in this package running zero times. A test pins both.
+
+  Note that helm's current release is now the 4.x line. Malmok itself never
+  invokes the CLI; charts are installed by RKE2's helm controller, so what is
+  on the PATH is for the human.
+
 ## [0.69.0] - 2026-08-26
 
 ### Changed

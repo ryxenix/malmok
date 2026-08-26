@@ -473,23 +473,42 @@ func TestPrestagedManifestsLandBeforeTheServiceStarts(t *testing.T) {
 }
 
 // The kubeconfig step gave the operator credentials to a cluster they could
-// not address: RKE2 buries kubectl in /var/lib/rancher/rke2/bin. The tools
-// step links it onto the PATH and fetches k9s -- online only, because a step
-// that needs the internet on an airgapped site must skip, not hang.
+// not address: RKE2 buries kubectl in /var/lib/rancher/rke2/bin and ships no
+// helm CLI at all. The tools step links kubectl onto the PATH and fetches helm
+// and k9s -- online only, because a step that needs the internet on an
+// airgapped site must skip, not hang.
 func TestOperatorToolsFollowTheNetworkMode(t *testing.T) {
 	online := opsToolsStep(true)
 	if !strings.Contains(online.Do, "ln -sf "+BinDir+"/kubectl") {
 		t.Errorf("kubectl is not linked onto the PATH:\n%s", online.Do)
 	}
-	if !strings.Contains(online.Do, "k9s_Linux_") {
-		t.Errorf("online mode does not fetch k9s:\n%s", online.Do)
+	for _, want := range []string{"k9s_Linux_", "get.helm.sh/helm-"} {
+		if !strings.Contains(online.Do, want) {
+			t.Errorf("online mode does not fetch %s:\n%s", want, online.Do)
+		}
+	}
+	// helm's version comes from its own pointer file. A number written here
+	// would install whatever was current the day this was typed, for as long
+	// as nobody noticed.
+	if !strings.Contains(online.Do, "helm-latest-version") {
+		t.Errorf("the helm version is pinned in the step rather than asked for:\n%s", online.Do)
+	}
+	// That lookup is assigned, and an assignment whose command substitution
+	// fails under set -e ends the script. This package has already shipped
+	// that defect once, in a wait loop that consequently never ran.
+	if !strings.Contains(online.Do, `|| echo ""`) {
+		t.Errorf("the version lookup can kill the script under set -e:\n%s", online.Do)
 	}
 
 	airgap := opsToolsStep(false)
-	if strings.Contains(airgap.Do, "k9s_Linux_") {
-		t.Error("an airgapped site is asked to download k9s")
+	for _, unwanted := range []string{"k9s_Linux_", "get.helm.sh"} {
+		if strings.Contains(airgap.Do, unwanted) {
+			t.Errorf("an airgapped site is asked to download %s", unwanted)
+		}
 	}
-	if strings.Contains(airgap.Check, "command -v k9s") {
-		t.Error("an airgapped site is checked for a k9s it cannot fetch")
+	for _, unwanted := range []string{"command -v k9s", "command -v helm"} {
+		if strings.Contains(airgap.Check, unwanted) {
+			t.Errorf("an airgapped site is checked for %q, which it cannot fetch", unwanted)
+		}
 	}
 }

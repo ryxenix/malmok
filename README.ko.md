@@ -62,7 +62,10 @@ malmok report          # 감사 리포트 · DNS 레코드 시트
 노드 몇 대의 SSH 접근 권한과 원하는 형태를 적은 `cluster.yaml` 하나로,
 동작하는 RKE2 클러스터를 만듭니다. 커널 파라미터·swap·방화벽 같은 준비부터
 RKE2 부트스트랩, Cilium 데이터플레인, Gateway API, cert-manager, ArgoCD까지
-한 흐름으로 처리합니다.
+한 흐름으로 처리합니다. 끝나면 `kubectl`·`helm`·`k9s` 가 조작자의 PATH 에
+올라와 있습니다 — RKE2 는 kubectl 을 아무도 찾지 않는 곳에 묻어 두고 helm CLI
+는 아예 넣지 않아서, 예전에는 설치가 끝나도 접근할 수 없는 클러스터의 자격증명
+만 받는 셈이었습니다.
 
 설계상 세 가지를 지킵니다:
 

@@ -136,17 +136,22 @@ printf '%%s' %s > %s`, ManifestDir, ShellQuote(m.Body), m.Path),
 	}
 }
 
-// opsToolsStep puts kubectl and k9s on the operator's PATH.
+// opsToolsStep puts kubectl, helm and k9s on the operator's PATH.
 //
 // RKE2 ships kubectl but buries it in /var/lib/rancher/rke2/bin, which is on
 // nobody's PATH; the kubeconfig step gave the operator credentials to a
-// cluster they then could not address. k9s comes from its release page, so it
-// is skipped off-line -- an airgapped site gets it from the bundle or not at
-// all, and a step that needs the internet must say so rather than hang.
+// cluster they then could not address. helm is not shipped at all -- RKE2
+// bundles the helm *controller*, which reconciles HelmChart resources, and an
+// operator who wants to look at what is installed or add a chart by hand needs
+// the CLI. Both it and k9s come from a release page, so they are skipped
+// off-line: an airgapped site gets them from the bundle or not at all, and a
+// step that needs the internet must say so rather than hang.
 func opsToolsStep(online bool) *engine.ShellStep {
-	k9sCheck, k9sDo := `command -v k9s >/dev/null || { echo "k9s is not installed"; exit 1; }`, ""
+	toolCheck := `command -v helm >/dev/null || { echo "helm is not installed"; exit 1; }
+command -v k9s >/dev/null || { echo "k9s is not installed"; exit 1; }`
+	toolDo := ""
 	if online {
-		k9sDo = `
+		toolDo = `
 if ! command -v k9s >/dev/null; then
   arch=$(uname -m)
   case "$arch" in
@@ -158,19 +163,41 @@ if ! command -v k9s >/dev/null; then
     curl -sfL --retry 3 --retry-delay 2 "https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_${a}.tar.gz" | tar -xz -C /usr/local/bin k9s || { echo "could not fetch k9s (exit $?)"; exit 1; }
     chmod 0755 /usr/local/bin/k9s
   fi
+fi
+if ! command -v helm >/dev/null; then
+  arch=$(uname -m)
+  case "$arch" in
+    x86_64) a=amd64 ;;
+    aarch64) a=arm64 ;;
+    *) echo "no helm build for $arch"; a="" ;;
+  esac
+  if [ -n "$a" ]; then
+    # The version comes from helm's own pointer file rather than a number
+    # pinned here, which would age into an install of something years old.
+    # Assigned with a fallback because a bare command substitution that fails
+    # under set -e takes the whole script with it -- the defect that once left
+    # a wait loop in this package running zero times.
+    v=$(curl -sfL --retry 3 --retry-delay 2 https://get.helm.sh/helm-latest-version || echo "")
+    v=$(echo "$v" | tr -d '\r\n')
+    if [ -z "$v" ]; then echo "could not ask helm which version is current"; exit 1; fi
+    curl -sfL --retry 3 --retry-delay 2 "https://get.helm.sh/helm-${v}-linux-${a}.tar.gz" \
+      | tar -xz -C /usr/local/bin --strip-components=1 "linux-${a}/helm" || { echo "could not fetch helm ${v} (exit $?)"; exit 1; }
+    chmod 0755 /usr/local/bin/helm
+  fi
 fi`
 	} else {
-		// Off-line the check asks only for kubectl; reporting a missing k9s
-		// forever on a site that cannot fetch it is a step that never settles.
-		k9sCheck = `true`
+		// Off-line the check asks only for kubectl; reporting a missing helm
+		// or k9s forever on a site that cannot fetch them is a step that never
+		// settles.
+		toolCheck = `true`
 	}
 	return &engine.ShellStep{
 		Name: "operator-tools",
 		Check: fmt.Sprintf(`command -v kubectl >/dev/null || { echo "kubectl is not on the PATH"; exit 1; }
 %s
-echo "kubectl $(kubectl version --client 2>/dev/null | head -1); $(k9s version -s 2>/dev/null | head -1 || echo 'k9s absent')"`, k9sCheck),
+echo "kubectl $(kubectl version --client 2>/dev/null | head -1); $(helm version --short 2>/dev/null || echo 'helm absent'); $(k9s version -s 2>/dev/null | head -1 || echo 'k9s absent')"`, toolCheck),
 		Do: fmt.Sprintf(`set -e
-ln -sf %s/bin/kubectl /usr/local/bin/kubectl%s`, DataDir, k9sDo),
+ln -sf %s/bin/kubectl /usr/local/bin/kubectl%s`, DataDir, toolDo),
 		Satisfied: "%s",
 		Missing:   "%s",
 	}

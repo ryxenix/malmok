@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.72.0] - 2026-08-26
+
+### Fixed
+- `pki.mode: acme-http01` could never issue a certificate. The solver names a
+  Gateway, and cert-manager reads Gateway API objects only when its
+  configuration says to -- the chart passes `--config` to the controller
+  solely when a `config` block exists, and there was none. The Certificate sat
+  pending, the Order never produced a challenge, and no object in the cluster
+  said why. The chart now sets `config.gatewayAPI.enabled` for that mode, and
+  only that mode: the extra watches cost something and a private CA has no use
+  for them.
+- `pki.mode: acme-dns01` with `dnsProvider: route53` rendered a solver with no
+  credential at all. Inside AWS that is correct -- an instance profile or an
+  IRSA role supplies one -- but this tool mostly installs on bare metal, where
+  there is no ambient credential and the ClusterIssuer reports Ready while
+  every challenge fails on AWS authentication.
+
+  `pki.acme.accessKeyID` (plain; a key ID is not a secret) now pairs with
+  `pki.acme.apiToken` (a SourceRef, like every other credential) and the
+  solver carries both. `region` and `hostedZoneID` are settable; the region
+  defaults to us-east-1. Naming neither field keeps the old behaviour for AWS.
+
+  Validation rejects one without the other, because that combination produces
+  an issuer that is Ready and cannot solve.
+
+### Changed
+- The credential Secret's key is now the provider's own word --
+  `secret-access-key` for route53, `api-token` for Cloudflare -- and a test
+  pins the solver and the Secret to the same key, since they are written in
+  different functions and a mismatch fails on a value that is present.
+- A comment promised `malmok cert apply`, which is not a command.
+
 ## [0.71.0] - 2026-08-26
 
 ### Added

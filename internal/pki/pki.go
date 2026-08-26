@@ -245,10 +245,27 @@ kubectl apply -f "$t" >/dev/null`, Namespace, shellQuote(manifest)),
 	}
 }
 
+// acmeSecretName is where a DNS provider's credential lands.
+func acmeSecretName(provider string) string {
+	return "malmok-acme-" + strings.TrimSpace(provider)
+}
+
+// acmeSecretKey is the key inside that Secret.
+//
+// Named for what the provider calls the value rather than a generic
+// "api-token": an operator reading the Secret to check a failing challenge
+// should see the same word AWS and Cloudflare use in their own consoles.
+func acmeSecretKey(provider string) string {
+	if strings.TrimSpace(provider) == "route53" {
+		return "secret-access-key"
+	}
+	return "api-token"
+}
+
 // acmeTokenStep installs the DNS provider credential.
 func acmeTokenStep(spec v1alpha1.ClusterSpec, m Material) *engine.ShellStep {
 	provider := strings.TrimSpace(spec.PKI.ACME.DNSProvider)
-	name := "malmok-acme-" + provider
+	name := acmeSecretName(provider)
 
 	manifest := fmt.Sprintf(`apiVersion: v1
 kind: Secret
@@ -257,8 +274,8 @@ metadata:
   namespace: %s
 type: Opaque
 data:
-  api-token: %s
-`, name, Namespace, b64(m.ACMEToken))
+  %s: %s
+`, name, Namespace, acmeSecretKey(provider), b64(m.ACMEToken))
 
 	return &engine.ShellStep{
 		Name: "acme-credential",
@@ -349,6 +366,19 @@ spec:
     crds:
       enabled: true
 `)
+	// The HTTP-01 solver this tool renders points at a Gateway, and
+	// cert-manager only watches Gateway API objects when it is told to. The
+	// chart passes --config to the controller solely when `config` is set, so
+	// an install without this block leaves the solver unread: the Certificate
+	// stays pending, the Order never gets a challenge, and nothing in the
+	// cluster says why. apiVersion and kind are left out because the chart
+	// fills them in, and pinning them here would break on a chart upgrade.
+	if spec.PKI.Mode == v1alpha1.PKIACMEHTTP01 {
+		b.WriteString(`    config:
+      gatewayAPI:
+        enabled: true
+`)
+	}
 	// A private registry has to be told to every chart, or the pull fails with
 	// an opaque error that names an upstream host nobody configured.
 	if r := strings.TrimSpace(spec.Registry.SystemDefaultRegistry); r != "" &&
@@ -470,10 +500,29 @@ func writeSolver(b *strings.Builder, spec v1alpha1.ClusterSpec) {
 	switch provider {
 	case "cloudflare":
 		b.WriteString("          cloudflare:\n            apiTokenSecretRef:\n")
-		b.WriteString("              name: " + yamlString("malmok-acme-cloudflare") + "\n")
-		b.WriteString("              key: api-token\n")
+		b.WriteString("              name: " + yamlString(acmeSecretName("cloudflare")) + "\n")
+		b.WriteString("              key: " + yamlString(acmeSecretKey("cloudflare")) + "\n")
 	case "route53":
-		b.WriteString("          route53:\n            region: us-east-1\n")
+		acme := spec.PKI.ACME
+		region := "us-east-1"
+		if acme != nil && strings.TrimSpace(acme.Region) != "" {
+			region = strings.TrimSpace(acme.Region)
+		}
+		b.WriteString("          route53:\n            region: " + yamlString(region) + "\n")
+		if acme != nil && strings.TrimSpace(acme.HostedZoneID) != "" {
+			b.WriteString("            hostedZoneID: " + yamlString(strings.TrimSpace(acme.HostedZoneID)) + "\n")
+		}
+		// Off AWS there is no instance profile and no IRSA, so the credential
+		// has to be named. Inside AWS both fields are absent and cert-manager
+		// uses the ambient one -- which is why this is conditional rather than
+		// required: a solver that demanded a key would break the EKS case to
+		// fix the bare-metal one.
+		if acme != nil && strings.TrimSpace(acme.AccessKeyID) != "" {
+			b.WriteString("            accessKeyID: " + yamlString(strings.TrimSpace(acme.AccessKeyID)) + "\n")
+			b.WriteString("            secretAccessKeySecretRef:\n")
+			b.WriteString("              name: " + yamlString(acmeSecretName("route53")) + "\n")
+			b.WriteString("              key: " + yamlString(acmeSecretKey("route53")) + "\n")
+		}
 	default:
 		// An unknown provider is written as a webhook solver rather than
 		// guessed at: cert-manager has a plugin for most of them, and inventing

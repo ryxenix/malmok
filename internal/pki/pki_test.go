@@ -464,3 +464,94 @@ func TestBYOCertIssuesNothing(t *testing.T) {
 		t.Errorf("byo-cert produced %d steps: %v", len(steps), names(steps))
 	}
 }
+
+// cert-manager watches Gateway API objects only when its configuration says
+// so, and the chart passes a configuration to the controller only when one is
+// supplied. Without this the HTTP-01 solver this package renders points at a
+// Gateway nothing is reading: the Certificate stays pending and no object in
+// the cluster explains why.
+func TestHTTP01TellsCertManagerToWatchGateways(t *testing.T) {
+	spec := v1alpha1.ClusterSpec{}
+	spec.PKI.Mode = v1alpha1.PKIACMEHTTP01
+	got := CertManagerChart(spec, Options{})
+	for _, want := range []string{"config:", "gatewayAPI:", "enabled: true"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the http01 chart does not carry %q:\n%s", want, got)
+		}
+	}
+
+	// Only where it is needed. Gateway API support costs the controller extra
+	// watches, and a private CA has no use for them.
+	spec.PKI.Mode = v1alpha1.PKIPrivateCA
+	if got := CertManagerChart(spec, Options{}); strings.Contains(got, "gatewayAPI") {
+		t.Errorf("a private-ca install turns on Gateway API support:\n%s", got)
+	}
+}
+
+// A route53 solver rendered without a credential is Ready and cannot solve.
+// Inside AWS that is correct -- an instance profile or an IRSA role supplies
+// one -- and on the bare metal this tool usually installs it is a silent
+// failure, so the document can name a key and the solver has to carry it.
+func TestRoute53CarriesTheCredentialItIsGiven(t *testing.T) {
+	withCreds := v1alpha1.ClusterSpec{}
+	withCreds.PKI.Mode = v1alpha1.PKIACMEDNS01
+	withCreds.PKI.ACME = &v1alpha1.ACMESpec{
+		Email: "ops@example.com", DNSProvider: "route53",
+		AccessKeyID: "AKIAEXAMPLE", APIToken: "env://AWS_SECRET_ACCESS_KEY",
+		Region: "ap-northeast-2", HostedZoneID: "Z123EXAMPLE",
+	}
+	got := IssuerManifest(withCreds)
+	for _, want := range []string{
+		`region: "ap-northeast-2"`,
+		`hostedZoneID: "Z123EXAMPLE"`,
+		`accessKeyID: "AKIAEXAMPLE"`,
+		"secretAccessKeySecretRef:",
+		`name: "malmok-acme-route53"`,
+		`key: "secret-access-key"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the route53 solver does not carry %q:\n%s", want, got)
+		}
+	}
+	// The secret access key belongs in the Secret, never in the issuer.
+	if strings.Contains(got, "AWS_SECRET_ACCESS_KEY") {
+		t.Errorf("the issuer quotes the credential reference:\n%s", got)
+	}
+
+	// Without a key ID the solver stays bare, which is what lets cert-manager
+	// use an ambient AWS credential.
+	ambient := withCreds
+	ambient.PKI.ACME = &v1alpha1.ACMESpec{
+		Email: "ops@example.com", DNSProvider: "route53",
+	}
+	got = IssuerManifest(ambient)
+	if strings.Contains(got, "accessKeyID") || strings.Contains(got, "secretAccessKeySecretRef") {
+		t.Errorf("a solver with no key named still asks for one:\n%s", got)
+	}
+	if !strings.Contains(got, `region: "us-east-1"`) {
+		t.Errorf("the default region is missing:\n%s", got)
+	}
+}
+
+// The Secret's key has to be the one the solver reads. They are written in
+// different functions, and a mismatch is a challenge that fails on a value
+// that is present.
+func TestTheCredentialSecretMatchesTheSolver(t *testing.T) {
+	for _, tc := range []struct{ provider, key string }{
+		{"route53", "secret-access-key"},
+		{"cloudflare", "api-token"},
+	} {
+		spec := v1alpha1.ClusterSpec{}
+		spec.PKI.Mode = v1alpha1.PKIACMEDNS01
+		spec.PKI.ACME = &v1alpha1.ACMESpec{
+			Email: "ops@example.com", DNSProvider: tc.provider, AccessKeyID: "AKIAEXAMPLE",
+		}
+		step := acmeTokenStep(spec, Material{ACMEToken: []byte("secret-value")})
+		if !strings.Contains(step.Do, tc.key+": ") {
+			t.Errorf("the %s secret does not use key %q:\n%s", tc.provider, tc.key, step.Do)
+		}
+		if !strings.Contains(IssuerManifest(spec), `key: "`+tc.key+`"`) {
+			t.Errorf("the %s solver does not read key %q", tc.provider, tc.key)
+		}
+	}
+}

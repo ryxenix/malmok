@@ -423,10 +423,31 @@ type PKISpec struct {
 }
 
 type ACMESpec struct {
-	Email       string    `yaml:"email"                json:"email"`
-	Server      string    `yaml:"server,omitempty"     json:"server,omitempty"`
-	DNSProvider string    `yaml:"dnsProvider,omitempty" json:"dnsProvider,omitempty"` // e.g. cloudflare
-	APIToken    SourceRef `yaml:"apiToken,omitempty"   json:"apiToken,omitempty"`
+	Email       string `yaml:"email"                json:"email"`
+	Server      string `yaml:"server,omitempty"     json:"server,omitempty"`
+	DNSProvider string `yaml:"dnsProvider,omitempty" json:"dnsProvider,omitempty"` // e.g. cloudflare, route53
+	// APIToken is the provider's secret: a Cloudflare API token, or an AWS
+	// secret access key for route53.
+	APIToken SourceRef `yaml:"apiToken,omitempty"   json:"apiToken,omitempty"`
+
+	// AccessKeyID identifies the AWS credential whose secret is APIToken.
+	//
+	// route53 only, and only off AWS. Inside AWS cert-manager picks up an
+	// instance profile or an IRSA role and needs neither field; on the bare
+	// metal this tool usually installs there is no ambient credential, and a
+	// route53 solver without one is Ready and cannot solve -- the failure
+	// arrives as an AWS authentication error inside a Challenge nobody is
+	// looking at.
+	//
+	// The key ID is not a secret, which is why it is a plain string while the
+	// secret access key goes through SourceRef like every other credential.
+	AccessKeyID string `yaml:"accessKeyID,omitempty" json:"accessKeyID,omitempty"`
+	// Region is the AWS region for the route53 API. Defaults to us-east-1,
+	// which is where the global Route53 endpoint lives.
+	Region string `yaml:"region,omitempty" json:"region,omitempty"`
+	// HostedZoneID narrows the solver to one zone. Optional: without it
+	// cert-manager searches the account's zones for the name being issued.
+	HostedZoneID string `yaml:"hostedZoneID,omitempty" json:"hostedZoneID,omitempty"`
 }
 
 type PrivateCASpec struct {

@@ -244,14 +244,31 @@ func validatePKI(s *v1alpha1.ClusterSpec) []error {
 
 	switch p.Mode {
 	case v1alpha1.PKINone:
-		// Nothing to check. Gateways come up on HTTP and certificates are added
-		// later with `malmok cert apply`.
+		// Nothing to check. Gateways come up on HTTP; certificates are added
+		// later by setting pki.mode in the document and applying it again.
 	case v1alpha1.PKIACMEDNS01, v1alpha1.PKIACMEHTTP01:
 		if p.ACME == nil || p.ACME.Email == "" {
 			errs = append(errs, fmt.Errorf("pki.acme.email is required with mode %s", p.Mode))
 		}
 		if p.Mode == v1alpha1.PKIACMEDNS01 && p.ACME != nil && p.ACME.DNSProvider == "" {
 			errs = append(errs, errors.New("pki.acme.dnsProvider is required with mode acme-dns01"))
+		}
+		// An AWS key ID without its secret, or the reverse, produces a solver
+		// that cert-manager accepts and cannot use: the ClusterIssuer reports
+		// Ready and the failure surfaces much later, as an authentication
+		// error inside a Challenge. Both or neither -- neither meaning the
+		// ambient credential of an EC2 instance profile or an IRSA role.
+		if p.Mode == v1alpha1.PKIACMEDNS01 && p.ACME != nil && p.ACME.DNSProvider == "route53" {
+			hasID := strings.TrimSpace(p.ACME.AccessKeyID) != ""
+			hasSecret := strings.TrimSpace(string(p.ACME.APIToken)) != ""
+			switch {
+			case hasID && !hasSecret:
+				errs = append(errs, errors.New(
+					"pki.acme.accessKeyID is set but pki.acme.apiToken is not; route53 needs the secret access key too"))
+			case !hasID && hasSecret:
+				errs = append(errs, errors.New(
+					"pki.acme.apiToken is set but pki.acme.accessKeyID is not; route53 needs both, or neither to use an instance profile"))
+			}
 		}
 	case v1alpha1.PKIPrivateCA:
 		if p.PrivateCA == nil {

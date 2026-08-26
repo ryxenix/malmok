@@ -8,7 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"platform.ryxen.dev/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/event"
 )
 
 // Reading past runs back.

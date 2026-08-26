@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/codes"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/codes"
 )
 
 // These probes run from the machine executing the tool rather than from a node.

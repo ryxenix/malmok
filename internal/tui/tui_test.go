@@ -10,10 +10,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/event"
-	"platform.ryxen.dev/malmok/internal/rke2"
-	"platform.ryxen.dev/malmok/internal/spec"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/rke2"
+	"github.com/ryxen/malmok/internal/spec"
 )
 
 func ts(sec int) event.Timestamp {

@@ -15,7 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/api/v1alpha1"
 )
 
 // Document is a parsed cluster.yaml together with what it took to read it.

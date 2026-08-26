@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/api/v1alpha1"
 )
 
 // SSH is the real Runner.

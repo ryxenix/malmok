@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/event"
-	"platform.ryxen.dev/malmok/internal/platform"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/platform"
 )
 
 // HandoffVersion names the schema so a consumer can refuse what it does not

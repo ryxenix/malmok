@@ -16,9 +16,9 @@ import (
 	"fmt"
 	"strings"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/engine"
-	"platform.ryxen.dev/malmok/internal/exec"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxen/malmok/internal/exec"
 )
 
 // Phase is the phase name these steps belong to.

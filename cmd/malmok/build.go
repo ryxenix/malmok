@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/catalogue"
-	"platform.ryxen.dev/malmok/internal/cert"
-	"platform.ryxen.dev/malmok/internal/engine"
-	"platform.ryxen.dev/malmok/internal/exec"
-	"platform.ryxen.dev/malmok/internal/gateway"
-	"platform.ryxen.dev/malmok/internal/preflight"
-	"platform.ryxen.dev/malmok/internal/spec"
-	"platform.ryxen.dev/malmok/internal/verify"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/catalogue"
+	"github.com/ryxen/malmok/internal/cert"
+	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxen/malmok/internal/gateway"
+	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxen/malmok/internal/spec"
+	"github.com/ryxen/malmok/internal/verify"
 )
 
 // nodeSession is everything a real run needs that the engine does not own: the

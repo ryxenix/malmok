@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/spec"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/spec"
 )
 
 // Coverage is checkable without a single node, and this is what makes the

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"platform.ryxen.dev/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/event"
 )
 
 // TextRenderer turns a followed stream into lines for a terminal.

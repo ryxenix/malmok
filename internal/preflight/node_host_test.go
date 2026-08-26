@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"platform.ryxen.dev/malmok/internal/codes"
+	"github.com/ryxen/malmok/internal/codes"
 )
 
 // A finding an operator cannot act on sends them to read about etcd instead

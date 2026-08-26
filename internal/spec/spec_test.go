@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/api/v1alpha1"
 )
 
 // minimal is a document that validates, so each test can break exactly one

@@ -1,67 +1,177 @@
-# Malmok (말목) — 가칭
+# Malmok (말목)
 
-RKE2 기반 플랫폼 구축·운영 자동화 도구. CLI/바이너리 이름은 `malmok`.
-홈랩 / 회사 프로덕션 / 고객사(온라인·DMZ·폐쇄망) 전 케이스 단일 도구 대응.
+RKE2 클러스터를 **구축하고, 확장하고, 업그레이드하는** 단일 정적 바이너리.
+TUI 마법사와 CLI를 같은 엔진 위에 얹었고, 런타임 의존성은 없습니다.
 
-**현재 상태: 설계 단계. 실행 코드 없음.**
-구현은 Claude Code 로 진행한다. `CLAUDE.md` 를 먼저 읽을 것.
-
-## 구조
+> **상태: 알파.** 단일 노드와 2노드 구성은 실제 장비에서 반복 검증했고
+> IDC 프로덕션 서버 구축에 사용했습니다. **3서버 HA·에어갭·외부
+> 레지스트리는 아직 미검증입니다.** 아래 [검증 범위](#검증-범위)를
+> 읽고 판단하십시오.
 
 ```
-CLAUDE.md                    세션 규약. 절대 금지 목록, 스택, 불변식, 문서 라우팅
-CHANGELOG.md
-docs/
-├── 00-architecture.md       ADR 10건, 레이어 분해, Tier 제도, 로드맵
-├── 10-preflight-plan.md     프로브 카탈로그, 강등 결정 트리
-├── 11-execute.md            phase / 멱등성 계약 / 재개 / 이벤트 스키마 · §7 수용 기준
-├── 20-cert.md               인증서 라이프사이클 (조립·검증·갱신)
-├── 30-maintenance.md        인증서 수명 관리, 정기 점검, 보고서
-└── 99-codes.md              [생성물] 진단 코드 레지스트리. 손으로 고치지 말 것
-api/v1alpha1/                스키마 = 단일 원천. 주석이 명세다
-├── types.go                 ClusterSpec
-└── gateway.go               GatewaySpec (gateway / listener / TLS / DNS)
-cmd/malmok/             CLI. 구현된 명령만 등록한다
-internal/
-├── codes/                   진단 코드 단일 원천. 131건
-│   ├── codes.go             타입 · 레지스트리 · 검증
-│   ├── preflight.go         PF 67
-│   ├── verify.go            PV 8
-│   ├── execution.go         EX 9
-│   ├── maintenance.go       MC 42
-│   ├── downgrade.go         DG 5
-│   └── gen/                 go generate → docs/99-codes.md
-├── event/                   JSONL 이벤트 스키마 · Writer · Scanner
-├── state/                   상태파일 · 재개 판정 · 원자적 저장
-├── engine/                  phase 러너. tui 를 import 하지 않는다 (테스트가 강제)
-└── attach/                  이벤트 재생 + tail · 텍스트 렌더러
-examples/
-└── cluster-dmz.yaml         DMZ 고객사 예시 (혼합 TLS 소스)
+malmok                 # TUI 마법사 (구축·확장·재개·업그레이드)
+malmok preflight       # 읽기 전용 사전 점검
+malmok plan            # 무엇이 설치될지 계산 (네트워크 접근 없음)
+malmok apply           # cluster.yaml 로 구축
+malmok upgrade         # RKE2 버전 업그레이드 (노드 1대씩)
+malmok report          # 감사 리포트 · DNS 레코드 시트
 ```
 
-### 문서 분할 원칙
+## 무엇을 하는 도구인가
 
-- **문서 1개 = 구현 세션 1개.** 한 문서를 읽고 구현·테스트·커밋이 닫혀야 한다
-- **"왜"(ADR)와 "무엇"(WP 명세)을 분리한다.** 구현 세션은 `00` 을 읽지 않는다
-- **개발 설계 문서와 납품 문서는 다른 물건이다.** 납품 문서(감사 리포트,
-  유지보수 보고서)는 도구가 실행 결과로 생성한다. 설계 문서를 편집해 만들지 않는다
-- **에러 코드 레지스트리는 문서로 만들지 않는다.** `internal/codes/` 가 원천,
-  마크다운은 `go generate` 산출물
+노드 몇 대의 SSH 접근 권한과 원하는 형태를 적은 `cluster.yaml` 하나로,
+동작하는 RKE2 클러스터를 만듭니다. 커널 파라미터·swap·방화벽 같은 준비부터
+RKE2 부트스트랩, Cilium 데이터플레인, Gateway API, cert-manager, ArgoCD까지
+한 흐름으로 처리합니다.
 
-## 미작성 항목 (Claude Code 착수 대상)
+설계상 세 가지를 지킵니다:
 
-| 항목 | 내용 |
+- **관측은 추론이 아니라 실물입니다.** "포트가 열려 있을 것"이 아니라 실제로
+  리스너를 띄워 상대 노드에서 닿는지 잽니다.
+- **모든 단계는 멱등이고 재개 가능합니다.** 중간에 죽어도 처음부터 다시 돌지
+  않습니다.
+- **엔진은 화면을 모릅니다.** JSONL 이벤트만 방출하고, TUI는 그것을 그립니다
+  (ADR-002). 터미널이 필요한 코드 경로는 결함으로 취급합니다.
+
+## 설치
+
+```bash
+go install github.com/ryxen/malmok/cmd/malmok@latest
+```
+
+소스에서:
+
+```bash
+git clone https://github.com/ryxen/malmok
+cd malmok
+go build -o bin/malmok ./cmd/malmok
+```
+
+Go 1.25 이상. 빌드 산출물은 단일 정적 바이너리라, 대상 노드에는 아무것도
+설치하지 않아도 됩니다(SSH만 필요).
+
+## 5분 사용법
+
+```bash
+# 1. 문서 검증 — 노드에 접속하지 않습니다
+malmok plan -f cluster.yaml --validate-only
+
+# 2. 사전 점검 — 노드를 재지만 아무것도 바꾸지 않습니다
+malmok preflight -f cluster.yaml
+
+# 3. 구축
+malmok apply -f cluster.yaml
+
+# 4. 결과 확인 (가장 최근 실행)
+malmok report
+```
+
+설치 없이 화면만 보려면 `malmok apply --demo` — 노드에 접속하지 않고
+전 과정을 흉내 냅니다.
+
+TUI로 하려면 인자 없이 `malmok`을 실행하십시오. 마법사가 `cluster.yaml`을
+만들어 주고, 같은 화면에서 설치까지 진행합니다.
+
+최소 `cluster.yaml`:
+
+```yaml
+apiVersion: platform.ryxen.dev/v1alpha1
+kind: ClusterSpec
+
+metadata:
+  name: my-cluster
+  profile: homelab        # 나머지 값은 프로파일이 채웁니다
+
+network:
+  mode: online
+
+topology:
+  # 서버가 한 대라 VIP가 없습니다. 나중에 서버를 늘리려면 전 노드
+  # 재조인이 필요하다는 사실을 문서에 명시적으로 남깁니다 (ADR-008).
+  registrationAddress: 192.0.2.10
+  acceptNodeRegistration: true
+  servers:
+    - host: 192.0.2.10
+      ssh:
+        user: ubuntu
+        privateKey: file://~/.ssh/id_ed25519
+
+kubernetes:
+  version: v1.36.3+rke2r1
+```
+
+이 문서만으로 Cilium 데이터플레인·Gateway API·local-path 스토리지까지
+프로파일이 채웁니다. 무엇이 채워졌는지는 `malmok plan`이 출처와 함께
+출력합니다.
+
+더 많은 예시는 [`examples/`](examples/)에 있습니다.
+
+## 검증 범위
+
+인프라 도구가 과장하면 남의 클러스터가 깨집니다. 그래서 검증된 것과
+안 된 것을 나눠 적습니다.
+
+| 구성 | 상태 | 근거 |
+|---|---|---|
+| 단일 노드 (control-plane + etcd) | **실측 검증** | IDC 프로덕션 구축 완주 |
+| 2노드 (server + agent) | **실측 검증** | 랩 하네스 반복 실행 |
+| 노드 추가(grow) / 중단 후 재개 / 재적용 | **실측 검증** | 검증 매트릭스 |
+| RKE2 업그레이드 | **실측 검증** | 검증 매트릭스 |
+| Cilium 데이터플레인 + Gateway API | **실측 검증** | 외부 IP 도달 확인 |
+| private-CA 리스너 인증서 | **실측 검증** | 랩 하네스 |
+| ACME(Let's Encrypt) 인증서 | 미검증 | 공인 DNS·계정 필요 |
+| 3서버 HA (etcd 쿼럼) | **미검증** | 장비 미확보 |
+| 에어갭 / 프록시 환경 | **미검증** | 스키마만 존재 |
+| 외부 레지스트리 미러 | **미검증** | 스키마만 존재 |
+| 스토리지 백엔드 | **범위 밖** | 앱 책임 |
+| 관측(observability) 스택 | **미구현** | 스키마만 존재 |
+
+검증 매트릭스는 7개 축의 조합을 정의하고, 커버리지를 **테스트로 강제**합니다
+— 새 값을 추가하고 어느 조합에서도 쓰지 않으면 오프라인 테스트가 실패합니다.
+설계와 실행 방법은 [`docs/40-verification-matrix.md`](docs/40-verification-matrix.md).
+
+## 하지 않는 일
+
+| 안 함 | 이유 |
 |---|---|
-| WP 문서 §7 수용 기준 | `11-execute.md` 는 작성됨. `10`·`20`·`30` 을 테스트 가능한 형태로 보강 |
-| L0/L1 Ansible 롤 | |
-| CI 매트릭스 (T1 6종) | libvirt VM, airgap 은 default route 제거로 실제 격리 |
+| HTTPRoute 생성 | 앱 차트 책임입니다 (ADR-006). 게이트웨이까지가 이 도구의 몫 |
+| ingress-nginx 설치 | 2026-03 EOL (ADR-005) |
+| 사전 점검 단계에서 시스템 변경 | preflight는 읽기 전용입니다 |
+| 전 노드 동시 재시작 | 1대씩, Ready 확인 후 진행 |
+| `cluster.yaml`에 평문 시크릿 저장 | `SourceRef` 간접 참조만 받습니다 |
 
-`internal/codes/` 수집은 완료됐다 (v0.3.0 / v0.4.0). 같은 번호를 두 뜻으로 쓴
-중복은 없었고, 실제로 드러난 것은 `PF-8xx`↔`PF-9xx` 번호 충돌이 아니라 **블록
-귀속 문제**였다 — `docs/20-cert.md` 가 `PF-9xx` 를 인증서 자재 검증용으로 선언한
-상태에서 스키마가 정의 없는 `PF-908` 을 "게이트웨이 외부 IP 미고정" 뜻으로
-참조하고 있었다. `PF-612` 로 옮겼다. 자세한 내용은 CHANGELOG 참조.
+## 문서
 
-## 미결 사항
+| 문서 | 내용 |
+|---|---|
+| [`docs/00-architecture.md`](docs/00-architecture.md) | ADR 13건, 레이어 분해, 로드맵 |
+| [`docs/10-preflight-plan.md`](docs/10-preflight-plan.md) | 프로브 카탈로그, 강등 결정 트리 |
+| [`docs/11-execute.md`](docs/11-execute.md) | phase 계약, 멱등성, 재개, 이벤트 스키마 |
+| [`docs/20-cert.md`](docs/20-cert.md) | 인증서 조립·검증·갱신 |
+| [`docs/30-maintenance.md`](docs/30-maintenance.md) | 정기 점검, 보고서 |
+| [`docs/40-verification-matrix.md`](docs/40-verification-matrix.md) | 검증 매트릭스 |
+| [`docs/99-codes.md`](docs/99-codes.md) | 진단 코드 레지스트리 (생성물) |
 
-`docs/00-architecture.md` §8 참조. 사용자 결정 필요 항목은 임의로 정하지 않는다.
+문서는 한국어로 작성돼 있습니다. 로그·이벤트·에러 코드는 영어 고정입니다
+— 한글 로그는 grep과 이슈 검색을 깨뜨리기 때문입니다.
+
+## 진단 코드
+
+실패는 전부 코드를 답니다. `PF-105`(swap 활성), `PF-601`(포트 도달 불가),
+`EX-*`(실행 실패), `UP-*`(업그레이드 사전 조건) 같은 식입니다. 코드의 원천은
+문서가 아니라 `internal/codes/`이고, `docs/99-codes.md`는 거기서 생성됩니다.
+현재 145개가 등록돼 있습니다. 폐기된 번호는 재사용하지 않습니다 — 감사
+리포트와 티켓이 릴리스보다 오래 남습니다.
+
+## 기여
+
+이 저장소는 아직 단일 저자가 빠르게 바꾸고 있습니다. 이슈는 환영하고,
+PR은 먼저 이슈로 논의해 주십시오. CI가 빌드·vet·테스트(경합 검출 포함)·
+gofmt·코드 레지스트리 최신성을 검사합니다.
+
+장비가 필요한 랩 테스트는 `lab` 빌드 태그 뒤에 있습니다 — 실제 노드를
+**지우고** 다시 만들기 때문에, 지워도 되는 장비에서만 돌리십시오.
+
+## 라이선스
+
+[Apache License 2.0](LICENSE).

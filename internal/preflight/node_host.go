@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/api/v1alpha1"
 )
 
 // ---------------------------------------------------------------------------

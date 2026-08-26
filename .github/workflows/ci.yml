@@ -1,0 +1,61 @@
+# Every claim this repository makes about itself is checked here.
+#
+# CLAUDE.md has long said that CI blocks an engine -> tui import. Until this
+# file existed that sentence described a guard nobody ran. The architecture
+# test lives in internal/engine/arch_test.go; running `go test ./...` is what
+# turns it from a comment into an enforced rule.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build
+        run: go build ./...
+
+      - name: vet
+        run: go vet ./...
+
+      # The lab tests carry a `lab` build tag because they wipe and rebuild
+      # real machines. Everything here runs offline: the verification matrix
+      # proves its coverage without touching a node, and the architecture
+      # test reads the import graph.
+      - name: test
+        run: go test -race ./...
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # docs/99-codes.md is generated from internal/codes. A hand edit, or a
+      # new code added without regenerating, drifts the registry away from the
+      # binary that emits the codes -- and the registry is what a customer
+      # ticket quotes.
+      - name: codes registry is current
+        run: |
+          go generate ./internal/codes/
+          if ! git diff --quiet -- docs/99-codes.md; then
+            echo "docs/99-codes.md is stale. run: go generate ./internal/codes/"
+            git diff -- docs/99-codes.md
+            exit 1
+          fi

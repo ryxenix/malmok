@@ -7,8 +7,8 @@ import (
 	"net/netip"
 	"strings"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/exec"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/exec"
 )
 
 // Validate reports every problem with the document at once.

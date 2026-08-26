@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"platform.ryxen.dev/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/event"
 )
 
 // A step needs to stream output while it works: the ADR-002 mockup shows log

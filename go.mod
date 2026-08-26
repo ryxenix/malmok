@@ -1,4 +1,4 @@
-module platform.ryxen.dev/malmok
+module github.com/ryxen/malmok
 
 go 1.25.8
 

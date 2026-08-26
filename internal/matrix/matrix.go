@@ -25,7 +25,7 @@ import (
 	"sort"
 	"strings"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/api/v1alpha1"
 )
 
 // Dimensions of the build. The names are the document's own words, so a case

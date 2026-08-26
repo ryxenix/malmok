@@ -17,7 +17,7 @@ import (
 // not a note in a document; it is this test. A renderer subscribes to the event
 // stream — it is never reached from here.
 func TestEngineDoesNotImportTUI(t *testing.T) {
-	const forbidden = "platform.ryxen.dev/malmok/internal/tui"
+	const forbidden = "github.com/ryxen/malmok/internal/tui"
 
 	entries, err := os.ReadDir(".")
 	if err != nil {

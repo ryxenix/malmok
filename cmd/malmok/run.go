@@ -12,18 +12,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/malmok/internal/attach"
-	"platform.ryxen.dev/malmok/internal/catalogue"
-	"platform.ryxen.dev/malmok/internal/dataplane"
-	"platform.ryxen.dev/malmok/internal/engine"
-	"platform.ryxen.dev/malmok/internal/event"
-	"platform.ryxen.dev/malmok/internal/gateway"
-	"platform.ryxen.dev/malmok/internal/plan"
-	"platform.ryxen.dev/malmok/internal/preflight"
-	"platform.ryxen.dev/malmok/internal/report"
-	"platform.ryxen.dev/malmok/internal/rke2"
-	"platform.ryxen.dev/malmok/internal/spec"
-	"platform.ryxen.dev/malmok/internal/state"
+	"github.com/ryxen/malmok/internal/attach"
+	"github.com/ryxen/malmok/internal/catalogue"
+	"github.com/ryxen/malmok/internal/dataplane"
+	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/gateway"
+	"github.com/ryxen/malmok/internal/plan"
+	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxen/malmok/internal/report"
+	"github.com/ryxen/malmok/internal/rke2"
+	"github.com/ryxen/malmok/internal/spec"
+	"github.com/ryxen/malmok/internal/state"
 )
 
 // buildFlags are what `apply -f` was invoked with.

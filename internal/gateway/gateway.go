@@ -15,12 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/cert"
-	"platform.ryxen.dev/malmok/internal/dataplane"
-	"platform.ryxen.dev/malmok/internal/engine"
-	"platform.ryxen.dev/malmok/internal/exec"
-	"platform.ryxen.dev/malmok/internal/rke2"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/cert"
+	"github.com/ryxen/malmok/internal/dataplane"
+	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxen/malmok/internal/rke2"
 )
 
 // Phase is where these steps are filed.

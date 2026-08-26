@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 
-	"platform.ryxen.dev/malmok/internal/codes"
+	"github.com/ryxen/malmok/internal/codes"
 )
 
 func main() {

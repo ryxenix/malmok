@@ -1,0 +1,13 @@
+Malmok (말목)
+Copyright 2026 Malmok Authors
+
+This product includes software developed at
+https://github.com/ryxen/malmok
+
+Licensed under the Apache License, Version 2.0. See LICENSE for the
+full text.
+
+Malmok builds and operates clusters made of software it does not
+vendor: RKE2, Cilium, Helm, ArgoCD and cert-manager are downloaded at
+install time from their own distributors and remain under their own
+licenses.

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/codes"
-	"platform.ryxen.dev/malmok/internal/exec"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/codes"
+	"github.com/ryxen/malmok/internal/exec"
 )
 
 // Every fixture below is output copied from a real machine, not output somebody

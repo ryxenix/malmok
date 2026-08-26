@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.66.0] - 2026-08-26
+
+### Added
+- `LICENSE` and `NOTICE`. Apache-2.0, copied verbatim from the canonical text
+  with only the appendix placeholder filled in. Until now the repository had
+  no licence at all, which under copyright law means nobody but the author
+  could use it -- the one thing that has to exist before anything is public.
+  Apache-2.0 over MIT for the patent grant: this tool is adopted by companies,
+  and a legal review that finds no patent clause stops there.
+- `.github/workflows/ci.yml`. CLAUDE.md has claimed for months that "CI blocks
+  an engine -> tui import". No CI existed; the sentence described a guard
+  nobody ran. The architecture test was already written
+  (`internal/engine/arch_test.go`) -- it just was never executed anywhere but
+  a developer's terminal. The workflow runs build, vet, `go test -race`,
+  gofmt, and checks that `docs/99-codes.md` still matches what
+  `internal/codes` generates, since a stale registry is what a customer ticket
+  ends up quoting.
+
+### Changed
+- Module path `platform.ryxen.dev/malmok` -> `github.com/ryxen/malmok` across
+  272 import sites. A module path is how the world fetches the code; pointing
+  it at a personal domain that serves no Go metadata means `go get` fails for
+  everyone who is not the author.
+
+  The API group is deliberately NOT renamed. `platform.ryxen.dev/v1alpha1` and
+  `platform.ryxen.dev/handoff/v1alpha1` are schema identifiers already written
+  into every existing cluster.yaml and into the handoff document downstream tooling
+  consumes. They have nothing to do with `go get`, and changing them would
+  break documents in the field to no benefit.
+- `README.md` rewritten. It opened with "current state: design phase, no
+  executable code" -- for a tool that had by then installed a production
+  cluster in an IDC. The new text states what is measured on real hardware
+  and what is not: single node and two nodes are verified, three-server HA,
+  airgap and external registries are not. An infrastructure tool that
+  overstates its coverage breaks somebody else's cluster, so the untested
+  rows are in the same table as the tested ones rather than omitted.
+
+  Three claims in the first draft of that README were wrong and were caught by
+  running them: there is no `malmok build` (it is `apply`), `report` takes
+  `--run <id>` and defaults to the newest rather than `--run latest`, and the
+  minimal cluster.yaml used field names that do not exist in the schema. The
+  example now in the README is one that `malmok plan --validate-only`
+  accepts.
+- Screenshots moved out of the repository root into `docs/img/`, which is
+  gitignored.
+
 All notable changes to malmok are recorded here.
 
 Semantic versioning. The project is pre-1.0 and pre-implementation, so breaking

@@ -7,10 +7,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/engine"
-	"platform.ryxen.dev/malmok/internal/exec"
-	"platform.ryxen.dev/malmok/internal/rke2"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxen/malmok/internal/rke2"
 )
 
 func gitSpec(apps ...string) v1alpha1.ClusterSpec {

@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/preflight"
-	"platform.ryxen.dev/malmok/internal/spec"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxen/malmok/internal/spec"
 )
 
 // preflightOptions are shared by `preflight` and `plan`, because plan has to

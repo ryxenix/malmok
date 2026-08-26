@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"time"
 
-	"platform.ryxen.dev/malmok/internal/engine"
-	"platform.ryxen.dev/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxen/malmok/internal/event"
 )
 
 // Options shapes the simulated run.

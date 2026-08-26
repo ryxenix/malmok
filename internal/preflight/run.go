@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/api/v1alpha1"
 )
 
 // Probe runs every node-local check and returns what the node turned out to be.

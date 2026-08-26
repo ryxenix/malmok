@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/cert"
-	"platform.ryxen.dev/malmok/internal/codes"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/cert"
+	"github.com/ryxen/malmok/internal/codes"
 )
 
 // Local probes are the ones that need no node and no SSH.

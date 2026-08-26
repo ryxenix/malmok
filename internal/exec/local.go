@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/api/v1alpha1"
 )
 
 // Running on the machine the tool is invoked on.

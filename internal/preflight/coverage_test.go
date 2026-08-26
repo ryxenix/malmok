@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/cert"
-	"platform.ryxen.dev/malmok/internal/codes"
-	"platform.ryxen.dev/malmok/internal/engine"
-	"platform.ryxen.dev/malmok/internal/exec"
-	"platform.ryxen.dev/malmok/internal/nodeprep"
-	"platform.ryxen.dev/malmok/internal/rke2"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/cert"
+	"github.com/ryxen/malmok/internal/codes"
+	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxen/malmok/internal/nodeprep"
+	"github.com/ryxen/malmok/internal/rke2"
 )
 
 // implementedElsewhere are the PF codes this package does not produce, with the

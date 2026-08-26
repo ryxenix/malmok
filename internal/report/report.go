@@ -18,12 +18,12 @@ import (
 	"strings"
 	"time"
 
-	"platform.ryxen.dev/malmok/api/v1alpha1"
-	"platform.ryxen.dev/malmok/internal/dataplane"
-	"platform.ryxen.dev/malmok/internal/event"
-	"platform.ryxen.dev/malmok/internal/plan"
-	"platform.ryxen.dev/malmok/internal/rke2"
-	"platform.ryxen.dev/malmok/internal/spec"
+	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/dataplane"
+	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxen/malmok/internal/plan"
+	"github.com/ryxen/malmok/internal/rke2"
+	"github.com/ryxen/malmok/internal/spec"
 )
 
 // ArtifactsDir is where a run keeps what it produced (docs/11-execute.md §1.1).

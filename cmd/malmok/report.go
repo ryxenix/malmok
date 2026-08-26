@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"platform.ryxen.dev/malmok/internal/report"
+	"github.com/ryxen/malmok/internal/report"
 )
 
 func newReportCmd() *cobra.Command {

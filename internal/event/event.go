@@ -21,7 +21,7 @@ import (
 	"time"
 	"unicode"
 
-	"platform.ryxen.dev/malmok/internal/codes"
+	"github.com/ryxen/malmok/internal/codes"
 )
 
 // ---------------------------------------------------------------------------

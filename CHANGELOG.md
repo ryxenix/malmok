@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.75.2] - 2026-08-28
+
+### Changed
+- Malmok is the name, not a working title. The tentative marker is gone from
+  CLAUDE.md; publishing a repository under a name settles it either way, and
+  a "(tentative)" beside a name nobody intends to change reads as indecision.
+- The coverage tables said the observability stack was schema-only. It was
+  implemented two releases ago and has since run on the production cluster,
+  scraping 19 targets and storing samples, so both READMEs and
+  `docs/00-architecture.md` now say so. The architecture document also credits
+  ACME HTTP-01, which the same cluster proved, and moves DNS-01 to
+  "implemented, never run end to end" -- which is where it actually is.
+- The READMEs describe what an install produces, so they now mention the
+  metrics stack alongside the dataplane and the gateway.
+
 ## [0.75.1] - 2026-08-27
 
 ### Fixed

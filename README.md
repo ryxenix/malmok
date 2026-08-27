@@ -63,7 +63,8 @@ malmok report          # audit report and DNS record sheet
 Give it SSH access to some machines and a `cluster.yaml` describing what you
 want. It produces a working RKE2 cluster: kernel parameters, swap, firewall
 and other host preparation, then RKE2 itself, the Cilium dataplane, Gateway
-API, cert-manager and ArgoCD. It also leaves `kubectl`, `helm` and `k9s` on
+API, cert-manager, ArgoCD and a VictoriaMetrics stack scraping the cluster.
+It also leaves `kubectl`, `helm` and `k9s` on
 the operator's PATH -- RKE2 buries kubectl where nothing finds it and ships no
 helm CLI at all, so a finished install used to hand you credentials to a
 cluster you could not address.
@@ -168,7 +169,7 @@ cluster. So the untested rows are in the same table as the tested ones.
 | Airgap / proxy | **not verified** | schema only |
 | External registry mirror | **not verified** | schema only |
 | Storage backends | out of scope | the application's concern |
-| Observability stack | **not implemented** | schema only |
+| Observability (VictoriaMetrics) | **verified on hardware** | installed on the production cluster; 19 scrape targets, samples stored |
 
 The verification matrix defines combinations across seven dimensions and
 **enforces coverage with tests** -- add a value and use it in no case, and an

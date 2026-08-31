@@ -198,6 +198,15 @@ func (w *Wizard) fieldsFor(step Step) []field {
 				get: func(c *Config) string { return c.RegistryCA },
 				set: func(c *Config, v string) { c.RegistryCA = v }},
 		}
+		// Where the charts are mirrored. Asked beside the registry because a
+		// site that mirrors images mirrors charts in the same place, and
+		// required in an air gap for the same reason the bundle is: without
+		// it the run reaches l2-pki and stops, twenty minutes past the point
+		// where the screen could have asked.
+		fs = append(fs, field{labelKey: "reg.charts", hint: "hint.charts",
+			get: func(c *Config) string { return c.RegistryChartRepo },
+			set: func(c *Config, v string) { c.RegistryChartRepo = v }})
+
 		// Where the artifacts came across. An air-gapped build has to say
 		// either this or a registry address, and the validator refuses a
 		// document with neither -- so offering the address alone left one of

@@ -84,11 +84,17 @@ func (o Options) timeout() time.Duration {
 	return o.Timeout
 }
 
-func (o Options) repo() string {
-	if strings.TrimSpace(o.Repo) != "" {
-		return strings.TrimSpace(o.Repo)
+// chartSource is where the chart comes from, in the shape a HelmChart wants.
+// The document's mirror first, then the caller's override, then upstream.
+func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
+	repo := strings.TrimSpace(spec.Registry.ChartRepo)
+	if repo == "" {
+		repo = strings.TrimSpace(o.Repo)
 	}
-	return ChartRepo
+	if repo == "" {
+		repo = ChartRepo
+	}
+	return rke2.ChartSource(repo, chart)
 }
 
 // Enabled reports whether the document asks for a metrics stack.
@@ -162,9 +168,7 @@ metadata:
   name: victoria-metrics
   namespace: kube-system
 spec:
-  repo: ` + yamlString(o.repo()) + `
-  chart: victoria-metrics-k8s-stack
-  version: ` + yamlString(StackChartVersion) + `
+` + o.chartSource(spec, "victoria-metrics-k8s-stack") + `  version: ` + yamlString(StackChartVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-

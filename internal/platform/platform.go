@@ -104,11 +104,20 @@ func (o Options) timeout() time.Duration {
 	return o.Timeout
 }
 
-func (o Options) repo() string {
-	if r := strings.TrimSpace(o.ChartRepo); r != "" {
-		return r
+// UpstreamRepo is where this chart comes from when nothing mirrors it.
+const UpstreamRepo = "https://argoproj.github.io/argo-helm"
+
+// chartSource is where the chart comes from, in the shape a HelmChart wants.
+// The document's mirror first, then the caller's override, then upstream.
+func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
+	repo := strings.TrimSpace(spec.Registry.ChartRepo)
+	if repo == "" {
+		repo = strings.TrimSpace(o.ChartRepo)
 	}
-	return "https://argoproj.github.io/argo-helm"
+	if repo == "" {
+		repo = UpstreamRepo
+	}
+	return rke2.ChartSource(repo, chart)
 }
 
 // Steps returns the l2-platform catalogue.
@@ -358,9 +367,7 @@ metadata:
   name: ` + yamlString(ReleaseName) + `
   namespace: kube-system
 spec:
-  repo: ` + yamlString(o.repo()) + `
-  chart: argo-cd
-  version: ` + yamlString(ChartVersion) + `
+` + o.chartSource(spec, "argo-cd") + `  version: ` + yamlString(ChartVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-

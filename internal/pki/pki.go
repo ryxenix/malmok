@@ -35,6 +35,9 @@ const Phase = "l2-pki"
 // means the bundle and the manifest disagree about what is installed. Upgrading
 // them is a decision with a changelog behind it, not something that happens
 // because a chart repository moved.
+// UpstreamRepo is where these charts come from when nothing mirrors them.
+const UpstreamRepo = "https://charts.jetstack.io"
+
 const (
 	CertManagerVersion  = "v1.21.1"
 	TrustManagerVersion = "v0.24.0"
@@ -93,11 +96,22 @@ func (o Options) timeout() time.Duration {
 	return o.Timeout
 }
 
-func (o Options) repo() string {
-	if r := strings.TrimSpace(o.ChartRepo); r != "" {
-		return r
+// chartSource is where the charts come from, in the shape a HelmChart wants.
+//
+// The document first: an air-gapped site mirrors its charts and says so in
+// registry.chartRepo, and a phase that ignored it would pull a chart from the
+// internet on a node that has none. Options.ChartRepo stays below it as the
+// caller's own override, and the upstream is the answer wherever there is a
+// route to it.
+func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
+	repo := strings.TrimSpace(spec.Registry.ChartRepo)
+	if repo == "" {
+		repo = strings.TrimSpace(o.ChartRepo)
 	}
-	return "https://charts.jetstack.io"
+	if repo == "" {
+		repo = UpstreamRepo
+	}
+	return rke2.ChartSource(repo, chart)
 }
 
 // Steps returns the l2-pki catalogue.
@@ -170,7 +184,7 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, m Material, o Options)
 	// reject the CA and the failure is an opaque x509 error.
 	if wantsTrustBundle(spec) {
 		steps = append(steps,
-			add(rke2.ManifestStep(Phase, "trust-manager", trustManagerFile, TrustManagerChart(o),
+			add(rke2.ManifestStep(Phase, "trust-manager", trustManagerFile, TrustManagerChart(spec, o),
 				"helmchart -n kube-system trust-manager", o.timeout())),
 			// The same wait cert-manager needs, for the same reason: the chart
 			// is deployed before its CRD is registered, and a Bundle applied in
@@ -357,9 +371,7 @@ metadata:
   name: cert-manager
   namespace: kube-system
 spec:
-  repo: ` + yamlString(o.repo()) + `
-  chart: cert-manager
-  version: ` + yamlString(CertManagerVersion) + `
+` + o.chartSource(spec, "cert-manager") + `  version: ` + yamlString(CertManagerVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-
@@ -395,7 +407,7 @@ spec:
 }
 
 // TrustManagerChart renders the trust-manager HelmChart.
-func TrustManagerChart(o Options) string {
+func TrustManagerChart(spec v1alpha1.ClusterSpec, o Options) string {
 	return managedFileHeader + `
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -403,9 +415,7 @@ metadata:
   name: trust-manager
   namespace: kube-system
 spec:
-  repo: ` + yamlString(o.repo()) + `
-  chart: trust-manager
-  version: ` + yamlString(TrustManagerVersion) + `
+` + o.chartSource(spec, "trust-manager") + `  version: ` + yamlString(TrustManagerVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-

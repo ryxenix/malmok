@@ -130,6 +130,7 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 
 	s.Registry.Mode = v1alpha1.RegistryMode(c.RegistryMode)
 	s.Registry.SystemDefaultRegistry = c.RegistryHost
+	s.Registry.ChartRepo = c.RegistryChartRepo
 	if c.RegistryHost == "" {
 		// No registry, so no credentials for one. A reference left pointing at
 		// a host that is not in the document resolves to a file or a variable
@@ -312,13 +313,14 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		GatewayName:     gatewayNameOf(s),
 		GatewayAddress:  gatewayAddressOf(s),
 
-		RegistryHost:     s.Registry.SystemDefaultRegistry,
-		RegistryUser:     string(s.Registry.Username),
-		RegistryPass:     string(s.Registry.Password),
-		RegistryCA:       string(s.Registry.CACert),
-		RegistryBundle:   s.Registry.Bundle,
-		RegistryInsecure: s.Registry.Insecure != nil && *s.Registry.Insecure,
-		TrustBundle:      s.PKI.Trust.ClusterBundle != nil && *s.PKI.Trust.ClusterBundle,
+		RegistryChartRepo: s.Registry.ChartRepo,
+		RegistryHost:      s.Registry.SystemDefaultRegistry,
+		RegistryUser:      string(s.Registry.Username),
+		RegistryPass:      string(s.Registry.Password),
+		RegistryCA:        string(s.Registry.CACert),
+		RegistryBundle:    s.Registry.Bundle,
+		RegistryInsecure:  s.Registry.Insecure != nil && *s.Registry.Insecure,
+		TrustBundle:       s.PKI.Trust.ClusterBundle != nil && *s.PKI.Trust.ClusterBundle,
 
 		SSHUser: "root",
 		SSHPort: "22",

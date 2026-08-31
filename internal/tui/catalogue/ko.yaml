@@ -225,6 +225,7 @@ btn:
 key:
   retry: 재시도
 hint:
+  charts: "Helm 저장소(https://) 또는 OCI 레지스트리(oci://). 이미지 미러와는 별개입니다"
   password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 SSH 키나 ssh-agent 를 씁니다
   version: 네트워크가 되면 RKE2 stable 채널 값이 채워지고, Space 로 latest 최신판과 전환됩니다. 폐쇄망이면 번들이 담고 있는 버전을 직접 입력하십시오
   registration: VIP 또는 DNS 이름. 비우면 이 서버 자신의 주소를 씁니다 — VIP 도 DNS 도 정책상 못 쓰는 환경용이며, 나중에 HA 로 가면 전 노드 재조인이 비용입니다
@@ -264,6 +265,7 @@ net:
   noProxy: 프록시 제외
   lbpool: LB 주소 풀
 reg:
+  charts: 차트 미러
   heading: 레지스트리
   help: 이미지를 받아올 곳입니다.
   note_none: 설정할 것이 없습니다. 따로 세우고 유지할 레지스트리 없이 이미지를 받습니다.

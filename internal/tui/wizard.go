@@ -257,6 +257,11 @@ type Config struct {
 	// SourceRefs, not values. cluster.yaml is handed over at the end of the
 	// engagement, so what is collected here is where to find a secret rather
 	// than the secret itself.
+	// RegistryChartRepo is where the platform's Helm charts are mirrored. The
+	// images and the charts are two mirrors, and an air-gapped site that moved
+	// one without the other gets an install that stops at cert-manager.
+	RegistryChartRepo string
+
 	RegistryHost string
 	RegistryUser string
 	RegistryPass string

@@ -588,6 +588,9 @@ func TestEveryProfileIsReachableByComposing(t *testing.T) {
 			}
 			if b.NetworkMode == v1alpha1.NetworkAirgap {
 				m.cfg.RegistryBundle = "/srv/bundle.tar.zst"
+				// Images and charts are two mirrors. An air-gapped document
+				// that names only the first stops at cert-manager.
+				m.cfg.RegistryChartRepo = "oci://harbor.acme.internal/charts"
 			}
 			if b.RegistryMode == v1alpha1.RegistryExternal || b.RegistryMode == v1alpha1.RegistryInternal {
 				m.cfg.RegistryHost = "harbor.acme.internal"

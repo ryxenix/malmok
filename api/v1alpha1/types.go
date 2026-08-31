@@ -523,6 +523,24 @@ type RegistrySpec struct {
 
 	// Bundle is the Hauler artifact (.tar.zst) carried across the air gap.
 	Bundle string `yaml:"bundle,omitempty" json:"bundle,omitempty"`
+
+	// ChartRepo is where the platform's Helm charts come from.
+	//
+	// SystemDefaultRegistry moves the images; this moves the charts, and a
+	// site that mirrors one without the other gets an install that pulls its
+	// containers locally and its chart definitions from the internet. In an
+	// air gap that is not a slow install, it is a failed one: cert-manager,
+	// the metrics stack and ArgoCD each fetch a chart before they fetch an
+	// image.
+	//
+	// Two forms are understood, because the two kinds of mirror are:
+	//
+	//	https://charts.acme.internal        a Helm repository
+	//	oci://harbor.acme.internal/charts   an OCI registry (ADR-007)
+	//
+	// Empty means the upstream each chart came from, which is right wherever
+	// there is a route to it.
+	ChartRepo string `yaml:"chartRepo,omitempty" json:"chartRepo,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

@@ -732,3 +732,50 @@ func TestAFirstBuildNeedsNoDomain(t *testing.T) {
 		t.Errorf("issuing certificates without a domain suffix was accepted: %v", err)
 	}
 }
+
+// Images and charts are two mirrors. A document that moved one and not the
+// other installs its containers from the local registry and fetches chart
+// definitions from the internet -- which in an air gap is not a slow install
+// but a failed one, discovered at l2-pki twenty minutes in.
+func TestAirgapNeedsAChartMirrorTooWhenChartsAreInstalled(t *testing.T) {
+	base := func() v1alpha1.ClusterSpec {
+		s := v1alpha1.ClusterSpec{}
+		s.APIVersion, s.Kind = v1alpha1.APIVersion, "ClusterSpec"
+		s.Metadata.Name = "c"
+		s.Network.Mode = v1alpha1.NetworkAirgap
+		s.Topology.RegistrationAddress = "192.0.2.10"
+		s.Topology.AcceptNodeRegistration = true
+		s.Topology.Servers = []v1alpha1.NodeSpec{{Host: "192.0.2.10", Role: v1alpha1.RoleServer}}
+		s.Kubernetes.Version = "v1.36.3+rke2r1"
+		s.Registry.Mode = v1alpha1.RegistryInternal
+		s.Registry.SystemDefaultRegistry = "harbor.acme.internal"
+		s.PKI.Mode = v1alpha1.PKIPrivateCA
+		s.PKI.Domain = "acme.internal"
+		return s
+	}
+
+	check := func(s v1alpha1.ClusterSpec) error {
+		d := &Document{Spec: s}
+		return d.Validate(false)
+	}
+
+	missing := base()
+	if err := check(missing); err == nil || !strings.Contains(err.Error(), "chartRepo") {
+		t.Errorf("an air-gapped document with no chart mirror is accepted: %v", err)
+	}
+
+	named := base()
+	named.Registry.ChartRepo = "oci://harbor.acme.internal/charts"
+	if err := check(named); err != nil && strings.Contains(err.Error(), "chartRepo") {
+		t.Errorf("naming a mirror does not satisfy the rule: %v", err)
+	}
+
+	// Nothing this tool fetches a chart for means nothing to mirror. An
+	// air-gapped cluster with no PKI, no metrics and no GitOps still comes up:
+	// RKE2 carries Cilium's chart in its own artifacts.
+	bare := base()
+	bare.PKI.Mode = v1alpha1.PKINone
+	if err := check(bare); err != nil && strings.Contains(err.Error(), "chartRepo") {
+		t.Errorf("a document that installs no chart is asked for a chart mirror: %v", err)
+	}
+}

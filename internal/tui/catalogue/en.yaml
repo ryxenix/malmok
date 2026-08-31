@@ -226,6 +226,7 @@ btn:
 key:
   retry: retry
 hint:
+  charts: "a Helm repository (https://) or an OCI registry (oci://); the images move separately"
   password: Used for the checks only; it is never written to cluster.yaml. Leave empty to use a key or an agent
   version: RKE2's stable channel fills this when the network answers; Space flips to the latest release and back. On an air-gapped site, type the version the bundle carries
   registration: A VIP or DNS name. Empty means this server's own address -- allowed where network policy permits no VIP and no DNS, at the cost of re-joining every node if HA comes later
@@ -265,6 +266,7 @@ net:
   noProxy: No proxy
   lbpool: LB address pool
 reg:
+  charts: Chart mirror
   heading: Registry
   help: Where images are pulled from.
   note_none: Nothing to configure. Images come from here without a registry to stand up or keep alive.

@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.76.0] - 2026-09-01
+
+### Added
+- `registry.chartRepo` points the platform's Helm charts at a mirror.
+
+  The three phases that install a chart -- cert-manager, the metrics stack and
+  ArgoCD -- each carried a `ChartRepo` override in their options, and nothing
+  in the schema or the command line ever set one. They always fetched from
+  charts.jetstack.io, victoriametrics.github.io and argoproj.github.io. An
+  air-gapped site could mirror every image through
+  `registry.systemDefaultRegistry` and still fail at `l2-pki`, because images
+  and charts are two mirrors and only one of them could be named.
+
+  Both kinds of mirror are understood, since the two are not the same shape to
+  the helm controller:
+
+      https://charts.acme.internal        repo: plus a bare chart name
+      oci://harbor.acme.internal/charts   chart: carrying the whole reference
+
+  ADR-007 already puts an air-gapped site's charts in the OCI registry beside
+  its images, so supporting only the Helm-repository form would have meant
+  supporting the form that site does not have.
+
+- Validation refuses an air-gapped document that installs a chart and names no
+  mirror. Without it the run reaches `l2-pki` and stops there, twenty minutes
+  past the point where a file could have been read. A document that installs
+  no chart is not asked -- RKE2 carries Cilium's chart in its own artifacts,
+  so such a cluster still comes up.
+
+- The registry screen asks for the mirror, because the wizard's own test
+  refuses a baseline that cannot be composed on a screen -- and every airgap
+  profile had just become one.
+
 ## [0.75.2] - 2026-08-28
 
 ### Changed

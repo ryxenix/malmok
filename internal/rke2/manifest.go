@@ -2,6 +2,7 @@ package rke2
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ryxen/malmok/internal/engine"
@@ -135,4 +136,31 @@ exit 1`, int(timeout.Seconds()), probe, transient, what, int(timeout.Seconds()))
 		// Apply is already a bounded wait; retrying it just waits again.
 		Attempts: 1,
 	}
+}
+
+// ChartSource renders the two fields of a HelmChart that say where a chart
+// comes from, for whichever kind of mirror the document names.
+//
+// A Helm repository and an OCI registry are not the same shape to the helm
+// controller: one is `repo:` plus a bare chart name, the other is a `chart:`
+// that carries the whole reference and no repo at all. An air-gapped site has
+// whichever its registry provides -- ADR-007 puts charts in the OCI registry
+// beside the images precisely so no second server is needed -- so both are
+// understood rather than one being the supported way.
+//
+// repo empty means the chart's own upstream, which the caller passes as the
+// default.
+func ChartSource(repo, chart string) string {
+	repo = strings.TrimSpace(repo)
+	if strings.HasPrefix(repo, "oci://") {
+		// One field, and the chart name appended to the reference. A repo
+		// field beside an OCI chart is rejected by the controller.
+		return "  chart: " + ShellQuoteYAML(strings.TrimSuffix(repo, "/")+"/"+chart) + "\n"
+	}
+	return "  repo: " + ShellQuoteYAML(repo) + "\n  chart: " + chart + "\n"
+}
+
+// ShellQuoteYAML wraps a value so YAML reads it as a string.
+func ShellQuoteYAML(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 }

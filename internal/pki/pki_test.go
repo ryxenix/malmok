@@ -437,7 +437,7 @@ func contains(list []string, want string) bool {
 func TestReleaseNamesAreTheUpstreamOnes(t *testing.T) {
 	for _, tc := range []struct{ body, want string }{
 		{CertManagerChart(specWith(v1alpha1.PKIPrivateCA), Options{}), "cert-manager"},
-		{TrustManagerChart(Options{}), "trust-manager"},
+		{TrustManagerChart(v1alpha1.ClusterSpec{}, Options{}), "trust-manager"},
 	} {
 		meta, _ := docs(t, tc.body)[0]["metadata"].(map[string]any)
 		if meta["name"] != tc.want {

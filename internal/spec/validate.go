@@ -340,7 +340,39 @@ func validateRegistry(s *v1alpha1.ClusterSpec) []error {
 			"network.mode is airgap but neither registry.bundle nor registry.systemDefaultRegistry is set; "+
 				"there is nowhere to pull images from"))
 	}
+
+	// Images and charts are two mirrors, and a site that moved one without the
+	// other has an install that pulls its containers locally and its chart
+	// definitions from the internet. cert-manager, the metrics stack and
+	// ArgoCD each fetch a chart before they fetch an image, so in an air gap
+	// the run reaches l2-pki and stops there -- twenty minutes after the point
+	// where this could have been said.
+	if s.Network.Mode == v1alpha1.NetworkAirgap && r.ChartRepo == "" && wantsCharts(s) {
+		errs = append(errs, errors.New(
+			"network.mode is airgap and registry.chartRepo is not set; "+
+				"cert-manager, observability and ArgoCD each fetch a Helm chart, "+
+				"so mirror them and name the mirror (https:// or oci://)"))
+	}
 	return errs
+}
+
+// wantsCharts reports whether the document asks for anything installed by a
+// Helm chart this tool fetches.
+//
+// The dataplane is not among them: RKE2 carries Cilium's chart and images in
+// its own airgap artifacts, which is why an air-gapped cluster comes up with a
+// network before any of this matters.
+func wantsCharts(s *v1alpha1.ClusterSpec) bool {
+	if s.PKI.Mode != "" && s.PKI.Mode != v1alpha1.PKINone && s.PKI.Mode != v1alpha1.PKIBYOCert {
+		return true
+	}
+	if o := s.Platform.Observability; o.Enabled != nil && *o.Enabled {
+		return true
+	}
+	if g := s.Platform.GitOps; g.Enabled != nil && *g.Enabled {
+		return true
+	}
+	return false
 }
 
 func validateStorage(s *v1alpha1.ClusterSpec) []error {

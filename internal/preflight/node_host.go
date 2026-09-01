@@ -499,3 +499,88 @@ func CheckTimezones(byHost map[string]string) ProbeResult {
 		"the nodes are in different timezones (%s); correlating logs across them becomes guesswork",
 		strings.Join(parts, " | "))
 }
+
+// quotePath wraps a path for the shell. Single quotes, with the one escape a
+// single-quoted string allows, because a path is operator input and a space in
+// it should be a path with a space rather than two arguments.
+func quotePath(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// CheckArtifactPath implements PF-709.
+//
+// An air-gapped install reads RKE2's release artifacts from a directory on the
+// node rather than fetching them, and the installer verifies them against the
+// checksum file beside them. What it does not do is explain a directory that
+// is absent, empty, or holds a different version than the document asks for:
+// it reports a failed download on a machine that was never going to download
+// anything.
+//
+// The observable is the files themselves. The version is read out of the
+// tarball's own name, so a directory staged for the previous release is caught
+// here rather than after the install has replaced the binary.
+func (n *Node) CheckArtifactPath(ctx context.Context, path string) ProbeResult {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return skipped("PF-709", "the document names no artifact path; the installer fetches its own")
+	}
+
+	r := n.run(ctx, `p=`+quotePath(path)+`
+[ -d "$p" ] || { echo "MISSING"; exit 0; }
+ls -1 "$p" 2>/dev/null | tr '\n' ' '`)
+	if r.ExitCode < 0 {
+		return unmeasured("PF-709", "the node could not be asked: "+r.Err())
+	}
+
+	out := strings.TrimSpace(r.Out())
+	if out == "MISSING" {
+		return failf("PF-709", "ARTIFACT_PATH_MISSING",
+			"kubernetes.artifactPath is %s and no such directory exists on this node; "+
+				"the release artifacts are carried to each node before the install, not fetched by it", path)
+	}
+	if out == "" {
+		return failf("PF-709", "ARTIFACT_PATH_EMPTY",
+			"kubernetes.artifactPath %s is empty; it holds rke2.linux-<arch>.tar.gz, "+
+				"its sha256sum file, the images archive and install.sh", path)
+	}
+
+	files := strings.Fields(out)
+	has := func(match func(string) bool) bool {
+		for _, f := range files {
+			if match(f) {
+				return true
+			}
+		}
+		return false
+	}
+
+	var missing []string
+	if !has(func(f string) bool { return strings.HasPrefix(f, "rke2.linux-") && strings.HasSuffix(f, ".tar.gz") }) {
+		missing = append(missing, "rke2.linux-<arch>.tar.gz")
+	}
+	if !has(func(f string) bool { return strings.HasPrefix(f, "sha256sum-") }) {
+		missing = append(missing, "sha256sum-<arch>.txt")
+	}
+	// install.sh is what the step runs. Without it the artifact path is a
+	// directory of tarballs nothing knows how to apply.
+	if !has(func(f string) bool { return f == "install.sh" }) {
+		missing = append(missing, "install.sh")
+	}
+	if len(missing) > 0 {
+		return failf("PF-709", "ARTIFACT_PATH_INCOMPLETE",
+			"kubernetes.artifactPath %s is missing %s; it holds %s",
+			path, strings.Join(missing, ", "), out)
+	}
+
+	// The images archive is what makes the cluster come up without a registry.
+	// Its absence is not a failed install -- RKE2 starts and then pulls -- so
+	// it is said rather than blocked on, because on an air-gapped node that
+	// pull is the thing that will hang.
+	if !has(func(f string) bool { return strings.HasPrefix(f, "rke2-images") }) {
+		return passf("PF-709",
+			"%s holds the binaries and no rke2-images archive, so the node will pull its "+
+				"system images -- which works where there is a route and hangs where there is not", path)
+	}
+
+	return passf("PF-709", "%s holds the release artifacts (%s)", path, out)
+}

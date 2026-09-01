@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/ryxen/malmok/api/v1alpha1"
 	"github.com/ryxen/malmok/internal/cert"
@@ -79,6 +80,23 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 		return nil, fmt.Errorf("catalogue: the document names no server, so there is no cluster to build")
 	}
 	first := servers[0]
+
+	// The document's artifact path reaches every phase that installs from it,
+	// filled here rather than at each caller: apply, upgrade and the headless
+	// builder each construct their own options, and a value threaded through
+	// three of them is a value missing from the fourth the day somebody adds
+	// one.
+	//
+	// A caller that set one explicitly keeps it -- that is the test harness's
+	// way of pointing a run at a staged directory.
+	if p := strings.TrimSpace(spec.Kubernetes.ArtifactPath); p != "" {
+		if o.RKE2.ArtifactPath == "" {
+			o.RKE2.ArtifactPath = p
+		}
+		if o.Dataplane.ArtifactPath == "" {
+			o.Dataplane.ArtifactPath = p
+		}
+	}
 
 	control := r.Control
 	if control == nil {

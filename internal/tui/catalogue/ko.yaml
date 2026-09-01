@@ -115,6 +115,7 @@ nodes:
   version.stable: 업스트림이 운영용으로 판단한 버전
   version.latest: 가장 최신 릴리스
   domain: 도메인
+  artifacts: 아티팩트 경로
 profile:
   heading: 프로파일 선택
   help: 설치 환경을 고르십시오. 프로파일이 검증된 기준값을 정하고, 나머지 설정은 그 위에 덮어쓰는 값입니다.
@@ -225,6 +226,7 @@ btn:
 key:
   retry: 재시도
 hint:
+  artifacts: "각 노드에 rke2.linux-<arch>.tar.gz·체크섬·이미지 아카이브·install.sh 가 놓인 디렉터리"
   charts: "Helm 저장소(https://) 또는 OCI 레지스트리(oci://). 이미지 미러와는 별개입니다"
   password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 SSH 키나 ssh-agent 를 씁니다
   version: 네트워크가 되면 RKE2 stable 채널 값이 채워지고, Space 로 latest 최신판과 전환됩니다. 폐쇄망이면 번들이 담고 있는 버전을 직접 입력하십시오

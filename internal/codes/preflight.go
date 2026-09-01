@@ -385,6 +385,12 @@ var preflightCodes = []Code{
 		Severity: SeverityBlock,
 	},
 	{
+		ID: "PF-709", Family: FamilyPreflight, Category: catRegistryPKI,
+		Summary:  "RKE2 release artifacts on the node",
+		Message:  "kubernetes.artifactPath does not hold the release artifacts for the version this document asks for",
+		Severity: SeverityBlock,
+	},
+	{
 		ID: "PF-708", Family: FamilyPreflight, Category: catRegistryPKI,
 		Summary:  "ACME prerequisites",
 		Message:  "ACME DNS-01 token is invalid or the zone is not writable",

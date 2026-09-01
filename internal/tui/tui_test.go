@@ -591,6 +591,8 @@ func TestEveryProfileIsReachableByComposing(t *testing.T) {
 				// Images and charts are two mirrors. An air-gapped document
 				// that names only the first stops at cert-manager.
 				m.cfg.RegistryChartRepo = "oci://harbor.acme.internal/charts"
+				// And RKE2's own artifacts, which no mirror serves.
+				m.cfg.ArtifactPath = "/srv/rke2"
 			}
 			if b.RegistryMode == v1alpha1.RegistryExternal || b.RegistryMode == v1alpha1.RegistryInternal {
 				m.cfg.RegistryHost = "harbor.acme.internal"

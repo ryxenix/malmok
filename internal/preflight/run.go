@@ -86,6 +86,10 @@ func (n *Node) Probe(ctx context.Context) NodeCapability {
 		// The address the document pins is the one an existing datastore has
 		// to agree with; disagreement is a start that never completes.
 		n.CheckEtcdMemberAddress(ctx, n.advertisedAddress()),
+		// Where an air-gapped install reads its release artifacts from. The
+		// installer reports a failed download for a directory that is absent
+		// or incomplete, on a node that was never going to download anything.
+		n.CheckArtifactPath(ctx, n.Cluster.Kubernetes.ArtifactPath),
 	}
 
 	for _, r := range results {

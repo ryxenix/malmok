@@ -112,6 +112,16 @@ func (w *Wizard) fieldsFor(step Step) []field {
 				get: func(c *Config) string { return c.Domain },
 				set: func(c *Config, v string) { c.Domain = v }},
 		)
+
+		// Where RKE2's own artifacts sit, asked beside the version because it
+		// is the version they have to be for. Only in an air gap: everywhere
+		// else the installer fetches them, and a field for a path nobody
+		// staged is a question with no answer.
+		if w.networkMode() == v1alpha1.NetworkAirgap {
+			fs = append(fs, field{labelKey: "nodes.artifacts", hint: "hint.artifacts",
+				get: func(c *Config) string { return c.ArtifactPath },
+				set: func(c *Config, v string) { c.ArtifactPath = v }})
+		}
 		return fs
 
 	case StepGateway:

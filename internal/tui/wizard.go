@@ -257,6 +257,11 @@ type Config struct {
 	// SourceRefs, not values. cluster.yaml is handed over at the end of the
 	// engagement, so what is collected here is where to find a secret rather
 	// than the secret itself.
+	// ArtifactPath is where RKE2's own release artifacts sit on each node. An
+	// air-gapped node cannot fetch them, so they are carried there first and
+	// this says where they landed.
+	ArtifactPath string
+
 	// RegistryChartRepo is where the platform's Helm charts are mirrored. The
 	// images and the charts are two mirrors, and an air-gapped site that moved
 	// one without the other gets an install that stops at cert-manager.

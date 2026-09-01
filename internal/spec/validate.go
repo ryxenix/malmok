@@ -341,6 +341,17 @@ func validateRegistry(s *v1alpha1.ClusterSpec) []error {
 				"there is nowhere to pull images from"))
 	}
 
+	// The binaries are the third thing to carry. An air-gapped node cannot
+	// reach the release page either, and the installer answers a missing
+	// artifact path with a failed download -- on a machine that was never
+	// going to download anything.
+	if s.Network.Mode == v1alpha1.NetworkAirgap && strings.TrimSpace(s.Kubernetes.ArtifactPath) == "" {
+		errs = append(errs, errors.New(
+			"network.mode is airgap and kubernetes.artifactPath is not set; "+
+				"RKE2's own tarball, checksum and images archive are carried to each node "+
+				"and the document says where they landed"))
+	}
+
 	// Images and charts are two mirrors, and a site that moved one without the
 	// other has an install that pulls its containers locally and its chart
 	// definitions from the internet. cert-manager, the metrics stack and

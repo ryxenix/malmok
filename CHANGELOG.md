@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.77.0] - 2026-09-02
+
+### Added
+- `kubernetes.artifactPath` says where RKE2's own release artifacts sit on
+  each node.
+
+  `rke2.Options.ArtifactPath` and `dataplane.Options.ArtifactPath` have existed
+  since the tarball decision (ADR-013) and nothing ever set them, so an
+  air-gapped install still went to GitHub for the binary it was carrying in a
+  bag. The document now fills both, in `catalogue.Build` rather than at each
+  caller: apply, upgrade and the headless builder each construct their own
+  options, and a value threaded through three of them is a value missing from
+  the fourth.
+
+- PF-709 measures that directory on the node. The installer's answer to a
+  path that is absent, empty or half-staged is a failed download -- the least
+  useful sentence available on a machine with no route -- so the files are
+  listed and named here instead: the tarball, its checksum, install.sh, and
+  the images archive whose absence means the node will try to pull.
+
+- Validation refuses an air-gapped document that names no artifact path, for
+  the reason it now refuses one with no chart mirror. Three things cross an
+  air gap -- images, charts, and RKE2 itself -- and until this release the
+  document could only name the first.
+
+- The node screen asks for the path when the network is air-gapped, since the
+  wizard's own test refuses a baseline that cannot be composed on a screen.
+
 ## [0.76.0] - 2026-09-01
 
 ### Added

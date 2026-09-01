@@ -116,6 +116,7 @@ nodes:
   version.stable: upstream's production judgement
   version.latest: the newest release
   domain: Domain
+  artifacts: Artifact path
 profile:
   heading: Profile
   help: Pick the environment. The profile decides the validated baseline; every other setting is an override.
@@ -226,6 +227,7 @@ btn:
 key:
   retry: retry
 hint:
+  artifacts: "a directory on each node holding rke2.linux-<arch>.tar.gz, its checksum, the images archive and install.sh"
   charts: "a Helm repository (https://) or an OCI registry (oci://); the images move separately"
   password: Used for the checks only; it is never written to cluster.yaml. Leave empty to use a key or an agent
   version: RKE2's stable channel fills this when the network answers; Space flips to the latest release and back. On an air-gapped site, type the version the bundle carries

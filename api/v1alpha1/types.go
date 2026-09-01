@@ -304,6 +304,18 @@ type HardeningSpec struct {
 type KubernetesSpec struct {
 	Version string `yaml:"version" json:"version"` // e.g. v1.34.5+rke2r1
 
+	// ArtifactPath is a directory on each node holding RKE2's release
+	// artifacts for exactly this version: the tarball, its checksum file, the
+	// images archive and install.sh.
+	//
+	// Empty means the installer fetches them, which needs a route to GitHub.
+	// An air-gapped node has none, so the artifacts are carried there first
+	// and this says where they landed -- and the installer verifies them
+	// against the checksum file beside them rather than trusting the copy.
+	//
+	// Per node, not on the operator's machine: the install runs on the node.
+	ArtifactPath string `yaml:"artifactPath,omitempty" json:"artifactPath,omitempty"`
+
 	Dataplane DataplaneSpec `yaml:"dataplane" json:"dataplane"`
 
 	// DisableBundled: rke2-ingress-nginx is ALWAYS disabled by the engine

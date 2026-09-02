@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.78.0] - 2026-09-02
+
+### Fixed
+- An air-gapped install could not pass its own checks. Three separate places
+  held the premise that a Hauler bundle is the only source of images an
+  air-gapped cluster can have, and `registry.bundle` is the one image source
+  this tool does not load anything from. The result was that the only
+  configuration preflight accepted was the one that does not work, and the two
+  that do -- RKE2's own `rke2-images-*.tar.zst` in `kubernetes.artifactPath`,
+  and a mirrored `registry.systemDefaultRegistry` -- were refused before
+  reaching a node. Found by staging real artifacts on the lab nodes and running
+  `plan` against them.
+  - `spec.Validate` now accepts `kubernetes.artifactPath` as an image source.
+    Naming a registry to satisfy the old rule was worse than useless:
+    `system-default-registry` rewrites every system image reference, and the
+    preloaded images carry their original names.
+  - PF-707 no longer fails on an empty `registry.bundle` when another source is
+    named; it says which one it deferred to. PF-709 reads the artifact path on
+    the node and reports what is actually in it.
+- SSH now offers the host key types `known_hosts` already holds, the way
+  OpenSSH does. Unset, the server chose its own -- ecdsa on a stock Ubuntu --
+  and a `known_hosts` holding that host's ed25519 key answered `key mismatch`.
+  That sentence means "the machine changed", so it sends an operator to look
+  for an attacker instead of at the key type. A genuine mismatch now says which
+  types the file holds and that a rebuilt machine is the other explanation.
+
 ## [0.77.0] - 2026-09-02
 
 ### Added

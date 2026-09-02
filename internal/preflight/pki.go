@@ -180,17 +180,36 @@ func checkPKIRootKey(m cert.Material) ProbeResult {
 
 // CheckAirgapBundle implements PF-707.
 //
-// The bundle is the only source of images an airgapped install has. A truncated
-// download is the common failure and it does not announce itself: the install
-// proceeds until the first missing layer, by which point half the cluster is up.
+// A bundle is one source of images an airgapped install can have, and this
+// check is about that one: a truncated download is the common failure and it
+// does not announce itself, so the install proceeds until the first missing
+// layer, by which point half the cluster is up.
+//
+// It is not the only source, and for a long time this check said it was --
+// failing every air-gapped document that carried RKE2's own image archives or
+// named a mirrored registry, which is to say every air-gapped document that
+// would actually have worked. The bundle is the one thing here nothing loads
+// yet. So an empty bundle is a question about the others, and only a document
+// that names none of the three has nowhere to pull from.
 func CheckAirgapBundle(spec v1alpha1.ClusterSpec, docDir string) ProbeResult {
 	if spec.Network.Mode != v1alpha1.NetworkAirgap {
 		return skipped("PF-707", "the network mode is not airgap")
 	}
 	raw := strings.TrimSpace(spec.Registry.Bundle)
 	if raw == "" {
+		// PF-709 reads the artifact path on the node and reports whether the
+		// image archive is really in it. Here the document is all there is.
+		if p := strings.TrimSpace(spec.Kubernetes.ArtifactPath); p != "" {
+			return skipped("PF-707",
+				"no registry.bundle; the images come from RKE2's own archives in "+p+" (PF-709 reads them)")
+		}
+		if r := strings.TrimSpace(spec.Registry.SystemDefaultRegistry); r != "" {
+			return skipped("PF-707",
+				"no registry.bundle; the images come from "+r)
+		}
 		return failf("PF-707", "BUNDLE_MISSING",
-			"network.mode is airgap and registry.bundle is empty; there is no source of images")
+			"network.mode is airgap and none of registry.bundle, kubernetes.artifactPath "+
+				"or registry.systemDefaultRegistry is set; there is no source of images")
 	}
 
 	path := resolveLocalPath(raw, docDir)

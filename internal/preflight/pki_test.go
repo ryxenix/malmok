@@ -299,6 +299,29 @@ func TestCheckAirgapBundle(t *testing.T) {
 		}
 	})
 
+	// A bundle is one image source of three, and it is the one nothing loads
+	// yet. Failing on its absence blocked every air-gapped install that named
+	// either of the others -- which is to say every one that would have worked.
+	t.Run("no bundle but the artifacts are carried", func(t *testing.T) {
+		s := airgapSpec("")
+		s.Kubernetes.ArtifactPath = "/opt/rke2-artifacts"
+		got := CheckAirgapBundle(s, "")
+		if got.Status != StatusSkip {
+			t.Fatalf("PF-707 is %s/%s on a carried artifact path: %s", got.Status, got.Code, got.Detail)
+		}
+		if !strings.Contains(got.Detail, "/opt/rke2-artifacts") {
+			t.Errorf("PF-707 does not name the path it deferred to: %s", got.Detail)
+		}
+	})
+
+	t.Run("no bundle but a registry is named", func(t *testing.T) {
+		s := airgapSpec("")
+		s.Registry.SystemDefaultRegistry = "harbor.acme.internal"
+		if got := CheckAirgapBundle(s, ""); got.Status != StatusSkip {
+			t.Fatalf("PF-707 is %s/%s on a named registry: %s", got.Status, got.Code, got.Detail)
+		}
+	})
+
 	t.Run("a file:// reference relative to the document", func(t *testing.T) {
 		write("rel.tar.zst", body)
 		write("rel.tar.zst.sha256", []byte(digest+"\n"))

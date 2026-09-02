@@ -334,11 +334,22 @@ func validateRegistry(s *v1alpha1.ClusterSpec) []error {
 	// Air-gapped means nothing can be fetched, so the images have to already be
 	// somewhere. A file that does not say where is one that fails on the first
 	// pull, hours in.
+	//
+	// There are three somewheres, not two. RKE2's own airgap artifacts include
+	// rke2-images-*.tar.zst, which the installer loads into the node's image
+	// store before anything starts -- that is the path RKE2 documents for a
+	// cluster with no registry at all, and naming a registry to satisfy this
+	// rule breaks it: system-default-registry rewrites every system image
+	// reference, and the preloaded images carry their original names.
+	//
+	// Whether the archive is really in that directory is not a question a
+	// document can answer. PF-709 reads it on the node and says so.
 	if s.Network.Mode == v1alpha1.NetworkAirgap &&
-		r.Bundle == "" && r.SystemDefaultRegistry == "" {
+		r.Bundle == "" && r.SystemDefaultRegistry == "" &&
+		strings.TrimSpace(s.Kubernetes.ArtifactPath) == "" {
 		errs = append(errs, errors.New(
-			"network.mode is airgap but neither registry.bundle nor registry.systemDefaultRegistry is set; "+
-				"there is nowhere to pull images from"))
+			"network.mode is airgap but none of registry.bundle, registry.systemDefaultRegistry "+
+				"or kubernetes.artifactPath is set; there is nowhere to pull images from"))
 	}
 
 	// The binaries are the third thing to carry. An air-gapped node cannot

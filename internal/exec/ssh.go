@@ -2,10 +2,13 @@ package exec
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -110,6 +113,12 @@ func Dial(ctx context.Context, cfg SSHConfig) (*SSHRunner, error) {
 		Auth:            auth,
 		HostKeyCallback: hostKey,
 		Timeout:         cfg.Timeout,
+		// Offer the key types this host is already known by, the way OpenSSH
+		// does. Left unset, the server picks its own favourite -- ecdsa on a
+		// stock Ubuntu -- and a known_hosts holding only that host's ed25519
+		// key answers "key mismatch", which reads as "the machine changed"
+		// rather than "you have it under a different key type".
+		HostKeyAlgorithms: knownAlgorithms(hostKey, addr),
 	}
 
 	// Dial through a context-aware dialer so a cancelled preflight does not sit
@@ -123,7 +132,7 @@ func Dial(ctx context.Context, cfg SSHConfig) (*SSHRunner, error) {
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, clientCfg)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("exec: ssh handshake with %s: %w", addr, err)
+		return nil, fmt.Errorf("exec: ssh handshake with %s: %w", addr, explainHostKey(err))
 	}
 	return &SSHRunner{host: cfg.Host, client: ssh.NewClient(c, chans, reqs)}, nil
 }
@@ -264,4 +273,86 @@ func hostKeyCallback(cfg SSHConfig) (ssh.HostKeyCallback, error) {
 			"freshly installed nodes have no entry yet -- add them, or accept the risk explicitly", path, err)
 	}
 	return cb, nil
+}
+
+// knownAlgorithms reports the host key types known_hosts already holds for a
+// host, in the form the handshake names them.
+//
+// There is no exported way to ask the database directly, so it is asked the way
+// it answers: check a key that cannot match, and read the types it says it
+// wanted. An unknown host yields nothing, and nothing means "no preference" --
+// which is the right answer for a host whose key is about to be rejected
+// anyway, on grounds that will name the host rather than an algorithm.
+func knownAlgorithms(cb ssh.HostKeyCallback, addr string) []string {
+	if cb == nil {
+		return nil
+	}
+	probe, err := unmatchableKey()
+	if err != nil {
+		return nil
+	}
+	var keyErr *knownhosts.KeyError
+	if !errors.As(cb(addr, &net.TCPAddr{IP: net.IPv4zero}, probe), &keyErr) || len(keyErr.Want) == 0 {
+		return nil
+	}
+
+	seen := map[string]bool{}
+	var out []string
+	add := func(a string) {
+		if a != "" && !seen[a] {
+			seen[a] = true
+			out = append(out, a)
+		}
+	}
+	for _, w := range keyErr.Want {
+		t := w.Key.Type()
+		// known_hosts records an RSA key as ssh-rsa whatever signature
+		// algorithm the connection will use, and a server that has retired
+		// SHA-1 refuses the bare name. The key is the same one.
+		if t == ssh.KeyAlgoRSA {
+			add(ssh.KeyAlgoRSASHA512)
+			add(ssh.KeyAlgoRSASHA256)
+		}
+		add(t)
+	}
+	return out
+}
+
+// unmatchableKey is a freshly generated key, used only to make the known_hosts
+// database report what it holds. It is never sent anywhere.
+func unmatchableKey() (ssh.PublicKey, error) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		return nil, err
+	}
+	return signer.PublicKey(), nil
+}
+
+// explainHostKey rewrites the one handshake failure whose wording sends people
+// the wrong way.
+//
+// x/crypto says "key mismatch" both when a host's key has genuinely changed and
+// when known_hosts simply holds it under another type. The first is a reason to
+// stop; the second is a reason to connect once with ssh(1). They deserve
+// different sentences.
+func explainHostKey(err error) error {
+	var keyErr *knownhosts.KeyError
+	if !errors.As(err, &keyErr) || len(keyErr.Want) == 0 {
+		return err
+	}
+	types := map[string]bool{}
+	var names []string
+	for _, w := range keyErr.Want {
+		if t := w.Key.Type(); !types[t] {
+			types[t] = true
+			names = append(names, t)
+		}
+	}
+	return fmt.Errorf("%w; known_hosts holds this host as %s -- if the machine "+
+		"was rebuilt the entry is stale, and if it was not, this is the warning it looks like",
+		err, strings.Join(names, ", "))
 }

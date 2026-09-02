@@ -779,3 +779,47 @@ func TestAirgapNeedsAChartMirrorTooWhenChartsAreInstalled(t *testing.T) {
 		t.Errorf("a document that installs no chart is asked for a chart mirror: %v", err)
 	}
 }
+
+// TestAirgapImagesMayComeFromTheArtifactPath pins the third answer to "where do
+// the images come from".
+//
+// RKE2's airgap artifacts include rke2-images-*.tar.zst, which the installer
+// loads into the node's image store. That is the path RKE2 documents for a
+// cluster with no registry, and it is the one this tool gained with
+// kubernetes.artifactPath -- so a rule that accepts only a registry refuses the
+// tool's own supported install. Worse, satisfying it with
+// systemDefaultRegistry rewrites every system image reference away from the
+// names the preloaded images actually carry.
+func TestAirgapImagesMayComeFromTheArtifactPath(t *testing.T) {
+	base := func() v1alpha1.ClusterSpec {
+		s := v1alpha1.ClusterSpec{}
+		s.APIVersion, s.Kind = v1alpha1.APIVersion, "ClusterSpec"
+		s.Metadata.Name = "c"
+		s.Network.Mode = v1alpha1.NetworkAirgap
+		s.Topology.RegistrationAddress = "192.0.2.10"
+		s.Topology.AcceptNodeRegistration = true
+		s.Topology.Servers = []v1alpha1.NodeSpec{{Host: "192.0.2.10", Role: v1alpha1.RoleServer}}
+		s.Kubernetes.Version = "v1.36.3+rke2r1"
+		s.Registry.Mode = v1alpha1.RegistryInternal
+		s.PKI.Mode = v1alpha1.PKINone
+		return s
+	}
+
+	check := func(s v1alpha1.ClusterSpec) error {
+		d := &Document{Spec: s}
+		return d.Validate(false)
+	}
+
+	// Nothing named at all is still refused: the document says nothing about
+	// where a pull would go.
+	none := base()
+	if err := check(none); err == nil || !strings.Contains(err.Error(), "nowhere to pull images from") {
+		t.Errorf("an air-gapped document naming no image source is accepted: %v", err)
+	}
+
+	staged := base()
+	staged.Kubernetes.ArtifactPath = "/opt/rke2-artifacts"
+	if err := check(staged); err != nil && strings.Contains(err.Error(), "nowhere to pull images from") {
+		t.Errorf("carried artifacts do not satisfy the rule: %v", err)
+	}
+}

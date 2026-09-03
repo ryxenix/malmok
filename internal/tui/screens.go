@@ -8,10 +8,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/event"
-	"github.com/ryxen/malmok/internal/exec"
-	"github.com/ryxen/malmok/internal/observability"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/exec"
+	"github.com/ryxenix/malmok/internal/observability"
 )
 
 // One function per step, each returning the Frame the chrome draws. Keeping the

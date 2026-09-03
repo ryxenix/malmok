@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/cert"
-	"github.com/ryxen/malmok/internal/codes"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/cert"
+	"github.com/ryxenix/malmok/internal/codes"
 )
 
 // PF-704 through PF-708 are about the material the operator supplies for the

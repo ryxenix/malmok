@@ -1,8 +1,8 @@
 # Malmok (말목)
 
-[![ci](https://github.com/ryxen/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxen/malmok/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/ryxen/malmok?sort=semver)](https://github.com/ryxen/malmok/releases)
-[![go](https://img.shields.io/github/go-mod/go-version/ryxen/malmok)](go.mod)
+[![ci](https://github.com/ryxenix/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxenix/malmok/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/ryxenix/malmok?sort=semver)](https://github.com/ryxenix/malmok/releases)
+[![go](https://img.shields.io/github/go-mod/go-version/ryxenix/malmok)](go.mod)
 [![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 
 **One static binary that builds, grows and upgrades RKE2 clusters.** A TUI
@@ -53,14 +53,14 @@ Three properties shape the design:
 ## Install
 
 ```bash
-go install github.com/ryxen/malmok/cmd/malmok@latest
+go install github.com/ryxenix/malmok/cmd/malmok@latest
 ```
 
-Or download a binary from [releases](https://github.com/ryxen/malmok/releases)
+Or download a binary from [releases](https://github.com/ryxenix/malmok/releases)
 -- linux and darwin, amd64 and arm64, with `SHA256SUMS`. Or build it:
 
 ```bash
-git clone https://github.com/ryxen/malmok
+git clone https://github.com/ryxenix/malmok
 cd malmok
 go build -o bin/malmok ./cmd/malmok
 ```

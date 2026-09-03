@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/engine"
-	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/engine"
+	"github.com/ryxenix/malmok/internal/exec"
 )
 
 // PhaseBootstrap is the phase that brings up the first server.

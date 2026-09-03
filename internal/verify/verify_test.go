@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/preflight"
 )
 
 // The fixtures are generated and the servers are real: these checks are about

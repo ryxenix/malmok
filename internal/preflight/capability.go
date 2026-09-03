@@ -8,8 +8,8 @@ package preflight
 import (
 	"time"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/codes"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/codes"
 )
 
 // Status is the outcome of one probe.

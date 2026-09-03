@@ -12,14 +12,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ryxen/malmok/internal/attach"
-	"github.com/ryxen/malmok/internal/engine"
-	"github.com/ryxen/malmok/internal/event"
-	"github.com/ryxen/malmok/internal/preflight"
-	"github.com/ryxen/malmok/internal/rke2"
-	"github.com/ryxen/malmok/internal/spec"
-	"github.com/ryxen/malmok/internal/state"
-	"github.com/ryxen/malmok/internal/upgrade"
+	"github.com/ryxenix/malmok/internal/attach"
+	"github.com/ryxenix/malmok/internal/engine"
+	"github.com/ryxenix/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/preflight"
+	"github.com/ryxenix/malmok/internal/rke2"
+	"github.com/ryxenix/malmok/internal/spec"
+	"github.com/ryxenix/malmok/internal/state"
+	"github.com/ryxenix/malmok/internal/upgrade"
 )
 
 // upgradeFlags are what `upgrade` was invoked with.

@@ -3,8 +3,8 @@ package preflight
 import (
 	"strings"
 
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 // Emitting probe results as events is what lets a screen draw preflight without

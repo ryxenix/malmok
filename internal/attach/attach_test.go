@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 const (

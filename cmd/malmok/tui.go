@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/ryxen/malmok/internal/attach"
-	"github.com/ryxen/malmok/internal/tui"
+	"github.com/ryxenix/malmok/internal/attach"
+	"github.com/ryxenix/malmok/internal/tui"
 )
 
 // tuiFlags are shared by apply and attach.

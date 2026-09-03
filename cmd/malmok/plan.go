@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/plan"
-	"github.com/ryxen/malmok/internal/spec"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/plan"
+	"github.com/ryxenix/malmok/internal/spec"
 )
 
 func newPlanCmd() *cobra.Command {

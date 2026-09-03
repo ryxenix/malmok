@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/api/v1alpha1"
 )
 
 // FileName is the conventional name of the snapshot inside a run directory.

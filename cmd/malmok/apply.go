@@ -13,15 +13,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/attach"
-	"github.com/ryxen/malmok/internal/build"
-	"github.com/ryxen/malmok/internal/demo"
-	"github.com/ryxen/malmok/internal/engine"
-	"github.com/ryxen/malmok/internal/event"
-	"github.com/ryxen/malmok/internal/spec"
-	"github.com/ryxen/malmok/internal/state"
-	"github.com/ryxen/malmok/internal/tui"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/attach"
+	"github.com/ryxenix/malmok/internal/build"
+	"github.com/ryxenix/malmok/internal/demo"
+	"github.com/ryxenix/malmok/internal/engine"
+	"github.com/ryxenix/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/spec"
+	"github.com/ryxenix/malmok/internal/state"
+	"github.com/ryxenix/malmok/internal/tui"
 )
 
 func newApplyCmd() *cobra.Command {

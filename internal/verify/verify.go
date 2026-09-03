@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/preflight"
 )
 
 // Result is one wire check.

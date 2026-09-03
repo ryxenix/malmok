@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ryxen/malmok/internal/tools"
+	"github.com/ryxenix/malmok/internal/tools"
 )
 
 // version is stamped at build time with -ldflags "-X main.version=...".

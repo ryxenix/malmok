@@ -10,7 +10,7 @@ a bug in a web page; treat it accordingly.
 
 Report privately through GitHub's advisory form:
 
-  https://github.com/ryxen/malmok/security/advisories/new
+  https://github.com/ryxenix/malmok/security/advisories/new
 
 Include what you can:
 

@@ -17,8 +17,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/preflight"
 )
 
 // Plan is the confirmed configuration.

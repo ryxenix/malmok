@@ -24,7 +24,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 // DefaultPollInterval is how often a follower looks for new bytes. Fast enough

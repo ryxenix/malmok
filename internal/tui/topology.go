@@ -7,7 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxenix/malmok/internal/exec"
 )
 
 // The topology panel is the one place a diagram earns its keep.

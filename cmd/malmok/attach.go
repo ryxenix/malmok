@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ryxen/malmok/internal/attach"
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/attach"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 func newAttachCmd() *cobra.Command {

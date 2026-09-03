@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 // Probe events have to satisfy the same schema as everything else in the file.

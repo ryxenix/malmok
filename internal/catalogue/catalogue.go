@@ -18,17 +18,17 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/cert"
-	"github.com/ryxen/malmok/internal/dataplane"
-	"github.com/ryxen/malmok/internal/engine"
-	"github.com/ryxen/malmok/internal/exec"
-	"github.com/ryxen/malmok/internal/gateway"
-	"github.com/ryxen/malmok/internal/nodeprep"
-	"github.com/ryxen/malmok/internal/observability"
-	"github.com/ryxen/malmok/internal/pki"
-	"github.com/ryxen/malmok/internal/platform"
-	"github.com/ryxen/malmok/internal/rke2"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/cert"
+	"github.com/ryxenix/malmok/internal/dataplane"
+	"github.com/ryxenix/malmok/internal/engine"
+	"github.com/ryxenix/malmok/internal/exec"
+	"github.com/ryxenix/malmok/internal/gateway"
+	"github.com/ryxenix/malmok/internal/nodeprep"
+	"github.com/ryxenix/malmok/internal/observability"
+	"github.com/ryxenix/malmok/internal/pki"
+	"github.com/ryxenix/malmok/internal/platform"
+	"github.com/ryxenix/malmok/internal/rke2"
 )
 
 // Runners gives the catalogue a shell on each node.

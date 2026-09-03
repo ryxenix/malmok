@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/preflight"
 )
 
 // The generator is a pure function, so the table is the whole test: no cluster,

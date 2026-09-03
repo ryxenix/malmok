@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.83.0] - 2026-09-03
+
+### Changed
+- The module path is `github.com/ryxenix/malmok`. In Go the module path is the
+  import path, so it has to be the repository's real location or
+  `go install github.com/ryxenix/malmok@latest` cannot resolve. Settled before
+  the first tag rather than after: moving it later breaks the `go.sum` of
+  anyone who has already fetched it.
+- The Kubernetes API group is untouched. `platform.ryxen.dev/v1alpha1` and the
+  `*.ryxen.dev` annotation keys are not repository references -- they are in
+  every `cluster.yaml` and on the objects of clusters already running, and
+  renaming them would be a breaking change to documents rather than a rename.
+
 ## [0.82.0] - 2026-09-03
 
 ### Changed
@@ -514,7 +527,7 @@ found by installing one on the lab nodes with egress blocked.
   ends up quoting.
 
 ### Changed
-- Module path `platform.ryxen.dev/malmok` -> `github.com/ryxen/malmok` across
+- Module path `platform.ryxen.dev/malmok` -> `github.com/ryxenix/malmok` across
   272 import sites. A module path is how the world fetches the code; pointing
   it at a personal domain that serves no Go metadata means `go get` fails for
   everyone who is not the author.

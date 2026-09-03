@@ -3,7 +3,7 @@ package state
 import (
 	"fmt"
 
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 // Action is what resume decides to do with one step. See docs/11-execute.md §4.2.

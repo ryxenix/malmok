@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 // Timestamp is the event package's millisecond RFC3339 form. One timestamp

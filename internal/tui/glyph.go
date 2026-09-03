@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 // Glyphs is the character set the screen draws with.

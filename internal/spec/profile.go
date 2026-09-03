@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/api/v1alpha1"
 )
 
 // Profile baselines: the Tier-1 combinations of docs/00-architecture.md ADR-003.

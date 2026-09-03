@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/event"
-	"github.com/ryxen/malmok/internal/exec"
-	"github.com/ryxen/malmok/internal/plan"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/exec"
+	"github.com/ryxenix/malmok/internal/plan"
 )
 
 func downgradingPlan() *plan.Plan {

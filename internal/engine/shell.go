@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxenix/malmok/internal/exec"
 )
 
 // ShellStep implements Step as a pair of shell programs run on a node.

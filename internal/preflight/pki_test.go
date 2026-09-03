@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/codes"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/codes"
 )
 
 // pkiBase is the reference clock, so "expiring" means the same thing whenever

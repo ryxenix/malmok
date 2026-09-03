@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/event"
-	"github.com/ryxen/malmok/internal/plan"
-	"github.com/ryxen/malmok/internal/platform"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/plan"
+	"github.com/ryxenix/malmok/internal/platform"
 )
 
 // runEnded is the terminal event the engine writes for every run.

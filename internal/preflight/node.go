@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/exec"
 )
 
 // Node runs the probes that need a shell on the machine.

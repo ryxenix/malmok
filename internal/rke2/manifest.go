@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ryxen/malmok/internal/engine"
+	"github.com/ryxenix/malmok/internal/engine"
 )
 
 // Writing into RKE2's manifest directory is how every L2 phase installs

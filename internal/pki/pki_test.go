@@ -7,9 +7,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/engine"
-	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/engine"
+	"github.com/ryxenix/malmok/internal/exec"
 )
 
 func specWith(mode v1alpha1.PKIMode) v1alpha1.ClusterSpec {

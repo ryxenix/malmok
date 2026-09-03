@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/preflight"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/preflight"
 )
 
 // Version is an RKE2 version, comparable.

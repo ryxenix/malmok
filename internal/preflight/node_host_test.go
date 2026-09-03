@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
-	"github.com/ryxen/malmok/internal/codes"
-	"github.com/ryxen/malmok/internal/exec"
+	"github.com/ryxenix/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/internal/codes"
+	"github.com/ryxenix/malmok/internal/exec"
 )
 
 // A finding an operator cannot act on sends them to read about etcd instead

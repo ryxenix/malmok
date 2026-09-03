@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ryxen/malmok/internal/event"
+	"github.com/ryxenix/malmok/internal/event"
 )
 
 const testRun = "01JBQ8F2K3M5N7P9R1S3T5V7W9"

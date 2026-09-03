@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/api/v1alpha1"
 )
 
 // baseSpec is a document that passes every local probe, so a case can break one

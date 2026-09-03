@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	sshexec "github.com/ryxen/malmok/internal/exec"
-	"github.com/ryxen/malmok/internal/matrix"
-	"github.com/ryxen/malmok/internal/rke2"
-	"github.com/ryxen/malmok/internal/spec"
+	sshexec "github.com/ryxenix/malmok/internal/exec"
+	"github.com/ryxenix/malmok/internal/matrix"
+	"github.com/ryxenix/malmok/internal/rke2"
+	"github.com/ryxenix/malmok/internal/spec"
 )
 
 // The lab it runs against. Addresses come from the environment so the suite

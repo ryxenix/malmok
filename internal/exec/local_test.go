@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxenix/malmok/api/v1alpha1"
 )
 
 // The local runner has to behave exactly like the SSH one, because every probe

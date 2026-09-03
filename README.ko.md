@@ -1,8 +1,8 @@
 # Malmok (말목)
 
-[![ci](https://github.com/ryxen/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxen/malmok/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/ryxen/malmok?sort=semver)](https://github.com/ryxen/malmok/releases)
-[![go](https://img.shields.io/github/go-mod/go-version/ryxen/malmok)](go.mod)
+[![ci](https://github.com/ryxenix/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxenix/malmok/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/ryxenix/malmok?sort=semver)](https://github.com/ryxenix/malmok/releases)
+[![go](https://img.shields.io/github/go-mod/go-version/ryxenix/malmok)](go.mod)
 [![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 
 **RKE2 클러스터를 구축·확장·업그레이드하는 단일 정적 바이너리.** TUI 마법사와
@@ -52,14 +52,14 @@ RKE2 부트스트랩, Cilium 데이터플레인, Gateway API, cert-manager, Argo
 ## 설치
 
 ```bash
-go install github.com/ryxen/malmok/cmd/malmok@latest
+go install github.com/ryxenix/malmok/cmd/malmok@latest
 ```
 
-또는 [릴리스](https://github.com/ryxen/malmok/releases)에서 바이너리를
+또는 [릴리스](https://github.com/ryxenix/malmok/releases)에서 바이너리를
 내려받으십시오 — linux·darwin, amd64·arm64, `SHA256SUMS` 동봉. 소스에서 빌드하려면:
 
 ```bash
-git clone https://github.com/ryxen/malmok
+git clone https://github.com/ryxenix/malmok
 cd malmok
 go build -o bin/malmok ./cmd/malmok
 ```

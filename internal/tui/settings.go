@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ryxen/malmok/internal/spec"
+	"github.com/ryxenix/malmok/internal/spec"
 )
 
 // Editing a document that already exists.

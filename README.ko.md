@@ -10,35 +10,7 @@ CLI가 같은 엔진 위에 있고, 노드에는 아무것도 설치하지 않�
 
 *[English README](README.md)*
 
-```
- Malmok  클러스터 설치 ▸ 완료                                                         11/11
-────────────────────────────────────────────────────────────────────────────────────────────
-                   │
- 1 ✓ 설치 위치     │ 완료
- 2 ✓ 노드          │
- 3 ✓ 네트워크      │ ✓ 설치가 끝났습니다
- 4 ✓ 옵션          │
- 5 ✓ 레지스트리    │ ▎ 구축 결과 ─────────────────────────────────────────────────────────
- 6 ✓ 인증서        │   프로파일        custom
- 7 ✓ 게이트웨이    │   노드            1 (192.0.2.10)
- 8 ✓ 사전 검사     │   dataplane       cilium-gw
- 9 ✓ 요약          │   스토리지        local-path
- 10✓ 설치          │   인증서          발급 안 함, 인증서는 나중에
- ▌11 완료          │   레지스트리      embedded
-                   │   노출 방식       아직 노출하지 않음
-                   │   소요 시간       3m28s
-                   │
-                   │ ▎ 산출물 위치 ───────────────────────────────────────────────────────
-                   │   실행 디렉터리   out/runs/01M0YE88WPJRQ501888CG9R8JS
-                   │   cluster.yaml    out/runs/01M0YE88WPJRQ501888CG9R8JS/cluster.yaml
-                   │   events.jsonl    out/runs/01M0YE88WPJRQ501888CG9R8JS/events.jsonl
-                   │   state.json      out/runs/01M0YE88WPJRQ501888CG9R8JS/state.json
-                   │
-                   │ 이 실행에 다시 붙으려면
-                   │   malmok attach --run 01M0YE88WPJRQ501888CG9R8JS
-────────────────────────────────────────────────────────────────────────────────────────────
- [  종료  ]                                                                  [  메뉴로  ]
-```
+<p align="center"><img src="docs/img/tui-finished-ko.png" alt="말목 마법사의 마지막 화면 - 무엇을 구축했고 실행 기록이 어디에 쌓였는지" width="900"></p>
 
 <sub>`malmok apply --tui --lang ko`. 같은 실행을 화면 없이 하려면
 `malmok apply -f cluster.yaml`, 노드 없이 흉내만 내려면 `malmok apply --demo`.</sub>

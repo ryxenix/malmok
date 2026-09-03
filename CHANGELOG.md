@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.81.0] - 2026-09-03
+
+### Changed
+- The README shows a screenshot of the wizard instead of a paste of one. The
+  block it replaces was a terminal capture pretending to be an image: it went
+  stale silently, and it read as a drawing of a program rather than the
+  program.
+- `scripts/screenshot.sh` regenerates both, so the next UI change can. It goes
+  through agg, the asciinema renderer, rather than the obvious tool: freeze
+  places glyphs by counting characters, so every Hangul syllable on the Korean
+  screens claims one cell where the terminal gives it two, and the layout
+  shears. agg draws into a real terminal grid.
+
 ## [0.80.0] - 2026-09-03
 
 ### Fixed

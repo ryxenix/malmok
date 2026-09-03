@@ -10,36 +10,7 @@ wizard and a CLI over the same engine, with nothing to install on the nodes.
 
 *[한국어 README](README.ko.md)*
 
-```
- Malmok  Install a cluster ▸ Finished                                                 11/11
-────────────────────────────────────────────────────────────────────────────────────────────
-                   │
- 1 ✓ Where         │ Finished
- 2 ✓ Nodes         │
- 3 ✓ Network       │ ✓ Installation complete
- 4 ✓ Options       │
- 5 ✓ Registry      │ ▎ What was built ────────────────────────────────────────────────────
- 6 ✓ Certificates  │   Matches profile custom
- 7 ✓ Gateway       │   Nodes           1 (192.0.2.10)
- 8 ✓ Checks        │   Dataplane       cilium-gw
- 9 ✓ Summary       │   Storage         local-path
- 10✓ Install       │   Certificates    none, add certificates later
- ▌11 Finished      │   Registry        embedded
-                   │   Exposure        nothing is exposed yet
-                   │   Elapsed         30s
-                   │
-                   │ ▎ Where it went ─────────────────────────────────────────────────────
-                   │   Run directory   out/runs/01M0YDTEC40H4VQE5SR4JCCE11
-                   │   cluster.yaml    out/runs/01M0YDTEC40H4VQE5SR4JCCE11/cluster.yaml
-                   │   events.jsonl    out/runs/01M0YDTEC40H4VQE5SR4JCCE11/events.jsonl
-                   │   state.json      out/runs/01M0YDTEC40H4VQE5SR4JCCE11/state.json
-                   │
-                   │ Reattach to this run with
-                   │   malmok attach --run 01M0YDTEC40H4VQE5SR4JCCE11
-────────────────────────────────────────────────────────────────────────────────────────────
- [  Quit  ]                                                                    [  Menu  ]
-  ←→  move    ↵  activate    tab  back to content    s  steps
-```
+<p align="center"><img src="docs/img/tui-finished.png" alt="The Malmok wizard on its last screen: what was built, and where the run was written" width="900"></p>
 
 <sub>`malmok apply --tui`. The same run headless is `malmok apply -f cluster.yaml`; try it
 against nothing with `malmok apply --demo`.</sub>

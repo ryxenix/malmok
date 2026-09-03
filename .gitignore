@@ -1,7 +1,7 @@
 bin/
 out/
 
-# 개발 중 스크린샷 등 (문서에서 참조하는 것만 docs/img 에 커밋)
-docs/img/
+# docs/img 에는 README 가 참조하는 스크린샷만 둔다.
+# scripts/screenshot.sh 로 재생성한다 — 손으로 찍어 넣지 않는다.
 dist/
 internal/tools/payload/

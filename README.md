@@ -28,7 +28,9 @@ install finishes in seconds. The same run headless is `malmok apply -f cluster.y
 > **Status: alpha.** Single-node and two-node clusters are verified repeatedly
 > on real hardware, and the tool has built a production cluster in a data
 > centre. **Three-server HA and external registries are not verified.** Read
-> [what is verified](#what-is-verified) first.
+> [what is verified](#what-is-verified) first. The document schema is
+> `v1alpha1` and may change between minor releases; `malmok plan
+> --validate-only` names every field it does not recognise.
 
 ```bash
 malmok apply --tui     # TUI wizard: build, grow, resume, upgrade
@@ -44,8 +46,8 @@ malmok report          # audit report and DNS record sheet
 ## What it does
 
 Give it SSH access to some machines and a `cluster.yaml` describing what you
-want. It produces a working RKE2 cluster: kernel parameters, swap, firewall
-and other host preparation, then RKE2 itself, the Cilium dataplane, Gateway
+want. It produces a working RKE2 cluster: kernel parameters, swap, data
+directories and other host preparation, then RKE2 itself, the Cilium dataplane, Gateway
 API, cert-manager, ArgoCD and a VictoriaMetrics stack scraping the cluster.
 On the first server, it also places `kubectl`, `helm` and `k9s` on the PATH of
 the account used to operate the cluster. RKE2 buries kubectl where nothing
@@ -108,6 +110,37 @@ from `malmok --version`; use a release binary when the exact version matters.
 - Each node needs at least 20 GB free disk space; 2 CPU cores, 4 GB RAM and 50
   GB free disk are recommended. Preflight reports the exact blockers and
   recommendations.
+- Nodes must reach each other on 6443 (Kubernetes API), 9345 (the RKE2
+  supervisor -- absent from every Kubernetes port reference, and the one people
+  miss), 2379-2380 (etcd, between servers) and 10250 (kubelet), plus the
+  dataplane's own ports. Preflight does not infer this: it binds a real
+  listener on one node and dials it from the peer.
+
+## What it changes on a node
+
+Malmok needs root because it prepares the host. It is worth knowing what that
+means before granting it, so the whole list is here rather than in the source:
+
+- Loads `br_netfilter` and `overlay`, and writes
+  `/etc/modules-load.d/90-malmok.conf` so the choice survives a reboot.
+- Writes `/etc/sysctl.d/90-malmok.conf`: IPv4 and IPv6 forwarding, bridge
+  netfilter for both families, and raised inotify limits.
+- Turns swap off and removes it from `/etc/fstab`. Both halves: the kubelet
+  refuses to start with swap on, and an entry left in fstab brings it back at
+  the next boot.
+- Creates `/var/lib/rancher`, the directory RKE2 grows into.
+- Installs RKE2 from a release tarball and manages its systemd unit.
+- Writes cluster manifests under `/var/lib/rancher/rke2/server/manifests`.
+- On the first server, places `kubectl`, `helm` and `k9s` on the operating
+  account's PATH.
+- Only when the document asks for them: installs a private CA into the node
+  trust store, and writes containerd's registry configuration (mode 0600,
+  because it can hold a registry password).
+
+It does **not** modify the firewall. Preflight reports an active firewall and
+the ports that have to be open; opening them belongs to whoever owns the
+policy. It does not reboot nodes either -- an upgrade restarts services one
+node at a time, waiting for Ready in between.
 
 ## Five minutes
 
@@ -119,6 +152,9 @@ installation flow and TUI states without touching a node.
 Save a document like the following as `cluster.yaml`. The addresses below are
 reserved for documentation: replace them, the SSH user, the key path and the
 RKE2 version with values for your environment.
+
+> This is not RKE1's `cluster.yml`. The two formats are unrelated: `rke up`
+> cannot read this file, and Malmok cannot read that one.
 
 ```yaml
 apiVersion: platform.ryxen.dev/v1alpha1
@@ -209,6 +245,10 @@ offline test fails. See
 | Change anything during preflight | preflight measures; it does not fix |
 | Restart all nodes at once | one at a time, each back to Ready first |
 | Store plaintext secrets in `cluster.yaml` | references only (`file://`, `env://`) |
+| Provision machines | Malmok starts from hosts that already answer SSH; VMs, networks and DNS records belong to OpenTofu, Proxmox or the site's own tooling |
+| Deploy applications | ArgoCD is installed and pointed at your repository; what it syncs is yours |
+| Modify the node firewall | preflight reports an active firewall and the ports it needs; the policy belongs to whoever owns it |
+| Operate the cluster afterwards | it installs a metrics stack and hands over a kubeconfig; alerting, dashboards and day-2 are not this tool |
 
 ## Documentation
 

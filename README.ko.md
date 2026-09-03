@@ -28,7 +28,9 @@ CLI가 같은 엔진 위에 있습니다. 대상 노드에는 에이전트나 �
 > **상태: 알파.** 단일 노드와 2노드 구성은 실제 장비에서 반복 검증했고
 > IDC 프로덕션 서버 구축에 사용했습니다. **3서버 HA·외부
 > 레지스트리는 아직 미검증입니다.** 아래 [검증 범위](#검증-범위)를 먼저
-> 읽으십시오.
+> 읽으십시오. 문서 스키마는 `v1alpha1`이며 마이너 릴리스 사이에 바뀔 수
+> 있습니다. `malmok plan --validate-only`가 인식하지 못하는 필드를 모두
+> 짚어 줍니다.
 
 ```bash
 malmok apply --tui     # TUI 마법사 (구축·확장·재개·업그레이드)
@@ -44,7 +46,7 @@ malmok report          # 감사 리포트 · DNS 레코드 시트
 ## 무엇을 하는 도구인가
 
 노드 몇 대의 SSH 접근 권한과 원하는 형태를 적은 `cluster.yaml` 하나로,
-동작하는 RKE2 클러스터를 만듭니다. 커널 파라미터·swap·방화벽 같은 준비부터
+동작하는 RKE2 클러스터를 만듭니다. 커널 파라미터·swap·데이터 디렉터리 같은 준비부터
 RKE2 부트스트랩, Cilium 데이터플레인, Gateway API, cert-manager, ArgoCD, 그리고
 클러스터를 수집하는 VictoriaMetrics 관측 스택까지 한 흐름으로 처리합니다.
 최초 서버에는 `kubectl`·`helm`·`k9s`가 클러스터 운영 계정의 PATH에 설치됩니다.
@@ -108,6 +110,34 @@ go install github.com/ryxenix/malmok/cmd/malmok@latest
 - 노드당 최소 20 GB 여유 디스크가 필요하며, 2 CPU 코어, 4 GB 메모리와 50 GB
   여유 디스크를 권장합니다. 정확한 차단 조건과 권장 사항은 preflight가
   보고합니다.
+- 노드끼리 6443(쿠버네티스 API), 9345(RKE2 supervisor — 쿠버네티스 포트
+  문서 어디에도 없어서 가장 많이 놓칩니다), 2379-2380(etcd, 서버 간),
+  10250(kubelet)과 데이터플레인 자체 포트에 도달할 수 있어야 합니다.
+  preflight는 이를 추정하지 않습니다. 한쪽 노드에 실제 리스너를 띄우고
+  상대 노드에서 접속해 봅니다.
+
+## 노드에서 무엇을 바꾸는가
+
+말목이 root를 요구하는 이유는 호스트를 준비하기 때문입니다. 권한을 주기 전에
+무엇을 하는지 알 수 있어야 하므로, 소스가 아니라 여기에 전부 적습니다.
+
+- `br_netfilter`·`overlay`를 적재하고 `/etc/modules-load.d/90-malmok.conf`를
+  써서 재부팅 후에도 유지되게 합니다.
+- `/etc/sysctl.d/90-malmok.conf`를 씁니다. IPv4·IPv6 포워딩, 양쪽 계열의
+  bridge netfilter, inotify 한도 상향.
+- swap을 끄고 `/etc/fstab`에서 제거합니다. 둘 다 필요합니다. kubelet은 swap이
+  켜져 있으면 기동을 거부하고, fstab에 남은 항목은 다음 부팅에 swap을 되살립니다.
+- RKE2가 자라날 디렉터리 `/var/lib/rancher`를 만듭니다.
+- 릴리스 tarball로 RKE2를 설치하고 systemd 유닛을 관리합니다.
+- 클러스터 매니페스트를 `/var/lib/rancher/rke2/server/manifests`에 씁니다.
+- 최초 서버에 한해 `kubectl`·`helm`·`k9s`를 운영 계정 PATH에 놓습니다.
+- 문서가 요구할 때만: 사설 CA를 노드 신뢰 저장소에 설치하고, containerd
+  레지스트리 설정을 씁니다(레지스트리 비밀번호를 담을 수 있어 0600).
+
+방화벽은 **건드리지 않습니다.** preflight가 활성 방화벽과 열려야 할 포트를
+보고할 뿐, 여는 것은 정책을 소유한 쪽의 몫입니다. 노드를 재부팅하지도
+않습니다. 업그레이드는 노드를 1대씩, 각각 Ready를 확인하며 서비스를
+재시작합니다.
 
 ## 5분 사용법
 
@@ -120,6 +150,9 @@ TUI로 하려면 `malmok apply --tui`를 실행하십시오. 마법사가 `clust
 
 아래 문서를 `cluster.yaml`로 저장하십시오. 예시 IP는 문서 전용 주소이므로 실제
 환경에 맞는 주소, SSH 사용자, 키 경로와 RKE2 버전으로 바꿔야 합니다.
+
+> RKE1의 `cluster.yml`이 아닙니다. 두 형식은 서로 무관합니다. `rke up`은 이
+> 파일을 읽지 못하고, 말목도 그 파일을 읽지 못합니다.
 
 ```yaml
 apiVersion: platform.ryxen.dev/v1alpha1
@@ -209,6 +242,10 @@ malmok report
 | 사전 점검 단계에서 시스템 변경 | preflight는 읽기 전용입니다 |
 | 전 노드 동시 재시작 | 1대씩, Ready 확인 후 진행 |
 | `cluster.yaml`에 평문 시크릿 저장 | `SourceRef` 간접 참조만 받습니다 |
+| 머신 프로비저닝 | 말목은 이미 SSH에 응답하는 호스트에서 시작합니다. VM·네트워크·DNS 레코드는 OpenTofu, Proxmox 또는 해당 사이트 도구의 몫 |
+| 애플리케이션 배포 | ArgoCD를 설치하고 저장소를 가리키게 할 뿐, 무엇을 동기화할지는 사용자 몫 |
+| 노드 방화벽 변경 | preflight가 활성 방화벽과 필요한 포트를 보고합니다. 정책은 그것을 소유한 쪽의 몫 |
+| 구축 이후 클러스터 운영 | 메트릭 스택을 설치하고 kubeconfig를 넘겨줍니다. 알림·대시보드·day-2는 이 도구가 아닙니다 |
 
 ## 상세 문서
 

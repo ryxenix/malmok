@@ -50,6 +50,43 @@ Malmok은 베어메탈·VM·온프레미스·DMZ·에어갭처럼 직접 관리�
 Malmok은 관리형 Kubernetes 서비스나 애플리케이션 배포 플랫폼이 아닙니다.
 클러스터 기반까지 구축하고 운영하며, 그 위의 애플리케이션은 각 팀이 소유합니다.
 
+## 문서 하나로 시작하기
+
+말목 클러스터를 구성하는 데 필요한 최소 형태입니다. 문서용 주소, SSH 계정,
+키와 RKE2 버전을 실제 환경의 값으로 바꾼 뒤 `cluster.yaml`로 저장하십시오.
+
+> RKE1의 `cluster.yml`이 아닙니다. 두 형식은 서로 무관합니다. `rke up`은 이
+> 파일을 읽지 못하고, 말목도 그 파일을 읽지 못합니다.
+
+```yaml
+apiVersion: malmok.dev/v1alpha1
+kind: ClusterSpec
+
+metadata:
+  name: my-cluster
+  profile: homelab
+
+network:
+  mode: online
+
+topology:
+  registrationAddress: 192.0.2.10
+  acceptNodeRegistration: true
+  servers:
+    - host: 192.0.2.10
+      ssh:
+        user: ubuntu
+        privateKey: file://~/.ssh/id_ed25519
+
+kubernetes:
+  version: v1.36.3+rke2r1
+```
+
+프로파일이 Cilium 데이터플레인·Gateway API·local-path 스토리지를 채우고,
+`malmok plan`이 확정된 모든 값과 출처를 출력합니다. 단일 서버 주소는 안정적인
+등록 엔드포인트가 아니므로 서버를 추가하기 전에 안정적인 DNS 이름이나 가상 IP를
+도입해야 합니다. 다른 구성은 [`examples/`](examples/)에 있습니다.
+
 ## 말목 — 이름의 뜻
 
 `말목`은 경계를 표시하거나 지반을 보강하기 위해 땅에 단단히 박는 나무 말뚝을
@@ -135,24 +172,27 @@ RKE2는 kubectl을 아무도 찾지 않는 곳에 묻어 두고 helm CLI는 아�
 - **엔진은 화면을 모릅니다.** JSONL 이벤트만 방출하고, TUI는 그것을 그립니다
   터미널이 필요한 코드 경로는 결함으로 취급합니다.
 
+## 다른 도구와의 관계
+
+말목은 범용 자동화 도구보다 의도적으로 좁고, 컨트롤러 기반 프로비저닝
+스택보다 단순하게 운영하도록 만들었습니다.
+
+| 질문 | 답변 |
+|---|---|
+| **왜 Ansible이 아닌가?** | 범용 구성 관리가 필요하면 Ansible이 적합합니다. 말목은 RKE2 생명주기 하나에 집중합니다. 읽기 전용 실측, 검토 가능한 계획, 재개 가능한 실행, 안정적인 진단 코드와 인계 리포트를 한 흐름으로 제공합니다. 두 도구를 함께 써도 되며 머신 프로비저닝과 현장 정책은 말목의 범위 밖입니다. |
+| **k0sctl과 무엇이 다른가?** | [k0sctl](https://github.com/k0sproject/k0sctl)은 가장 가까운 선행 도구이며 k0s에는 그 도구가 적합합니다. 말목은 RKE2를 대상으로 Cilium, Gateway API, PKI, GitOps와 관측까지 의견 있는 경로를 제공하고 온라인과 에어갭에서 같은 증거 모델을 사용합니다. |
+| **CAPRKE2로 하면 되지 않나?** | 관리 클러스터와 Cluster API를 이미 운영한다면 [CAPRKE2](https://caprke2.docs.rancher.com/)가 더 적합할 가능성이 높습니다. 말목은 SSH로 접근 가능한 기존 머신에서 시작하고 운영자 워크스테이션에서 실행하며 관리 컨트롤러나 노드 에이전트를 남기지 않습니다. |
+
 ## 설치
 
 최신 릴리스를 명령 하나로 설치할 수 있습니다.
-
-**Bash 및 POSIX 계열 셸(기본)**
 
 ```bash
 curl -fsSL https://malmok.dev/install.sh | sh
 ```
 
-**Fish**
-
-```fish
-curl -fsSL https://malmok.dev/install.sh | sh
-```
-
-내려받은 설치 스크립트는 POSIX `sh`에서 실행되므로 Fish에서도 Bash 전용 문법
-없이 호출할 수 있습니다.
+Bash와 Fish에서 같은 명령을 사용합니다. 내려받은 설치 스크립트 자체는 POSIX
+`sh`에서 실행됩니다.
 
 설치 스크립트는 Linux·macOS와 amd64·arm64를 판별하고, 알맞은
 [릴리스](https://github.com/ryxenix/malmok/releases)를 내려받아 공개된
@@ -229,8 +269,11 @@ go install github.com/ryxenix/malmok/cmd/malmok@latest
 - 노드끼리 6443(쿠버네티스 API), 9345(RKE2 supervisor — 쿠버네티스 포트
   문서 어디에도 없어서 가장 많이 놓칩니다), 2379-2380(etcd, 서버 간),
   10250(kubelet)과 데이터플레인 자체 포트에 도달할 수 있어야 합니다.
-  preflight는 이를 추정하지 않습니다. 한쪽 노드에 실제 리스너를 띄우고
-  상대 노드에서 접속해 봅니다.
+  `registry.mode: embedded`이면 5001도 필요합니다. 노드가 보유 이미지를
+  광고하는 통로인데, 막혀 있어도 실패하지 않고 업스트림 레지스트리로
+  넘어갑니다 — 폐쇄망에서는 그게 멈추는 pull입니다. preflight는 이를
+  추정하지 않습니다. 한쪽 노드에 실제 리스너를 띄우고 상대 노드에서
+  접속해 봅니다.
 
 ## 노드에서 무엇을 바꾸는가
 
@@ -265,48 +308,9 @@ go install github.com/ryxenix/malmok/cmd/malmok@latest
 않고 주요 설치 흐름과 TUI 상태를 시뮬레이션합니다.
 
 TUI로 하려면 `malmok apply --tui`를 실행하십시오. 마법사가 `cluster.yaml`을
-만들어 주고, 같은 화면에서 설치까지 진행합니다. 화면 언어는 영어가 기본이고
-`--lang ko` 또는 설정 화면에서 한국어로 바꿀 수 있습니다(선택은 저장됩니다).
-
-아래 문서를 `cluster.yaml`로 저장하십시오. 예시 IP는 문서 전용 주소이므로 실제
-환경에 맞는 주소, SSH 사용자, 키 경로와 RKE2 버전으로 바꿔야 합니다.
-
-> RKE1의 `cluster.yml`이 아닙니다. 두 형식은 서로 무관합니다. `rke up`은 이
-> 파일을 읽지 못하고, 말목도 그 파일을 읽지 못합니다.
-
-```yaml
-apiVersion: malmok.dev/v1alpha1
-kind: ClusterSpec
-
-metadata:
-  name: my-cluster
-  profile: homelab        # 나머지 값은 프로파일이 채웁니다
-
-network:
-  mode: online
-
-topology:
-  # 서버가 한 대라 VIP가 없습니다. 나중에 서버를 늘리려면 전 노드
-  # 재조인이 필요하므로 먼저 안정적인 등록 주소를 마련해야 합니다.
-  registrationAddress: 192.0.2.10
-  acceptNodeRegistration: true
-  servers:
-    - host: 192.0.2.10
-      ssh:
-        user: ubuntu
-        privateKey: file://~/.ssh/id_ed25519
-
-kubernetes:
-  version: v1.36.3+rke2r1
-```
-
-이 문서만으로 Cilium 데이터플레인·Gateway API·local-path 스토리지까지
-프로파일이 채웁니다. 무엇이 채워졌는지는 `malmok plan`이 출처와 함께
-출력합니다. 단일 서버 주소는 안정적인 등록 엔드포인트가 아닙니다. 서버를
-추가하기 전에 안정적인 DNS 이름이나 가상 IP를 도입해야 하며, 등록 주소가
-바뀌면 노드를 다시 조인해야 합니다.
-
-더 많은 예시는 [`examples/`](examples/)에 있습니다.
+위에서 본 형태로 만들어 주고, 같은 화면에서 설치까지 진행합니다. 화면 언어는
+영어가 기본이고 `--lang ko` 또는 설정 화면에서 한국어로 바꿀 수 있습니다(선택은
+저장됩니다).
 
 이제 문서를 검증하고, 노드를 측정하고, 구축한 뒤 결과를 확인합니다.
 
@@ -343,7 +347,7 @@ malmok report
 | ACME HTTP-01 인증서 | **실측 검증** | 프로덕션 클러스터에서 Let's Encrypt 발급, TLS 1.3·체인·호스트명 확인 |
 | ACME DNS-01 인증서(와일드카드) | 미검증 | DNS 존 자격증명 필요 |
 | 3서버 HA (etcd 쿼럼) | **미검증** | 장비 미확보 |
-| 에어갭 설치 (외부 통신 차단) | **하드웨어 검증** | 노드 2대 egress 차단, RKE2·Cilium·Gateway API 모두 반입 아티팩트로 |
+| 에어갭 설치 (외부 통신 차단) | **하드웨어 검증** | 일반 매트릭스 밖의 전용 2노드 랩 실행, egress 차단, RKE2·Cilium·Gateway API 모두 반입 아티팩트로 |
 | 프록시 환경 | **미검증** | 스키마만 존재 |
 | 외부 레지스트리 미러 | **미검증** | 스키마만 존재 |
 | 스토리지 백엔드 | **범위 밖** | 앱 책임 |
@@ -351,7 +355,9 @@ malmok report
 
 검증 매트릭스는 7개 축의 조합을 정의하고, 커버리지를 **테스트로 강제**합니다
 — 새 값을 추가하고 어느 조합에서도 쓰지 않으면 오프라인 테스트가 실패합니다.
-설계와 실행 방법은 [`docs/40-verification-matrix.md`](docs/40-verification-matrix.md).
+네트워크 모드는 아직 이 매트릭스의 축이 아니며, 위 에어갭 근거는 별도의 하드웨어
+실행에서 나왔습니다. 설계와 실행 방법은
+[`docs/40-verification-matrix.md`](docs/40-verification-matrix.md).
 
 ## 하지 않는 일
 

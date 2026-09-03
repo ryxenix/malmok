@@ -443,6 +443,13 @@ func ServerConfig(node v1alpha1.NodeSpec, spec v1alpha1.ClusterSpec, token strin
 		b.WriteString("system-default-registry: " + yamlString(r) + "\n")
 	}
 
+	// The setting belongs on servers and enables the mirror for the whole
+	// cluster; the nodes then need a registries.yaml entry each to say which
+	// registries take part, which node preparation writes.
+	if spec.Registry.EmbeddedMirror() {
+		b.WriteString("embedded-registry: true\n")
+	}
+
 	writeList(&b, "kubelet-arg", spec.Kubernetes.KubeletArgs)
 	writeList(&b, "kube-apiserver-arg", spec.Kubernetes.APIServerArgs)
 	return b.String()

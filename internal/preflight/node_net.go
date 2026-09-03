@@ -6,6 +6,8 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+
+	"github.com/ryxenix/malmok/api/v1alpha1"
 )
 
 // ---------------------------------------------------------------------------
@@ -18,6 +20,24 @@ import (
 // Kubernetes port, and a firewall rule set written from a Kubernetes reference
 // leaves it closed. The symptom is a join that hangs rather than fails.
 var ControlPlanePorts = []int{6443, 9345, 2379, 2380, 10250}
+
+// EmbeddedRegistryPort carries the peer-to-peer network the embedded mirror
+// uses to advertise what each node holds.
+//
+// The mirror's registry API is on 9345, which is already in the set above. 5001
+// is the one that is only needed when the mirror is on, and a cluster with it
+// closed does not fail: every pull quietly goes to the upstream registry
+// instead, which on an air-gapped node is a pull that hangs.
+const EmbeddedRegistryPort = 5001
+
+// InterNodePorts is what this document's cluster needs open between nodes.
+func InterNodePorts(spec v1alpha1.ClusterSpec) []int {
+	ports := append([]int{}, ControlPlanePorts...)
+	if spec.Registry.EmbeddedMirror() {
+		ports = append(ports, EmbeddedRegistryPort)
+	}
+	return ports
+}
 
 // CheckPortMatrix implements PF-601 from this node outward.
 //
@@ -38,9 +58,11 @@ func (n *Node) CheckPortMatrix(ctx context.Context, peers []string) ProbeResult 
 		return skipped("PF-601", "there is no other node to reach")
 	}
 
+	want := InterNodePorts(n.Cluster)
+
 	var blocked []string
 	for _, peer := range peers {
-		for _, port := range ControlPlanePorts {
+		for _, port := range want {
 			cmd := fmt.Sprintf(
 				"timeout 3 bash -c '</dev/tcp/%s/%d' 2>&1; echo rc=$?", peer, port)
 			r := n.run(ctx, cmd)
@@ -55,7 +77,7 @@ func (n *Node) CheckPortMatrix(ctx context.Context, peers []string) ProbeResult 
 
 	if len(blocked) == 0 {
 		return passf("PF-601", "a listener on every peer answered from here on %v; the paths the cluster needs are open",
-			ControlPlanePorts)
+			want)
 	}
 	return failf("PF-601", "PORTS_FILTERED",
 		"a live listener on %s cannot be reached from this node, so something on the path is dropping the traffic; "+
@@ -81,8 +103,11 @@ func (n *Node) StartPortListeners(ctx context.Context, addr string) bool {
 	if addr == "" {
 		return false
 	}
+	// The same set the matrix will dial. A port bound on one side and not
+	// asked for on the other proves nothing; asked for and not bound reads as
+	// a firewall.
 	var ports []string
-	for _, p := range ControlPlanePorts {
+	for _, p := range InterNodePorts(n.Cluster) {
 		ports = append(ports, strconv.Itoa(p))
 	}
 	list := strings.Join(ports, " ")
@@ -471,10 +496,15 @@ func (n *Node) CheckExistingKubernetes(ctx context.Context) ProbeResult {
 // CheckPortsFree implements PF-803.
 func (n *Node) CheckPortsFree(ctx context.Context) ProbeResult {
 	if n.Spec.Role != "" && n.Spec.Role != "server" {
-		// An agent needs 10250 and nothing else from the control plane set.
-		return n.portsFree(ctx, []int{10250})
+		// An agent needs 10250 and nothing else from the control plane set --
+		// and the embedded mirror's peer port, which every node runs.
+		ports := []int{10250}
+		if n.Cluster.Registry.EmbeddedMirror() {
+			ports = append(ports, EmbeddedRegistryPort)
+		}
+		return n.portsFree(ctx, ports)
 	}
-	return n.portsFree(ctx, ControlPlanePorts)
+	return n.portsFree(ctx, InterNodePorts(n.Cluster))
 }
 
 func (n *Node) portsFree(ctx context.Context, ports []int) ProbeResult {

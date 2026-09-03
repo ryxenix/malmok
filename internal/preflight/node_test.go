@@ -634,3 +634,39 @@ func TestSwapIsNotAFindingWhenTheDocumentKeepsIt(t *testing.T) {
 		t.Errorf("PF-105 does not say why the swap is allowed: %s", got.Detail)
 	}
 }
+
+// The embedded mirror advertises what each node holds over 5001. With it
+// closed nothing fails: every pull goes to the upstream registry instead,
+// which on an air-gapped node is a pull that hangs. So the port matrix has to
+// ask for it whenever the mirror is on -- and bind it, or the peers measure a
+// port nobody is serving and call it a firewall.
+func TestTheEmbeddedMirrorPortIsMeasured(t *testing.T) {
+	off := v1alpha1.ClusterSpec{}
+	off.Registry.Mode = v1alpha1.RegistryExternal
+	for _, p := range InterNodePorts(off) {
+		if p == EmbeddedRegistryPort {
+			t.Error("5001 is asked for without the embedded mirror")
+		}
+	}
+
+	on := v1alpha1.ClusterSpec{}
+	on.Registry.Mode = v1alpha1.RegistryEmbedded
+	var found bool
+	for _, p := range InterNodePorts(on) {
+		if p == EmbeddedRegistryPort {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the embedded mirror is on and 5001 is not in the port matrix")
+	}
+	// The registry API itself rides on the supervisor port, which is already
+	// measured; adding it twice would report one blocked path as two.
+	seen := map[int]bool{}
+	for _, p := range InterNodePorts(on) {
+		if seen[p] {
+			t.Errorf("port %d appears twice", p)
+		}
+		seen[p] = true
+	}
+}

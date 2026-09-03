@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.87.0] - 2026-09-04
+
+### Fixed
+- `registry.mode: embedded` now enables RKE2's embedded registry mirror. It is
+  the default for the homelab and company-prod profiles and its schema comment
+  has always said it "shares images peer-to-peer between nodes that already
+  hold them" -- and nothing wrote `embedded-registry: true`, so every cluster
+  built so far ran the documented default with the feature off.
+  - `embedded-registry: true` goes in the server config, which enables the
+    mirror cluster-wide. `ServerConfig` serves both the first server and the
+    ones that join, so HA is covered.
+  - Node preparation writes a `registries.yaml` naming `"*"` under `mirrors:`
+    with no endpoint. That entry is what makes a registry take part; without
+    one the mirror is enabled and mirrors nothing, which is what the previous
+    test asserted was correct.
+  - PF-601 and PF-803 measure 5001, and the peer listeners bind it. A closed
+    5001 does not fail: containerd falls back to the upstream registry, which
+    on an air-gapped node is a pull that hangs rather than an error.
+  - This matters for air-gapped sites specifically. RKE2 pins images loaded
+    from a tarball and shares them under whatever registry they are tagged for,
+    even one that does not exist -- so a bundle seeded onto one node reaches
+    the rest without being copied to each.
+  - The trade is stated rather than hidden: the mirror assumes every node in
+    the cluster is equally trusted, because a peer can fetch any image another
+    peer holds without the credentials it was originally pulled with. That
+    holds for the profiles this is the default for; the modes that name a
+    private registry do not use it.
+
 ## [0.86.0] - 2026-09-04
 
 ### Changed

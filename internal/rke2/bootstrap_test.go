@@ -521,3 +521,27 @@ func TestOperatorToolsFollowTheNetworkMode(t *testing.T) {
 		}
 	}
 }
+
+// registry.mode: embedded is the default for two profiles and its schema
+// comment says it shares images peer-to-peer between nodes. Nothing wrote the
+// setting that turns it on, so every cluster built so far ran the documented
+// default with the feature off.
+func TestEmbeddedRegistryIsActuallyEnabled(t *testing.T) {
+	s := clusterSpec()
+	s.Registry.Mode = v1alpha1.RegistryEmbedded
+	if got := ServerConfig(serverNode(), s, "tok"); !strings.Contains(got, "embedded-registry: true") {
+		t.Errorf("the embedded mirror is not enabled in the server config:\n%s", got)
+	}
+
+	// The setting belongs on servers; an agent joining a cluster that has it
+	// takes part without carrying it.
+	if got := AgentConfig(agentNode(), s, "tok"); strings.Contains(got, "embedded-registry") {
+		t.Errorf("the agent config carries a server setting:\n%s", got)
+	}
+
+	other := clusterSpec()
+	other.Registry.Mode = v1alpha1.RegistryExternal
+	if got := ServerConfig(serverNode(), other, "tok"); strings.Contains(got, "embedded-registry") {
+		t.Errorf("a document that names an external registry got the embedded mirror:\n%s", got)
+	}
+}

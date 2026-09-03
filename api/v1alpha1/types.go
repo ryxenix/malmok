@@ -532,6 +532,15 @@ const (
 	RegistryBYO      RegistryMode = "byo"
 )
 
+// EmbeddedMirror reports whether the cluster runs RKE2's own registry mirror.
+//
+// It shares images peer-to-peer between nodes that already hold them, which is
+// what makes it the right default: nothing to stand up, nothing to keep alive.
+// It is not a registry anything pushes to. In an air-gapped build the images
+// still arrive from a bundle or a tarball -- what this changes is that they
+// arrive once rather than once per node.
+func (r RegistrySpec) EmbeddedMirror() bool { return r.Mode == RegistryEmbedded }
+
 type RegistrySpec struct {
 	Mode RegistryMode `yaml:"mode" json:"mode"`
 

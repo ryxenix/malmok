@@ -52,6 +52,45 @@ Malmok is not a managed Kubernetes service or an application deployment
 platform. It builds and operates the cluster foundation; application
 ownership starts above that boundary.
 
+## Start with one document
+
+This is the smallest useful shape of a Malmok cluster. Replace the
+documentation address, SSH account, key and RKE2 version with values for your
+environment, then save it as `cluster.yaml`.
+
+> This is not RKE1's `cluster.yml`. The two formats are unrelated: `rke up`
+> cannot read this file, and Malmok cannot read that one.
+
+```yaml
+apiVersion: malmok.dev/v1alpha1
+kind: ClusterSpec
+
+metadata:
+  name: my-cluster
+  profile: homelab
+
+network:
+  mode: online
+
+topology:
+  registrationAddress: 192.0.2.10
+  acceptNodeRegistration: true
+  servers:
+    - host: 192.0.2.10
+      ssh:
+        user: ubuntu
+        privateKey: file://~/.ssh/id_ed25519
+
+kubernetes:
+  version: v1.36.3+rke2r1
+```
+
+The profile supplies the Cilium dataplane, Gateway API and local-path storage;
+`malmok plan` prints every resolved value and its source. A single server's
+address is not a stable registration endpoint, so introduce a stable DNS name
+or virtual IP before adding servers. More configurations are in
+[`examples/`](examples/).
+
 ## 말목 — the name
 
 `말목` (*malmok*, roughly “mal-mok”) is a Korean word for a wooden stake driven
@@ -138,24 +177,27 @@ Three properties shape the design:
 - **The engine does not know about the screen.** It emits JSONL events and the
   TUI draws them. A code path that needs a terminal is a defect.
 
+## How it fits
+
+Malmok is deliberately narrower than general automation and deliberately
+simpler to operate than a controller-based provisioning stack.
+
+| Question | Answer |
+|---|---|
+| **Why not Ansible?** | Use Ansible for general configuration management. Malmok owns one RKE2 lifecycle: read-only measurement, a reviewable plan, resumable execution, stable diagnostic codes and a handoff report. They can be used together; machine provisioning and site policy remain outside Malmok. |
+| **How is this different from k0sctl?** | [k0sctl](https://github.com/k0sproject/k0sctl) is the closest analogue and is the right tool for k0s. Malmok targets RKE2 and carries an opinionated path through Cilium, Gateway API, PKI, GitOps and observability, with the same evidence model used online and in an air gap. |
+| **Why not CAPRKE2?** | If you already operate a management cluster and Cluster API, [CAPRKE2](https://caprke2.docs.rancher.com/) is likely the better fit. Malmok starts with existing SSH-reachable machines, runs from the operator's workstation and leaves no management controller or node agent behind. |
+
 ## Install
 
 Install the latest release with one command:
-
-**Bash and other POSIX shells (default)**
 
 ```bash
 curl -fsSL https://malmok.dev/install.sh | sh
 ```
 
-**Fish**
-
-```fish
-curl -fsSL https://malmok.dev/install.sh | sh
-```
-
-The downloaded installer runs under POSIX `sh`, so invoking it from Fish does
-not require Bash-specific syntax.
+The command is the same in Bash and Fish. The downloaded installer itself runs
+under POSIX `sh`.
 
 The installer detects Linux or macOS and amd64 or arm64, downloads the matching
 [release](https://github.com/ryxenix/malmok/releases), verifies it against the
@@ -233,8 +275,11 @@ from `malmok --version`; use a release binary when the exact version matters.
 - Nodes must reach each other on 6443 (Kubernetes API), 9345 (the RKE2
   supervisor -- absent from every Kubernetes port reference, and the one people
   miss), 2379-2380 (etcd, between servers) and 10250 (kubelet), plus the
-  dataplane's own ports. Preflight does not infer this: it binds a real
-  listener on one node and dials it from the peer.
+  dataplane's own ports. With `registry.mode: embedded`, also 5001: that is how
+  the nodes advertise which images they hold, and a cluster with it closed does
+  not fail -- every pull goes to the upstream registry instead, which on an
+  air-gapped node is a pull that hangs. Preflight does not infer any of this:
+  it binds a real listener on one node and dials it from the peer.
 
 ## What it changes on a node
 
@@ -268,50 +313,9 @@ node at a time, waiting for Ready in between.
 ## Five minutes
 
 `malmok apply --tui` opens the wizard instead: it writes the `cluster.yaml`
-and installs from the same screen, in English or Korean (`--lang ko`, or the
-settings screen, which remembers). `malmok apply --demo` simulates the main
-installation flow and TUI states without touching a node.
-
-Save a document like the following as `cluster.yaml`. The addresses below are
-reserved for documentation: replace them, the SSH user, the key path and the
-RKE2 version with values for your environment.
-
-> This is not RKE1's `cluster.yml`. The two formats are unrelated: `rke up`
-> cannot read this file, and Malmok cannot read that one.
-
-```yaml
-apiVersion: malmok.dev/v1alpha1
-kind: ClusterSpec
-
-metadata:
-  name: my-cluster
-  profile: homelab        # the profile fills in the rest
-
-network:
-  mode: online
-
-topology:
-  # One server, so there is no VIP. Saying so explicitly records the
-  # trade-off: adding a second server later means re-joining every node
-  # unless the registration address is made stable first.
-  registrationAddress: 192.0.2.10
-  acceptNodeRegistration: true
-  servers:
-    - host: 192.0.2.10
-      ssh:
-        user: ubuntu
-        privateKey: file://~/.ssh/id_ed25519
-
-kubernetes:
-  version: v1.36.3+rke2r1
-```
-
-That is enough for the Cilium dataplane, Gateway API and local-path storage --
-the profile supplies them, and `malmok plan` prints every value it filled in
-along with where it came from. A single-server address is not a stable
-registration endpoint: introduce a stable DNS name or virtual IP before
-adding servers, or re-join the nodes when that endpoint changes. More in
-[`examples/`](examples/).
+shown above and installs from the same screen, in English or Korean (`--lang
+ko`, or the settings screen, which remembers). `malmok apply --demo` simulates
+the main installation flow and TUI states without touching a node.
 
 Then validate, measure, build and inspect the result:
 
@@ -348,7 +352,7 @@ cluster. So the untested rows are in the same table as the tested ones.
 | ACME HTTP-01 certificates | **verified on hardware** | Let's Encrypt issued on the production cluster; TLS 1.3, chain and hostname checked |
 | ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
 | Three-server HA (etcd quorum) | **not verified** | no hardware yet |
-| Airgap install (no egress) | **verified on hardware** | two nodes with egress rejected; RKE2, Cilium and the Gateway API from carried artifacts |
+| Airgap install (no egress) | **verified on hardware** | dedicated two-node lab run outside the general matrix; egress rejected; RKE2, Cilium and Gateway API from carried artifacts |
 | Proxy | **not verified** | schema only |
 | External registry mirror | **not verified** | schema only |
 | Storage backends | out of scope | the application's concern |
@@ -356,7 +360,8 @@ cluster. So the untested rows are in the same table as the tested ones.
 
 The verification matrix defines combinations across seven dimensions and
 **enforces coverage with tests** -- add a value and use it in no case, and an
-offline test fails. See
+offline test fails. Network mode is not yet one of those dimensions; the
+air-gap claim above comes from its dedicated hardware run. See
 [`docs/40-verification-matrix.md`](docs/40-verification-matrix.md).
 
 ## What it deliberately does not do

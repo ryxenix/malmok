@@ -253,7 +253,21 @@ const registriesFile = "/etc/rancher/rke2/registries.yaml"
 //
 // The embedded mirror needs no file: it serves what the nodes already have.
 func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
-	if spec.Registry.Mode == v1alpha1.RegistryEmbedded || spec.Registry.Mode == "" {
+	// The embedded mirror has no endpoint to point at: a name under mirrors:
+	// with nothing under it is how RKE2 is told that a registry takes part.
+	// "*" is every registry, which is what an air-gapped node wants -- images
+	// seeded from a tarball are shared under whatever registry they are tagged
+	// for, including one that does not exist.
+	//
+	// It assumes every node in the cluster is equally trusted, because a peer
+	// can fetch any image another peer holds without presenting the
+	// credentials that image was originally pulled with. That is true of the
+	// profiles this is the default for, and it is why the modes that name a
+	// private registry do not use it.
+	if spec.Registry.EmbeddedMirror() {
+		return managedFileHeader + "\nmirrors:\n  \"*\":\n"
+	}
+	if spec.Registry.Mode == "" {
 		return ""
 	}
 	host := strings.TrimSpace(spec.Registry.SystemDefaultRegistry)

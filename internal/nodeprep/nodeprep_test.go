@@ -172,14 +172,32 @@ func TestWrittenFilesAreMarkedAsManaged(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRegistriesYAML(t *testing.T) {
-	t.Run("the embedded mirror needs no file", func(t *testing.T) {
-		if got := registriesYAML(embeddedSpec(), TrustMaterial{}); got != "" {
-			t.Errorf("a file was rendered for the embedded mirror:\n%s", got)
+	// This case used to assert the opposite, and the opposite was wrong. RKE2's
+	// embedded mirror takes part in a registry only when that registry is named
+	// under mirrors: in the node's registries.yaml -- the entry carries no
+	// endpoint, because the peers are the endpoint. Writing no file left the
+	// mirror enabled cluster-wide and mirroring nothing.
+	t.Run("the embedded mirror needs a mirrors entry on every node", func(t *testing.T) {
+		got := registriesYAML(embeddedSpec(), TrustMaterial{})
+		if got == "" {
+			t.Fatal("no registries.yaml was rendered, so no registry takes part in the mirror")
 		}
+		if !strings.Contains(got, "mirrors:") || !strings.Contains(got, `"*":`) {
+			t.Errorf("the file names no registry to mirror:\n%s", got)
+		}
+		// An endpoint would send containerd to that address instead of to the
+		// peers, which is the opposite of what this mode is for.
+		if strings.Contains(got, "endpoint:") {
+			t.Errorf("the embedded mirror was given an endpoint:\n%s", got)
+		}
+		var found bool
 		for _, s := range Steps(&exec.Fake{}, "h", embeddedSpec(), TrustMaterial{}) {
 			if s.(*engine.ShellStep).Name == "registries" {
-				t.Error("the registries step exists with no external registry")
+				found = true
 			}
+		}
+		if !found {
+			t.Error("the registries step is absent, so the file never reaches the node")
 		}
 	})
 

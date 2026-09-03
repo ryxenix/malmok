@@ -303,3 +303,44 @@ func hasStep(steps []engine.Step, name string) bool {
 	}
 	return false
 }
+
+// A document that keeps its swap gets no swap step. The field used to be read
+// by nothing, so `disableSwap: false` was a statement the tool contradicted
+// the moment it ran -- swap off, fstab rewritten, nothing said.
+func TestSwapIsLeftAloneWhenTheDocumentSaysSo(t *testing.T) {
+	names := func(s v1alpha1.ClusterSpec) []string {
+		var out []string
+		for _, step := range Steps(&exec.Fake{}, "192.0.2.10", s, TrustMaterial{}) {
+			out = append(out, step.(*engine.ShellStep).Name)
+		}
+		return out
+	}
+
+	has := func(list []string, want string) bool {
+		for _, n := range list {
+			if n == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	unset := v1alpha1.ClusterSpec{}
+	if !has(names(unset), "swap") {
+		t.Error("an unset disableSwap does not turn swap off; that is the only default that boots")
+	}
+
+	on := v1alpha1.ClusterSpec{}
+	yes := true
+	on.OS.DisableSwap = &yes
+	if !has(names(on), "swap") {
+		t.Error("disableSwap: true does not turn swap off")
+	}
+
+	keep := v1alpha1.ClusterSpec{}
+	no := false
+	keep.OS.DisableSwap = &no
+	if has(names(keep), "swap") {
+		t.Error("disableSwap: false still turns swap off, which is what the field exists to prevent")
+	}
+}

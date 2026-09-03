@@ -62,7 +62,7 @@ var preflightCodes = []Code{
 	{
 		ID: "PF-105", Family: FamilyPreflight, Category: catBase,
 		Summary:  "Swap is disabled",
-		Message:  "Swap is active; apply will disable it",
+		Message:  "Swap is active; apply disables it unless os.disableSwap is false",
 		Severity: SeverityWarn,
 	},
 	{

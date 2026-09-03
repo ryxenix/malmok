@@ -823,3 +823,59 @@ func TestAirgapImagesMayComeFromTheArtifactPath(t *testing.T) {
 		t.Errorf("carried artifacts do not satisfy the rule: %v", err)
 	}
 }
+
+// TestKeepingSwapRequiresTellingTheKubelet pins the rule that makes
+// os.disableSwap: false survivable.
+//
+// The kubelet refuses to start with swap on and the failure it prints names a
+// flag, not the swap device, so an operator who kept their swap and nothing
+// else lands on a cluster that will not come up and a message that points
+// somewhere else. The flag is required rather than injected: this document is
+// an audit artifact, and a kubelet argument nobody asked for is one nobody can
+// account for later.
+func TestKeepingSwapRequiresTellingTheKubelet(t *testing.T) {
+	base := func() v1alpha1.ClusterSpec {
+		s := v1alpha1.ClusterSpec{}
+		s.APIVersion, s.Kind = v1alpha1.APIVersion, "ClusterSpec"
+		s.Metadata.Name = "c"
+		s.Network.Mode = v1alpha1.NetworkOnline
+		s.Topology.RegistrationAddress = "192.0.2.10"
+		s.Topology.AcceptNodeRegistration = true
+		s.Topology.Servers = []v1alpha1.NodeSpec{{Host: "192.0.2.10", Role: v1alpha1.RoleServer}}
+		s.Kubernetes.Version = "v1.36.3+rke2r1"
+		s.Registry.Mode = v1alpha1.RegistryEmbedded
+		s.PKI.Mode = v1alpha1.PKINone
+		return s
+	}
+
+	check := func(s v1alpha1.ClusterSpec) error {
+		d := &Document{Spec: s}
+		return d.Validate(false)
+	}
+
+	mentionsSwap := func(err error) bool {
+		return err != nil && strings.Contains(err.Error(), "os.disableSwap")
+	}
+
+	// The default says nothing about swap, so the rule says nothing either.
+	if err := check(base()); mentionsSwap(err) {
+		t.Errorf("an unset disableSwap is asked for a kubelet flag: %v", err)
+	}
+
+	no := false
+	kept := base()
+	kept.OS.DisableSwap = &no
+	if err := check(kept); !mentionsSwap(err) {
+		t.Errorf("keeping swap with no kubelet flag is accepted: %v", err)
+	}
+
+	// Spelled any of the ways RKE2 accepts.
+	for _, arg := range []string{"fail-swap-on=false", "--fail-swap-on=false", " fail-swap-on=false "} {
+		stated := base()
+		stated.OS.DisableSwap = &no
+		stated.Kubernetes.KubeletArgs = []string{arg}
+		if err := check(stated); mentionsSwap(err) {
+			t.Errorf("%q does not satisfy the rule: %v", arg, err)
+		}
+	}
+}

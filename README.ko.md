@@ -1,17 +1,41 @@
-# Malmok (말목)
+<h1 align="center">Malmok (말목)</h1>
 
 <p align="center"><img src="docs/img/malmok-wordmark.png" alt="말목 — 단단히 고정된 클러스터" width="620"></p>
 
-[![ci](https://github.com/ryxenix/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxenix/malmok/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/ryxenix/malmok?sort=semver)](https://github.com/ryxenix/malmok/releases)
-[![go](https://img.shields.io/github/go-mod/go-version/ryxenix/malmok)](go.mod)
-[![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+<p align="center">
+  <a href="https://github.com/ryxenix/malmok/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&amp;logoColor=white" alt="CI: GitHub Actions"></a>
+  <img src="https://img.shields.io/badge/status-alpha-f59e0b" alt="상태: 알파">
+  <img src="https://img.shields.io/badge/Go-1.25.8-00ADD8?logo=go&amp;logoColor=white" alt="Go 1.25.8">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Apache-2.0 라이선스"></a>
+</p>
 
-**RKE2 클러스터를 구축·확장·업그레이드하는 단일 정적 바이너리.** TUI 마법사와
-CLI가 같은 엔진 위에 있습니다. 대상 노드에는 에이전트나 런타임을 미리 설치할
-필요가 없으며, Malmok이 SSH로 접속해 직접 준비합니다.
+<p align="center"><strong>직접 관리하는 인프라에 RKE2 클러스터를 구축합니다 — 에이전트 없이, 반복 가능하게, 중단돼도 이어서.</strong></p>
 
-*[English README](README.md)*
+<p align="center"><sub>베어메탈 · VM · 온프레미스 · DMZ · 에어갭</sub></p>
+
+<p align="center">
+  <a href="#5분-사용법"><strong>시작하기</strong></a> ·
+  <a href="#검증-범위"><strong>검증 범위</strong></a> ·
+  <a href="#상세-문서"><strong>문서</strong></a> ·
+  <a href="https://github.com/ryxenix/malmok/releases"><strong>릴리스</strong></a>
+</p>
+
+<p align="center"><em><a href="README.md">English</a></em></p>
+
+<p align="center"><img src="docs/img/tui-wizard-ko.gif" alt="말목 마법사 처음부터 끝까지 - 설치 위치, 노드, 사전 검사, 설치, 결과" width="900"></p>
+
+<p align="center"><sub>데모 모드의 <code>malmok apply --tui --lang ko</code> — 같은 엔진을 화면 없이 실행하려면 <code>malmok apply -f cluster.yaml</code>.</sub></p>
+
+| 먼저 측정 | 안전하게 재개 | 전 과정을 기록 |
+|:---:|:---:|:---:|
+| 변경 전에 실제 노드와 네트워크를 점검 | 중단된 실행을 처음부터가 아니라 이어서 진행 | 안정적인 진단 코드·JSONL 이벤트·인수인계 리포트 보존 |
+
+> **상태: 알파.** 단일 노드와 2노드 구성은 실제 장비에서 반복 검증했고
+> IDC 프로덕션 서버 구축에 사용했습니다. **3서버 HA·외부
+> 레지스트리는 아직 미검증입니다.** 아래 [검증 범위](#검증-범위)를 먼저
+> 읽으십시오. 문서 스키마는 `v1alpha1`이며 마이너 릴리스 사이에 바뀔 수
+> 있습니다. `malmok plan --validate-only`가 인식하지 못하는 필드를 모두
+> 짚어 줍니다.
 
 ## 누구를 위한 도구인가
 
@@ -26,24 +50,17 @@ Malmok은 베어메탈·VM·온프레미스·DMZ·에어갭처럼 직접 관리�
 Malmok은 관리형 Kubernetes 서비스나 애플리케이션 배포 플랫폼이 아닙니다.
 클러스터 기반까지 구축하고 운영하며, 그 위의 애플리케이션은 각 팀이 소유합니다.
 
-## 이름의 뜻
+## 말목 — 이름의 뜻
 
 `말목`은 경계를 표시하거나 지반을 보강하기 위해 땅에 단단히 박는 나무 말뚝을
 뜻하는 한국어입니다. Malmok은 이를 로마자로 옮긴 이름입니다. 클러스터의 기반을
 세우고, 첫 서버를 기준점으로 고정한 뒤 나머지 노드를 하나의 구조로 연결한다는
 의미를 담았습니다.
 
-<p align="center"><img src="docs/img/tui-wizard-ko.gif" alt="말목 마법사 처음부터 끝까지 - 설치 위치, 노드, 사전 검사, 설치, 결과" width="900"></p>
+## 하나의 엔진, 두 가지 사용 방식
 
-<sub>`malmok apply --tui --lang ko` 를 `--demo` 로 녹화한 것. 노드를 건드리지 않으므로 설치가
-몇 초에 끝난다. 같은 실행을 화면 없이 하려면 `malmok apply -f cluster.yaml`.</sub>
-
-> **상태: 알파.** 단일 노드와 2노드 구성은 실제 장비에서 반복 검증했고
-> IDC 프로덕션 서버 구축에 사용했습니다. **3서버 HA·외부
-> 레지스트리는 아직 미검증입니다.** 아래 [검증 범위](#검증-범위)를 먼저
-> 읽으십시오. 문서 스키마는 `v1alpha1`이며 마이너 릴리스 사이에 바뀔 수
-> 있습니다. `malmok plan --validate-only`가 인식하지 못하는 필드를 모두
-> 짚어 줍니다.
+안내가 필요할 때는 TUI로 실행하고, 같은 작업을 검토·반복·자동화해야 할 때는
+CLI로 실행합니다.
 
 ```bash
 malmok apply --tui     # TUI 마법사 (구축·확장·재개·업그레이드)
@@ -137,8 +154,12 @@ go install github.com/ryxenix/malmok/cmd/malmok@latest
   써서 재부팅 후에도 유지되게 합니다.
 - `/etc/sysctl.d/90-malmok.conf`를 씁니다. IPv4·IPv6 포워딩, 양쪽 계열의
   bridge netfilter, inotify 한도 상향.
-- swap을 끄고 `/etc/fstab`에서 제거합니다. 둘 다 필요합니다. kubelet은 swap이
-  켜져 있으면 기동을 거부하고, fstab에 남은 항목은 다음 부팅에 swap을 되살립니다.
+- swap을 끄고 `/etc/fstab`의 해당 줄을 주석 처리합니다(원본은
+  `/etc/fstab.malmok.bak`에 백업). 둘 다 필요합니다. kubelet은 swap이 켜져
+  있으면 기동을 거부하고, fstab에 남은 항목은 다음 부팅에 swap을 되살립니다.
+  swap을 유지해야 하는 곳은 `os.disableSwap: false`를 적으면 이 단계가 아예
+  돌지 않습니다. 대신 `kubernetes.kubeletArgs`에 `fail-swap-on=false`를 함께
+  적어야 하며, 이는 도구가 몰래 넣어 주는 대신 검증이 요구합니다.
 - RKE2가 자라날 디렉터리 `/var/lib/rancher`를 만듭니다.
 - 릴리스 tarball로 RKE2를 설치하고 systemd 유닛을 관리합니다.
 - 클러스터 매니페스트를 `/var/lib/rancher/rke2/server/manifests`에 씁니다.

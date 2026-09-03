@@ -1,17 +1,41 @@
-# Malmok (말목)
+<h1 align="center">Malmok (말목)</h1>
 
 <p align="center"><img src="docs/img/malmok-wordmark.png" alt="Malmok — an anchored cluster" width="620"></p>
 
-[![ci](https://github.com/ryxenix/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxenix/malmok/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/ryxenix/malmok?sort=semver)](https://github.com/ryxenix/malmok/releases)
-[![go](https://img.shields.io/github/go-mod/go-version/ryxenix/malmok)](go.mod)
-[![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+<p align="center">
+  <a href="https://github.com/ryxenix/malmok/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&amp;logoColor=white" alt="CI: GitHub Actions"></a>
+  <img src="https://img.shields.io/badge/status-alpha-f59e0b" alt="Status: alpha">
+  <img src="https://img.shields.io/badge/Go-1.25.8-00ADD8?logo=go&amp;logoColor=white" alt="Go 1.25.8">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Apache-2.0 licence"></a>
+</p>
 
-**One static binary that builds, grows and upgrades RKE2 clusters.** A TUI
-wizard and a CLI over the same engine. Target nodes need no agent or runtime
-installed beforehand; Malmok connects over SSH and prepares them itself.
+<p align="center"><strong>Build RKE2 clusters on infrastructure you control — repeatably, resumably and without installing agents.</strong></p>
 
-*[한국어 README](README.ko.md)*
+<p align="center"><sub>Bare metal · VMs · On-premises · DMZ · Air-gapped</sub></p>
+
+<p align="center">
+  <a href="#five-minutes"><strong>Get started</strong></a> ·
+  <a href="#what-is-verified"><strong>Verification</strong></a> ·
+  <a href="#documentation"><strong>Docs</strong></a> ·
+  <a href="https://github.com/ryxenix/malmok/releases"><strong>Releases</strong></a>
+</p>
+
+<p align="center"><em><a href="README.ko.md">한국어</a></em></p>
+
+<p align="center"><img src="docs/img/tui-wizard.gif" alt="The Malmok wizard, start to finish: where, nodes, checks, install, result" width="900"></p>
+
+<p align="center"><sub><code>malmok apply --tui</code> in demo mode — the same engine runs headless with <code>malmok apply -f cluster.yaml</code>.</sub></p>
+
+| Measure first | Resume safely | Audit everything |
+|:---:|:---:|:---:|
+| Probe the real nodes and network before changing them | Continue an interrupted run instead of starting over | Keep stable diagnostic codes, JSONL events and handoff reports |
+
+> **Status: alpha.** Single-node and two-node clusters are verified repeatedly
+> on real hardware, and the tool has built a production cluster in a data
+> centre. **Three-server HA and external registries are not verified.** Read
+> [what is verified](#what-is-verified) first. The document schema is
+> `v1alpha1` and may change between minor releases; `malmok plan
+> --validate-only` names every field it does not recognise.
 
 ## Who it is for
 
@@ -28,24 +52,17 @@ Malmok is not a managed Kubernetes service or an application deployment
 platform. It builds and operates the cluster foundation; application
 ownership starts above that boundary.
 
-## The name
+## 말목 — the name
 
 `말목` (*malmok*, roughly “mal-mok”) is a Korean word for a wooden stake driven
 firmly into the ground to mark a boundary or reinforce a foundation. The name
 fits the tool's role: establishing a dependable base, anchoring the first
 server and bringing the rest of the cluster together around it.
 
-<p align="center"><img src="docs/img/tui-wizard.gif" alt="The Malmok wizard, start to finish: where, nodes, checks, install, result" width="900"></p>
+## One engine, two ways to work
 
-<sub>`malmok apply --tui`, recorded against `--demo` -- no node is contacted, which is why the
-install finishes in seconds. The same run headless is `malmok apply -f cluster.yaml`.</sub>
-
-> **Status: alpha.** Single-node and two-node clusters are verified repeatedly
-> on real hardware, and the tool has built a production cluster in a data
-> centre. **Three-server HA and external registries are not verified.** Read
-> [what is verified](#what-is-verified) first. The document schema is
-> `v1alpha1` and may change between minor releases; `malmok plan
-> --validate-only` names every field it does not recognise.
+Use the TUI when you want Malmok to guide the run. Use the CLI when the same
+work needs to be reviewed, repeated or automated.
 
 ```bash
 malmok apply --tui     # TUI wizard: build, grow, resume, upgrade
@@ -139,9 +156,12 @@ means before granting it, so the whole list is here rather than in the source:
   `/etc/modules-load.d/90-malmok.conf` so the choice survives a reboot.
 - Writes `/etc/sysctl.d/90-malmok.conf`: IPv4 and IPv6 forwarding, bridge
   netfilter for both families, and raised inotify limits.
-- Turns swap off and removes it from `/etc/fstab`. Both halves: the kubelet
-  refuses to start with swap on, and an entry left in fstab brings it back at
-  the next boot.
+- Turns swap off and comments it out of `/etc/fstab`, keeping a backup at
+  `/etc/fstab.malmok.bak`. Both halves: the kubelet refuses to start with swap
+  on, and an entry left in fstab brings it back at the next boot. A site that
+  keeps its swap sets `os.disableSwap: false`, and then this step does not run
+  at all -- the document also has to pass `fail-swap-on=false` in
+  `kubernetes.kubeletArgs`, which validation requires rather than adds.
 - Creates `/var/lib/rancher`, the directory RKE2 grows into.
 - Installs RKE2 from a release tarball and manages its systemd unit.
 - Writes cluster manifests under `/var/lib/rancher/rke2/server/manifests`.

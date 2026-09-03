@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.85.0] - 2026-09-04
+
+### Fixed
+- `os.disableSwap` is read. It was declared and ignored, so a document that
+  said `false` -- a site stating that it keeps its swap -- had swap turned off
+  and its `/etc/fstab` rewritten anyway, silently. A field that looks like an
+  opt-out and is not is worse than no field: the operator has no way to learn
+  that the thing they declined happened.
+  - Unset still means off, because that is the only default that produces a
+    cluster the kubelet will join.
+  - `false` skips node preparation's swap step. It does not turn swap back on:
+    the tool stops changing the setting, it does not undo an earlier run.
+  - `false` now requires `fail-swap-on=false` in `kubernetes.kubeletArgs`.
+    Keeping swap without telling the kubelet produces a cluster that does not
+    come up, and the kubelet's own failure names a flag rather than the swap
+    device. The flag is required rather than injected: `cluster.yaml` is an
+    audit artifact, and an argument nobody asked for is one nobody can account
+    for later.
+  - PF-105 no longer reports active swap as a finding when the document keeps
+    it. Telling an operator to disable swap they deliberately kept is advice to
+    undo their own decision.
+  - What "unset" means now lives in `v1alpha1.OSSpec.SwapDisabled`, because
+    three packages read the field and a pointer that means different things in
+    each of them is how this happened.
+
 ## [0.84.0] - 2026-09-04
 
 ### Removed

@@ -309,10 +309,22 @@ func (n *Node) CheckSwap(ctx context.Context) ProbeResult {
 	if r.Out() == "" {
 		return passf("PF-105", "no swap is active")
 	}
+	swap := strings.Join(strings.Fields(r.Out()), " ")
+
+	// Active swap is only a finding when the document asked for it to be gone.
+	// A site that keeps its swap has said so, and validation has already made
+	// sure the kubelet was told to tolerate it, so repeating the advice to
+	// disable it here would be telling an operator to undo their own decision.
+	if !n.Cluster.OS.SwapDisabled() {
+		return passf("PF-105",
+			"swap is active (%s) and the document keeps it (os.disableSwap: false); "+
+				"the kubelet is told to tolerate it through kubernetes.kubeletArgs", swap)
+	}
+
 	return failf("PF-105", "SWAP_ACTIVE",
 		"swap is active (%s); disable it and remove the entry from /etc/fstab, "+
 			"or the kubelet refuses to start after the next reboot even if it starts now",
-		strings.Join(strings.Fields(r.Out()), " "))
+		swap)
 }
 
 // CheckSystemd implements PF-106.

@@ -609,3 +609,28 @@ func TestEtcdMemberAddressMustMatchTheDocument(t *testing.T) {
 		}
 	})
 }
+
+// PF-105 reports active swap as a finding only when the document asked for it
+// to be gone. Telling an operator to disable the swap they deliberately kept
+// is advice to undo their own decision, and validation has already made sure
+// the kubelet was told to tolerate it.
+func TestSwapIsNotAFindingWhenTheDocumentKeepsIt(t *testing.T) {
+	const cmd = "swapon --show=NAME,SIZE --noheadings 2>/dev/null"
+	fakes := map[string]exec.Result{cmd: {Stdout: "/dev/sda3 4G\n"}}
+
+	n, _ := ubuntuProber(t, fakes)
+	if got := n.CheckSwap(t.Context()); !got.Failed() {
+		t.Fatalf("active swap is not reported by default: %s %s", got.Code, got.Detail)
+	}
+
+	keep, _ := ubuntuProber(t, fakes)
+	no := false
+	keep.Cluster.OS.DisableSwap = &no
+	got := keep.CheckSwap(t.Context())
+	if got.Failed() {
+		t.Errorf("PF-105 is %s/%s on a document that keeps swap: %s", got.Status, got.Code, got.Detail)
+	}
+	if !strings.Contains(got.Detail, "disableSwap") {
+		t.Errorf("PF-105 does not say why the swap is allowed: %s", got.Detail)
+	}
+}

@@ -277,7 +277,22 @@ type OSSpec struct {
 	// immediately, so PF-501/502 are hard blockers.
 	NTPServers []string `yaml:"ntpServers,omitempty" json:"ntpServers,omitempty"`
 
-	DisableSwap *bool `yaml:"disableSwap,omitempty" json:"disableSwap,omitempty"` // default true
+	// DisableSwap: unset means yes. The kubelet refuses to start with swap on
+	// unless it is told to tolerate it, so turning swap off is the only default
+	// that produces a cluster. Setting it false is a statement that this site
+	// keeps its swap, and it is honoured -- along with the kubelet argument
+	// that makes it survivable, which spec validation requires.
+	DisableSwap *bool `yaml:"disableSwap,omitempty" json:"disableSwap,omitempty"`
+}
+
+// SwapDisabled reports whether the tool turns swap off on the nodes.
+//
+// This is the one piece of behaviour a schema package decides, because three
+// packages read the field -- node preparation, validation and preflight -- and
+// an unset pointer that means different things in each of them is how a
+// document ends up doing something nobody asked for.
+func (o OSSpec) SwapDisabled() bool {
+	return o.DisableSwap == nil || *o.DisableSwap
 }
 
 type HardeningSpec struct {

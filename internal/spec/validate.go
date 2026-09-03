@@ -184,6 +184,20 @@ func validateKubernetes(s *v1alpha1.ClusterSpec) []error {
 		errs = append(errs, errors.New("kubernetes.version is required, e.g. v1.34.5+rke2r1"))
 	}
 
+	// Keeping swap is allowed and is not free: a kubelet that has not been told
+	// to tolerate it refuses to start, and the failure it prints names a flag
+	// rather than the swap device, which sends people to the wrong place.
+	//
+	// The flag is not injected here. A kubelet argument that appears without
+	// anybody asking for it is one nobody can find the reason for later, and
+	// this document is an audit artifact.
+	if !s.OS.SwapDisabled() && !hasKubeletArg(k.KubeletArgs, "fail-swap-on") {
+		errs = append(errs, errors.New(
+			"os.disableSwap is false, so the nodes keep their swap, and the kubelet refuses to start "+
+				"unless it is told to tolerate it; add \"fail-swap-on=false\" to kubernetes.kubeletArgs "+
+				"to state that, or leave os.disableSwap unset and let the nodes have swap turned off"))
+	}
+
 	switch k.Dataplane.Preset {
 	case v1alpha1.DataplaneCiliumGW, v1alpha1.DataplaneCiliumTraefik:
 		// Cilium supplies the load balancer addresses; without a pool the
@@ -637,4 +651,20 @@ func validateGatewayExposure(s *v1alpha1.ClusterSpec, i int, gw v1alpha1.Gateway
 			"%s.exposure %q is not loadBalancer or node-ips", where, gw.Exposure))
 	}
 	return errs
+}
+
+// hasKubeletArg reports whether the document already passes a kubelet flag,
+// however the operator chose to spell it.
+//
+// RKE2 takes kubelet-arg values with or without leading dashes and with the
+// value attached or separate, so a rule that demanded one spelling would fail
+// documents that work.
+func hasKubeletArg(args []string, name string) bool {
+	for _, a := range args {
+		a = strings.TrimLeft(strings.TrimSpace(a), "-")
+		if a == name || strings.HasPrefix(a, name+"=") || strings.HasPrefix(a, name+" ") {
+			return true
+		}
+	}
+	return false
 }

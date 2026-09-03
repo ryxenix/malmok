@@ -37,7 +37,7 @@ Source: internal/codes/preflight.go
 | `PF-102` | block | CPU architecture is amd64 or arm64 | Unsupported CPU architecture; only amd64 and arm64 are supported |
 | `PF-103` | info | Kernel version | Kernel version recorded for the audit report |
 | `PF-104` | degrade | cgroup v2 unified hierarchy is active | cgroup v2 unified hierarchy is not active |
-| `PF-105` | warn | Swap is disabled | Swap is active; apply will disable it |
+| `PF-105` | warn | Swap is disabled | Swap is active; apply disables it unless os.disableSwap is false |
 | `PF-106` | block | systemd version is 245 or newer | systemd is older than the required version 245 |
 | `PF-107` | warn | CPU and memory meet the minimum | Node is below the recommended minimum of 2 cores and 4 GB of memory |
 | `PF-108` | warn | Node architectures are homogeneous | Nodes report differing CPU architectures; images must exist for every one of them |

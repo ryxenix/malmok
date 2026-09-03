@@ -80,7 +80,12 @@ func Steps(runner exec.Runner, host string, spec v1alpha1.ClusterSpec, trust Tru
 
 	add(modulesStep())
 	add(sysctlStep())
-	add(swapStep())
+	// A document that keeps its swap gets no swap step. Note what this does
+	// not do: it does not turn swap back on. The tool stops changing the
+	// setting, it does not undo a change an earlier run made.
+	if spec.OS.SwapDisabled() {
+		add(swapStep())
+	}
 	add(dataDirStep())
 
 	if len(trust.CABundle) > 0 {

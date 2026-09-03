@@ -1,14 +1,24 @@
 # Malmok (말목)
 
+<p align="center"><img src="docs/img/malmok-wordmark.png" alt="Malmok — an anchored cluster" width="620"></p>
+
 [![ci](https://github.com/ryxenix/malmok/actions/workflows/ci.yml/badge.svg)](https://github.com/ryxenix/malmok/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/ryxenix/malmok?sort=semver)](https://github.com/ryxenix/malmok/releases)
 [![go](https://img.shields.io/github/go-mod/go-version/ryxenix/malmok)](go.mod)
 [![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 
 **One static binary that builds, grows and upgrades RKE2 clusters.** A TUI
-wizard and a CLI over the same engine, with nothing to install on the nodes.
+wizard and a CLI over the same engine. Target nodes need no agent or runtime
+installed beforehand; Malmok connects over SSH and prepares them itself.
 
 *[한국어 README](README.ko.md)*
+
+## The name
+
+`말목` (*malmok*, roughly “mal-mok”) is a Korean word for a wooden stake driven
+firmly into the ground to mark a boundary or reinforce a foundation. The name
+fits the tool's role: establishing a dependable base, anchoring the first
+server and bringing the rest of the cluster together around it.
 
 <p align="center"><img src="docs/img/tui-wizard.gif" alt="The Malmok wizard, start to finish: where, nodes, checks, install, result" width="900"></p>
 
@@ -20,12 +30,14 @@ install finishes in seconds. The same run headless is `malmok apply -f cluster.y
 > centre. **Three-server HA and external registries are not verified.** Read
 > [what is verified](#what-is-verified) first.
 
-```
+```bash
 malmok apply --tui     # TUI wizard: build, grow, resume, upgrade
-malmok preflight       # read-only measurement of the nodes
-malmok plan            # what would be installed; no network access
-malmok apply           # build from cluster.yaml
-malmok upgrade         # move RKE2 versions, one node at a time
+malmok plan -f cluster.yaml --validate-only  # validate the document offline
+malmok preflight -f cluster.yaml             # read-only measurement of the nodes
+malmok plan -f cluster.yaml                  # measure nodes and show the install plan
+malmok apply -f cluster.yaml                 # build from the document
+TARGET_RKE2=v1.36.3+rke2r1                   # choose the target version
+malmok upgrade --to "$TARGET_RKE2"            # move versions one node at a time
 malmok report          # audit report and DNS record sheet
 ```
 
@@ -35,10 +47,10 @@ Give it SSH access to some machines and a `cluster.yaml` describing what you
 want. It produces a working RKE2 cluster: kernel parameters, swap, firewall
 and other host preparation, then RKE2 itself, the Cilium dataplane, Gateway
 API, cert-manager, ArgoCD and a VictoriaMetrics stack scraping the cluster.
-It also leaves `kubectl`, `helm` and `k9s` on
-the operator's PATH -- RKE2 buries kubectl where nothing finds it and ships no
-helm CLI at all, so a finished install used to hand you credentials to a
-cluster you could not address.
+On the first server, it also places `kubectl`, `helm` and `k9s` on the PATH of
+the account used to operate the cluster. RKE2 buries kubectl where nothing
+finds it and ships no helm CLI at all, so a finished install used to hand you
+credentials to a cluster you could not address.
 
 Three properties shape the design:
 
@@ -48,16 +60,26 @@ Three properties shape the design:
 - **Every phase is idempotent and resumable.** An interrupted run continues; it
   does not start over.
 - **The engine does not know about the screen.** It emits JSONL events and the
-  TUI draws them (ADR-002). A code path that needs a terminal is a defect.
+  TUI draws them ([ADR-002](docs/00-architecture.md#adr-002--tui는-엔진을-호출하고-렌더링한다-로직을-소유하지-않는다)).
+  A code path that needs a terminal is a defect.
 
 ## Install
 
+Download the binary for your platform from
+[releases](https://github.com/ryxenix/malmok/releases) -- Linux and macOS,
+amd64 and arm64 -- and verify it against the included `SHA256SUMS`.
+
+After downloading the binary, set `MALMOK_BIN` to its filename and install it
+on your PATH. For example, on Linux amd64:
+
 ```bash
-go install github.com/ryxenix/malmok/cmd/malmok@latest
+MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64  # replace X.Y.Z with the release
+chmod +x "$MALMOK_BIN"
+sudo install "$MALMOK_BIN" /usr/local/bin/malmok
+malmok --version
 ```
 
-Or download a binary from [releases](https://github.com/ryxenix/malmok/releases)
--- linux and darwin, amd64 and arm64, with `SHA256SUMS`. Or build it:
+Or install from source:
 
 ```bash
 git clone https://github.com/ryxenix/malmok
@@ -65,30 +87,38 @@ cd malmok
 go build -o bin/malmok ./cmd/malmok
 ```
 
-Go 1.25+. The result is a static binary; the nodes need nothing but SSH.
+This requires Go 1.25.8 or newer. The following works too:
+
+```bash
+go install github.com/ryxenix/malmok/cmd/malmok@latest
+```
+
+A `go install` build is not stamped with the release version and reports `dev`
+from `malmok --version`; use a release binary when the exact version matters.
+
+## Requirements
+
+- Run Malmok from Linux or macOS on amd64 or arm64.
+- Target nodes must be Ubuntu or Rocky/RHEL-family Linux on amd64 or arm64.
+  The verified profiles currently cover Ubuntu 22.04/24.04 and Rocky 9; see
+  [what is verified](#what-is-verified) before using another combination.
+- The operator needs SSH access and root access or working privilege
+  escalation on every target node. A local single-node install can be run as
+  root without SSH.
+- Each node needs at least 20 GB free disk space; 2 CPU cores, 4 GB RAM and 50
+  GB free disk are recommended. Preflight reports the exact blockers and
+  recommendations.
 
 ## Five minutes
 
-```bash
-# 1. check the document -- no node is contacted
-malmok plan -f cluster.yaml --validate-only
-
-# 2. measure the nodes -- nothing is changed
-malmok preflight -f cluster.yaml
-
-# 3. build
-malmok apply -f cluster.yaml
-
-# 4. read the result
-malmok report
-```
-
 `malmok apply --tui` opens the wizard instead: it writes the `cluster.yaml`
 and installs from the same screen, in English or Korean (`--lang ko`, or the
-settings screen, which remembers). `malmok apply --demo` walks the whole
-sequence without touching a node, if you want to see the shape of a run first.
+settings screen, which remembers). `malmok apply --demo` simulates the main
+installation flow and TUI states without touching a node.
 
-A minimal document:
+Save a document like the following as `cluster.yaml`. The addresses below are
+reserved for documentation: replace them, the SSH user, the key path and the
+RKE2 version with values for your environment.
 
 ```yaml
 apiVersion: platform.ryxen.dev/v1alpha1
@@ -104,7 +134,7 @@ network:
 topology:
   # One server, so there is no VIP. Saying so explicitly records the
   # trade-off: adding a second server later means re-joining every node
-  # (ADR-008).
+  # (see ADR-008 in docs/00-architecture.md).
   registrationAddress: 192.0.2.10
   acceptNodeRegistration: true
   servers:
@@ -119,7 +149,29 @@ kubernetes:
 
 That is enough for the Cilium dataplane, Gateway API and local-path storage --
 the profile supplies them, and `malmok plan` prints every value it filled in
-along with where it came from. More in [`examples/`](examples/).
+along with where it came from. The single-server registration trade-off is
+explained in
+[ADR-008](docs/00-architecture.md#adr-008--ha는-2차지만-1차에서-경로를-예약한다).
+More in [`examples/`](examples/).
+
+Then validate, measure, build and inspect the result:
+
+```bash
+# 1. check the document -- no node is contacted
+malmok plan -f cluster.yaml --validate-only
+
+# 2. measure the nodes -- nothing is changed
+malmok preflight -f cluster.yaml
+
+# 3. measure the nodes and review the resolved installation plan
+malmok plan -f cluster.yaml
+
+# 4. build
+malmok apply -f cluster.yaml
+
+# 5. read the result
+malmok report
+```
 
 ## What is verified
 
@@ -152,20 +204,30 @@ offline test fails. See
 
 | Not done | Why |
 |---|---|
-| Create HTTPRoutes | the application chart's job (ADR-006); this tool stops at the gateway |
-| Install ingress-nginx | EOL 2026-03 (ADR-005) |
+| Create HTTPRoutes | the application chart's job ([ADR-006](docs/00-architecture.md#adr-006--httproute는-애플리케이션-차트-책임)); this tool stops at the gateway |
+| Install ingress-nginx | EOL 2026-03 ([ADR-005](docs/00-architecture.md#adr-005--ingress-nginx를-사용하지-않는다)) |
 | Change anything during preflight | preflight measures; it does not fix |
 | Restart all nodes at once | one at a time, each back to Ready first |
 | Store plaintext secrets in `cluster.yaml` | references only (`file://`, `env://`) |
 
+## Documentation
+
+The detailed design documents are currently written in Korean; commands,
+schema fields and diagnostic identifiers remain in English.
+
+- [Architecture and ADRs](docs/00-architecture.md)
+- [Preflight and planning](docs/10-preflight-plan.md) · [execution, resume and events](docs/11-execute.md)
+- [Certificates](docs/20-cert.md) · [day-2 maintenance](docs/30-maintenance.md)
+- [Verification matrix](docs/40-verification-matrix.md) · [diagnostic code registry](docs/99-codes.md)
+
 ## Diagnostic codes
 
-Every failure carries a code: `PF-105` (swap is on), `PF-601` (a port is not
-reachable), `EX-*` (a step failed), `UP-*` (an upgrade precondition). The
-source of truth is `internal/codes/`, not the documentation --
-`docs/99-codes.md` is generated from it. 145 codes are registered. Retired
-numbers are never reused, because audit reports and customer tickets outlive
-releases.
+Operational checks and execution failures carry stable codes: `PF-105` (swap
+is on), `PF-601` (a port is not reachable), `EX-*` (a step failed), `UP-*` (an
+upgrade precondition). The source of truth is `internal/codes/`, not the
+documentation -- [`docs/99-codes.md`](docs/99-codes.md) is generated from it.
+Retired numbers are never reused, because audit reports and customer tickets
+outlive releases.
 
 ## Contributing
 

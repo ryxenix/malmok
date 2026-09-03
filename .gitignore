@@ -5,5 +5,6 @@ out/
 # scripts/record.sh 로 재생성한다 — 손으로 찍어 넣지 않는다.
 docs/img/*
 !docs/img/tui-*.gif
+!docs/img/malmok-wordmark.png
 dist/
 internal/tools/payload/

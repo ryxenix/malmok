@@ -13,6 +13,21 @@ installed beforehand; Malmok connects over SSH and prepares them itself.
 
 *[한국어 README](README.ko.md)*
 
+## Who it is for
+
+Malmok is for platform, SRE and infrastructure engineers who build RKE2
+clusters on machines they control -- bare metal, VMs, on-premises networks,
+DMZs and air-gapped sites.
+
+It turns a `cluster.yaml` and SSH access into a repeatable, resumable and
+auditable cluster build. It is most useful when an installation must be
+measured before it starts, recovered after interruption and handed over with
+a clear record of what happened.
+
+Malmok is not a managed Kubernetes service or an application deployment
+platform. It builds and operates the cluster foundation; application
+ownership starts above that boundary.
+
 ## The name
 
 `말목` (*malmok*, roughly “mal-mok”) is a Korean word for a wooden stake driven
@@ -62,8 +77,7 @@ Three properties shape the design:
 - **Every phase is idempotent and resumable.** An interrupted run continues; it
   does not start over.
 - **The engine does not know about the screen.** It emits JSONL events and the
-  TUI draws them ([ADR-002](docs/00-architecture.md#adr-002--tui는-엔진을-호출하고-렌더링한다-로직을-소유하지-않는다)).
-  A code path that needs a terminal is a defect.
+  TUI draws them. A code path that needs a terminal is a defect.
 
 ## Install
 
@@ -170,7 +184,7 @@ network:
 topology:
   # One server, so there is no VIP. Saying so explicitly records the
   # trade-off: adding a second server later means re-joining every node
-  # (see ADR-008 in docs/00-architecture.md).
+  # unless the registration address is made stable first.
   registrationAddress: 192.0.2.10
   acceptNodeRegistration: true
   servers:
@@ -185,10 +199,10 @@ kubernetes:
 
 That is enough for the Cilium dataplane, Gateway API and local-path storage --
 the profile supplies them, and `malmok plan` prints every value it filled in
-along with where it came from. The single-server registration trade-off is
-explained in
-[ADR-008](docs/00-architecture.md#adr-008--ha는-2차지만-1차에서-경로를-예약한다).
-More in [`examples/`](examples/).
+along with where it came from. A single-server address is not a stable
+registration endpoint: introduce a stable DNS name or virtual IP before
+adding servers, or re-join the nodes when that endpoint changes. More in
+[`examples/`](examples/).
 
 Then validate, measure, build and inspect the result:
 
@@ -240,8 +254,8 @@ offline test fails. See
 
 | Not done | Why |
 |---|---|
-| Create HTTPRoutes | the application chart's job ([ADR-006](docs/00-architecture.md#adr-006--httproute는-애플리케이션-차트-책임)); this tool stops at the gateway |
-| Install ingress-nginx | EOL 2026-03 ([ADR-005](docs/00-architecture.md#adr-005--ingress-nginx를-사용하지-않는다)) |
+| Create HTTPRoutes | the application chart's job; this tool stops at the gateway |
+| Install ingress-nginx | EOL 2026-03; Malmok installs the Gateway API instead |
 | Change anything during preflight | preflight measures; it does not fix |
 | Restart all nodes at once | one at a time, each back to Ready first |
 | Store plaintext secrets in `cluster.yaml` | references only (`file://`, `env://`) |
@@ -252,13 +266,13 @@ offline test fails. See
 
 ## Documentation
 
-The detailed design documents are currently written in Korean; commands,
-schema fields and diagnostic identifiers remain in English.
+Public documentation currently includes the evidence behind support claims and
+the generated registry used to troubleshoot a run. Installation, configuration
+and operations guides will move to the project documentation site as they are
+published.
 
-- [Architecture and ADRs](docs/00-architecture.md)
-- [Preflight and planning](docs/10-preflight-plan.md) · [execution, resume and events](docs/11-execute.md)
-- [Certificates](docs/20-cert.md) · [day-2 maintenance](docs/30-maintenance.md)
-- [Verification matrix](docs/40-verification-matrix.md) · [diagnostic code registry](docs/99-codes.md)
+- [Verification matrix](docs/40-verification-matrix.md)
+- [Diagnostic code registry](docs/99-codes.md)
 
 ## Diagnostic codes
 

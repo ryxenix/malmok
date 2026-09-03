@@ -6,8 +6,8 @@ shapes what a good change looks like here more than any style rule does.
 ## Before you open a pull request
 
 Open an issue first. The repository is moving quickly under a single author,
-and a design that conflicts with a decision already recorded in
-`docs/00-architecture.md` is painful to discover after the code is written.
+and agreeing on user-visible behavior before the code is written avoids a
+large rewrite during review.
 
 ## What CI checks
 
@@ -30,8 +30,7 @@ NODE_PASSWORD=... scripts/matrix.sh
 
 ## Rules that are not negotiable
 
-These are recorded decisions, not preferences. `docs/00-architecture.md` has
-the reasoning; `CLAUDE.md` has the short list.
+These are compatibility and safety constraints, not style preferences.
 
 - **`internal/engine` must not import `internal/tui`.** The engine emits JSONL
   events; the TUI draws them (ADR-002). A test enforces this, and CI runs it.
@@ -42,8 +41,8 @@ the reasoning; `CLAUDE.md` has the short list.
 - **`plan` is a pure function.** `(ClusterSpec, []NodeCapability) -> Plan`, no
   network, no side effects.
 - **No plaintext secrets in `cluster.yaml`.** References only.
-- **This tool does not create HTTPRoutes** (ADR-006) and does not install
-  ingress-nginx (ADR-005).
+- **This tool does not create HTTPRoutes** and does not install ingress-nginx.
+  Application charts own routes; Malmok stops at the Gateway API boundary.
 
 ## Observe the thing itself
 

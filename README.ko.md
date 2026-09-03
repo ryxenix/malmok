@@ -13,6 +13,19 @@ CLI가 같은 엔진 위에 있습니다. 대상 노드에는 에이전트나 �
 
 *[English README](README.md)*
 
+## 누구를 위한 도구인가
+
+Malmok은 베어메탈·VM·온프레미스·DMZ·에어갭처럼 직접 관리하는 환경에 RKE2
+클러스터를 구축하는 플랫폼·SRE·인프라 엔지니어를 위한 도구입니다.
+
+`cluster.yaml`과 SSH 접근 권한만으로 반복 가능하고, 중단 후 재개할 수 있으며,
+감사 가능한 클러스터 구축 절차를 제공합니다. 설치 전에 실제 환경을 측정하고,
+장애가 나면 이어서 실행하며, 구축 결과를 명확한 기록과 함께 인수인계해야 하는
+환경에 특히 적합합니다.
+
+Malmok은 관리형 Kubernetes 서비스나 애플리케이션 배포 플랫폼이 아닙니다.
+클러스터 기반까지 구축하고 운영하며, 그 위의 애플리케이션은 각 팀이 소유합니다.
+
 ## 이름의 뜻
 
 `말목`은 경계를 표시하거나 지반을 보강하기 위해 땅에 단단히 박는 나무 말뚝을
@@ -61,7 +74,6 @@ RKE2는 kubectl을 아무도 찾지 않는 곳에 묻어 두고 helm CLI는 아�
 - **모든 단계는 멱등이고 재개 가능합니다.** 중간에 죽어도 처음부터 다시 돌지
   않습니다.
 - **엔진은 화면을 모릅니다.** JSONL 이벤트만 방출하고, TUI는 그것을 그립니다
-  ([ADR-002](docs/00-architecture.md#adr-002--tui는-엔진을-호출하고-렌더링한다-로직을-소유하지-않는다)).
   터미널이 필요한 코드 경로는 결함으로 취급합니다.
 
 ## 설치
@@ -167,7 +179,7 @@ network:
 
 topology:
   # 서버가 한 대라 VIP가 없습니다. 나중에 서버를 늘리려면 전 노드
-  # 재조인이 필요합니다 (docs/00-architecture.md의 ADR-008 참고).
+  # 재조인이 필요하므로 먼저 안정적인 등록 주소를 마련해야 합니다.
   registrationAddress: 192.0.2.10
   acceptNodeRegistration: true
   servers:
@@ -182,9 +194,9 @@ kubernetes:
 
 이 문서만으로 Cilium 데이터플레인·Gateway API·local-path 스토리지까지
 프로파일이 채웁니다. 무엇이 채워졌는지는 `malmok plan`이 출처와 함께
-출력합니다. 단일 서버의 등록 주소가 갖는 제약은
-[ADR-008](docs/00-architecture.md#adr-008--ha는-2차지만-1차에서-경로를-예약한다)에
-설명되어 있습니다.
+출력합니다. 단일 서버 주소는 안정적인 등록 엔드포인트가 아닙니다. 서버를
+추가하기 전에 안정적인 DNS 이름이나 가상 IP를 도입해야 하며, 등록 주소가
+바뀌면 노드를 다시 조인해야 합니다.
 
 더 많은 예시는 [`examples/`](examples/)에 있습니다.
 
@@ -237,8 +249,8 @@ malmok report
 
 | 안 함 | 이유 |
 |---|---|
-| HTTPRoute 생성 | 앱 차트 책임입니다 ([ADR-006](docs/00-architecture.md#adr-006--httproute는-애플리케이션-차트-책임)). 게이트웨이까지가 이 도구의 몫 |
-| ingress-nginx 설치 | 2026-03 EOL ([ADR-005](docs/00-architecture.md#adr-005--ingress-nginx를-사용하지-않는다)) |
+| HTTPRoute 생성 | 앱 차트 책임입니다. 게이트웨이까지가 이 도구의 몫입니다 |
+| ingress-nginx 설치 | 2026-03 EOL이며, Malmok은 대신 Gateway API를 설치합니다 |
 | 사전 점검 단계에서 시스템 변경 | preflight는 읽기 전용입니다 |
 | 전 노드 동시 재시작 | 1대씩, Ready 확인 후 진행 |
 | `cluster.yaml`에 평문 시크릿 저장 | `SourceRef` 간접 참조만 받습니다 |
@@ -249,10 +261,12 @@ malmok report
 
 ## 상세 문서
 
-- [아키텍처와 설계 결정](docs/00-architecture.md)
-- [사전 점검과 계획](docs/10-preflight-plan.md) · [실행·재개·이벤트](docs/11-execute.md)
-- [인증서](docs/20-cert.md) · [Day-2 유지보수](docs/30-maintenance.md)
-- [검증 매트릭스](docs/40-verification-matrix.md) · [진단 코드 레지스트리](docs/99-codes.md)
+현재 공개 문서는 지원 범위의 근거와 실행 문제를 진단하는 코드 레지스트리를
+포함합니다. 설치·설정·운영 가이드는 프로젝트 문서 사이트와 함께 순차적으로
+공개합니다.
+
+- [검증 매트릭스](docs/40-verification-matrix.md)
+- [진단 코드 레지스트리](docs/99-codes.md)
 
 ## 진단 코드
 

@@ -40,11 +40,11 @@ func main() {
 // familyTitle maps a family to its section heading and the document that owns
 // its definitions.
 var familyTitle = map[codes.Family]struct{ name, source string }{
-	codes.FamilyPreflight:    {"PF · Preflight", "docs/10-preflight-plan.md, docs/20-cert.md §4"},
-	codes.FamilyVerification: {"PV · Post-apply verification", "docs/20-cert.md §6.5"},
-	codes.FamilyExecution:    {"EX · Execution failures", "docs/11-execute.md §6"},
-	codes.FamilyMaintenance:  {"MC · Maintenance checks", "docs/30-maintenance.md §3"},
-	codes.FamilyDowngrade:    {"DG · Downgrade reasons", "docs/10-preflight-plan.md"},
+	codes.FamilyPreflight:    {"PF · Preflight", "internal/codes/preflight.go"},
+	codes.FamilyVerification: {"PV · Post-apply verification", "internal/codes/verify.go"},
+	codes.FamilyExecution:    {"EX · Execution failures", "internal/codes/execution.go"},
+	codes.FamilyMaintenance:  {"MC · Maintenance checks", "internal/codes/maintenance.go"},
+	codes.FamilyDowngrade:    {"DG · Downgrade reasons", "internal/codes/downgrade.go"},
 }
 
 // Render produces the whole document. Split out from main so main_test.go can

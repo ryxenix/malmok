@@ -27,7 +27,7 @@ Total: 142 codes.
 
 ## PF · Preflight
 
-Source: docs/10-preflight-plan.md, docs/20-cert.md §4
+Source: internal/codes/preflight.go
 
 ### Base
 
@@ -156,7 +156,7 @@ Source: docs/10-preflight-plan.md, docs/20-cert.md §4
 
 ## PV · Post-apply verification
 
-Source: docs/20-cert.md §6.5
+Source: internal/codes/verify.go
 
 ### TLS wire verification
 
@@ -207,7 +207,7 @@ These codes carry no severity — see `internal/codes/codes.go`.
 
 ## EX · Execution failures
 
-Source: docs/11-execute.md §6
+Source: internal/codes/execution.go
 
 ### Step execution
 
@@ -232,7 +232,7 @@ Source: docs/11-execute.md §6
 
 ## MC · Maintenance checks
 
-Source: docs/30-maintenance.md §3
+Source: internal/codes/maintenance.go
 
 These codes carry no severity — see `internal/codes/codes.go`.
 
@@ -317,7 +317,7 @@ These codes carry no severity — see `internal/codes/codes.go`.
 
 ## DG · Downgrade reasons
 
-Source: docs/10-preflight-plan.md
+Source: internal/codes/downgrade.go
 
 These codes carry no severity — see `internal/codes/codes.go`.
 

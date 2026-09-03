@@ -271,6 +271,23 @@ func WantsGatewayAPI(spec v1alpha1.ClusterSpec) bool {
 	return spec.Kubernetes.Dataplane.Preset == "cilium-gw"
 }
 
+// GatewayAPIBundle names the file an air-gapped install reads the Gateway API
+// CRDs from, or "" when the document installs none.
+//
+// It is the fourth thing that has to cross an air gap, after RKE2's tarball,
+// its image archives and the CNI's. Preflight asks for it by this name so the
+// answer comes before the install rather than after the dataplane is half up.
+func GatewayAPIBundle(spec v1alpha1.ClusterSpec) string {
+	if !WantsGatewayAPI(spec) {
+		return ""
+	}
+	return bundleName(gatewayAPIChannel(spec))
+}
+
+func bundleName(channel string) string {
+	return fmt.Sprintf("gateway-api-%s-%s-install.yaml", GatewayAPIVersion, channel)
+}
+
 // gatewayAPIChannel picks the bundle to install.
 //
 // The standard channel covers GatewayClass, Gateway, HTTPRoute, GRPCRoute and
@@ -299,7 +316,7 @@ func gatewayCRDStep(spec v1alpha1.ClusterSpec, o Options) *engine.ShellStep {
 
 	var fetch string
 	if o.ArtifactPath != "" {
-		src := fmt.Sprintf("%s/gateway-api-%s-%s-install.yaml", o.ArtifactPath, GatewayAPIVersion, channel)
+		src := o.ArtifactPath + "/" + bundleName(channel)
 		fetch = fmt.Sprintf(`[ -f %s ] || { echo "the Gateway API bundle is not in the artifact path: %s"; exit 1; }
 cp %s /tmp/gateway-api.yaml`, shellQuote(src), src, shellQuote(src))
 	} else {

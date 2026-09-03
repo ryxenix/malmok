@@ -89,7 +89,7 @@ func (n *Node) Probe(ctx context.Context) NodeCapability {
 		// Where an air-gapped install reads its release artifacts from. The
 		// installer reports a failed download for a directory that is absent
 		// or incomplete, on a node that was never going to download anything.
-		n.CheckArtifactPath(ctx, n.Cluster.Kubernetes.ArtifactPath),
+		n.CheckArtifactPath(ctx, n.Cluster),
 	}
 
 	for _, r := range results {

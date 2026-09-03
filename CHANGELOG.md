@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.79.0] - 2026-09-03
+
+### Fixed
+Three defects between a valid air-gapped document and a running cluster, each
+found by installing one on the lab nodes with egress blocked.
+
+- The install demanded an executable bit on `install.sh` and then ran it with
+  `sh`. The way anyone obtains that file -- `curl -o install.sh
+  https://get.rke2.io` -- leaves it mode 644, so every air-gapped install
+  stopped on a file that was present, correct, and about to be run by an
+  interpreter that does not care about its mode. It is now checked for being
+  readable, which is what running it requires.
+- PF-709 accepted any file beginning `rke2-images` as the image archive. Two
+  different mistakes passed it, and both are silent for minutes:
+  - Only the per-CNI archives (`rke2-images-core`, `rke2-images-cilium`). The
+    installer stages `rke2-images.linux-<arch>.tar.zst` first and copies the
+    others only afterwards, so nothing is loaded at all and `rke2-server` dies
+    looking for its runtime image.
+  - Only the combined archive, with a `cilium-*` preset. It carries Calico and
+    Flannel, not Cilium, so the node registers and then every Cilium pod sits
+    in `ImagePullBackOff` against a registry the node cannot reach.
+  PF-709 now knows which dataplane the document asked for and names the archive
+  that is missing.
+- PF-709 did not look for the Gateway API bundle either, so a `cilium-gw`
+  document reached `l2-dataplane` and stopped there, with the cluster up and
+  the CRDs it needs unreachable. It is the fourth thing that has to cross an
+  air gap, and the check now asks for it by the name the step reads --
+  `dataplane.GatewayAPIBundle`, so the two cannot drift apart.
+
 ## [0.78.0] - 2026-09-02
 
 ### Fixed

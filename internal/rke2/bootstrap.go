@@ -239,7 +239,12 @@ func installStep(version, kind string, o Options) *engine.ShellStep {
 		// An airgapped install reads the artifacts from disk. The installer
 		// still verifies them against the checksum file beside them.
 		env = append(env, "INSTALL_RKE2_ARTIFACT_PATH="+shellQuote(o.ArtifactPath))
-		fetch = fmt.Sprintf(`[ -x %s/install.sh ] || { echo "no install.sh in the artifact path"; exit 1; }
+		// Readable, not executable: the line below runs it with sh, and the
+		// way anyone actually obtains this file -- curl -o install.sh
+		// https://get.rke2.io -- leaves it mode 644. Demanding +x failed every
+		// air-gapped install on a file that was present, correct, and about to
+		// be run by an interpreter that does not care.
+		fetch = fmt.Sprintf(`[ -r %s/install.sh ] || { echo "no readable install.sh in the artifact path"; exit 1; }
 sh %s/install.sh`, shellQuote(o.ArtifactPath), shellQuote(o.ArtifactPath))
 	} else {
 		fetch = fmt.Sprintf(`curl -sfL %s -o /tmp/rke2-install.sh

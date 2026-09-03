@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ryxen/malmok/api/v1alpha1"
+	"github.com/ryxen/malmok/internal/dataplane"
 )
 
 // ---------------------------------------------------------------------------
@@ -519,8 +520,9 @@ func quotePath(s string) string {
 // The observable is the files themselves. The version is read out of the
 // tarball's own name, so a directory staged for the previous release is caught
 // here rather than after the install has replaced the binary.
-func (n *Node) CheckArtifactPath(ctx context.Context, path string) ProbeResult {
-	path = strings.TrimSpace(path)
+func (n *Node) CheckArtifactPath(ctx context.Context, spec v1alpha1.ClusterSpec) ProbeResult {
+	path := strings.TrimSpace(spec.Kubernetes.ArtifactPath)
+	preset := spec.Kubernetes.Dataplane.Preset
 	if path == "" {
 		return skipped("PF-709", "the document names no artifact path; the installer fetches its own")
 	}
@@ -572,15 +574,70 @@ ls -1 "$p" 2>/dev/null | tr '\n' ' '`)
 			path, strings.Join(missing, ", "), out)
 	}
 
-	// The images archive is what makes the cluster come up without a registry.
-	// Its absence is not a failed install -- RKE2 starts and then pulls -- so
-	// it is said rather than blocked on, because on an air-gapped node that
-	// pull is the thing that will hang.
-	if !has(func(f string) bool { return strings.HasPrefix(f, "rke2-images") }) {
+	// The images archive is what makes the cluster come up without a registry,
+	// and which archives are needed depends on the dataplane the document
+	// asked for. Two names, and each is silent in its own way when missing.
+	//
+	// rke2-images.<os>-<arch>.tar is the one the installer stages, and it is
+	// the gate: the loop that copies the per-CNI archives runs only after it
+	// has been staged. Carrying only the per-CNI archives loads nothing at
+	// all, and rke2-server dies two minutes later looking for its runtime
+	// image.
+	//
+	// The combined archive carries Calico and Flannel and not Cilium. So a
+	// cilium-* preset needs rke2-images-cilium as well, and without it the
+	// install succeeds, the node registers, and every Cilium pod sits in
+	// ImagePullBackOff against a registry the node cannot reach.
+	isArchive := func(f string) bool {
+		return strings.HasSuffix(f, ".tar.zst") || strings.HasSuffix(f, ".tar.gz")
+	}
+	combined := has(func(f string) bool { return strings.HasPrefix(f, "rke2-images.") && isArchive(f) })
+	perCNI := has(func(f string) bool { return strings.HasPrefix(f, "rke2-images-") && isArchive(f) })
+
+	if !combined {
+		if perCNI {
+			return failf("PF-709", "ARTIFACT_IMAGES_SPLIT",
+				"%s holds the per-CNI image archives and not rke2-images.linux-<arch>.tar.zst; "+
+					"the installer stages that one first and copies the others only afterwards, "+
+					"so as it stands nothing is loaded at all", path)
+		}
 		return passf("PF-709",
 			"%s holds the binaries and no rke2-images archive, so the node will pull its "+
 				"system images -- which works where there is a route and hangs where there is not", path)
 	}
 
+	if cni := cniArchive(preset); cni != "" {
+		if !has(func(f string) bool { return strings.HasPrefix(f, "rke2-images-"+cni) && isArchive(f) }) {
+			return failf("PF-709", "ARTIFACT_IMAGES_NO_CNI",
+				"%s holds rke2-images.linux-<arch>.tar.zst, which carries Calico and Flannel; "+
+					"the document asks for %s, so rke2-images-%s.linux-<arch>.tar.zst has to be "+
+					"carried beside it or every %s pod waits on a pull that cannot happen",
+				path, preset, cni, cni)
+		}
+	}
+
+	// The Gateway API CRDs are the fourth thing to carry. The step that
+	// applies them reads exactly this file, so it is asked for by name.
+	if bundle := dataplane.GatewayAPIBundle(spec); bundle != "" {
+		if !has(func(f string) bool { return f == bundle }) {
+			return failf("PF-709", "ARTIFACT_NO_GATEWAY_API",
+				"%s does not hold %s; the document asks for %s, which installs the Gateway API "+
+					"types from that bundle and cannot fetch it here",
+				path, bundle, preset)
+		}
+	}
+
 	return passf("PF-709", "%s holds the release artifacts (%s)", path, out)
+}
+
+// cniArchive names the per-CNI image archive a preset needs beside the combined
+// one, or "" when the combined archive already carries its CNI.
+//
+// Calico and Flannel are in rke2-images.<os>-<arch>.tar; Cilium is published
+// separately and is not.
+func cniArchive(preset v1alpha1.DataplanePreset) string {
+	if strings.HasPrefix(string(preset), "cilium-") {
+		return "cilium"
+	}
+	return ""
 }

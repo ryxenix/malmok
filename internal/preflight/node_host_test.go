@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ryxen/malmok/api/v1alpha1"
 	"github.com/ryxen/malmok/internal/codes"
 	"github.com/ryxen/malmok/internal/exec"
 )
@@ -75,7 +76,12 @@ func TestCheckArtifactPath(t *testing.T) {
 [ -d "$p" ] || { echo "MISSING"; exit 0; }
 ls -1 "$p" 2>/dev/null | tr '\n' ' '`
 
-	const full = "install.sh rke2-images.linux-amd64.tar.zst rke2.linux-amd64.tar.gz sha256sum-amd64.txt"
+	// What a Cilium cluster with a Gateway actually needs: the combined archive
+	// the installer stages, Cilium's own, which the combined one does not
+	// carry, and the Gateway API bundle.
+	const full = "gateway-api-v1.4.1-standard-install.yaml install.sh " +
+		"rke2-images-cilium.linux-amd64.tar.zst " +
+		"rke2-images.linux-amd64.tar.zst rke2.linux-amd64.tar.gz sha256sum-amd64.txt"
 
 	tests := []struct {
 		name    string
@@ -96,12 +102,36 @@ ls -1 "$p" 2>/dev/null | tr '\n' ' '`
 		{name: "no installer", path: dir,
 			out:     "rke2.linux-amd64.tar.gz sha256sum-amd64.txt",
 			failing: true, reason: "ARTIFACT_PATH_INCOMPLETE"},
+		// The per-CNI archives are what the release page shows first and they
+		// are not what the installer copies. Passing this directory is worse
+		// than failing it: the install succeeds and rke2-server dies two
+		// minutes later looking for a runtime image nothing loaded.
+		{name: "per-CNI archives instead of the combined one", path: dir,
+			out: "install.sh rke2-images-cilium.linux-amd64.tar.zst " +
+				"rke2-images-core.linux-amd64.tar.zst rke2.linux-amd64.tar.gz sha256sum-amd64.txt",
+			failing: true, reason: "ARTIFACT_IMAGES_SPLIT"},
+		// The combined archive carries Calico and Flannel. A cilium-* preset
+		// that stops here installs cleanly, registers the node, and then every
+		// Cilium pod sits in ImagePullBackOff against an unreachable registry.
+		{name: "combined archive but the document asks for cilium", path: dir,
+			out: "install.sh rke2-images.linux-amd64.tar.zst " +
+				"rke2.linux-amd64.tar.gz sha256sum-amd64.txt",
+			failing: true, reason: "ARTIFACT_IMAGES_NO_CNI"},
+		// Every image is carried and the CRDs the Gateway needs are not. The
+		// dataplane phase gets most of the way up and then stops.
+		{name: "images but no Gateway API bundle", path: dir,
+			out: "install.sh rke2-images-cilium.linux-amd64.tar.zst " +
+				"rke2-images.linux-amd64.tar.zst rke2.linux-amd64.tar.gz sha256sum-amd64.txt",
+			failing: true, reason: "ARTIFACT_NO_GATEWAY_API"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			n, _ := ubuntuProber(t, map[string]exec.Result{cmd: {Stdout: tc.out + "\n"}})
-			got := n.CheckArtifactPath(t.Context(), tc.path)
+			spec := v1alpha1.ClusterSpec{}
+			spec.Kubernetes.ArtifactPath = tc.path
+			spec.Kubernetes.Dataplane.Preset = v1alpha1.DataplaneCiliumGW
+			got := n.CheckArtifactPath(t.Context(), spec)
 			if got.ID != "PF-709" {
 				t.Fatalf("code is %s, want PF-709", got.ID)
 			}

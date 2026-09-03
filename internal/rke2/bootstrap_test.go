@@ -244,6 +244,15 @@ func TestInstallUsesTheTarballMethod(t *testing.T) {
 	if strings.Contains(air, "get.rke2.io") {
 		t.Error("an airgapped install would still reach for the network")
 	}
+	// The installer is run with sh, so its mode is not the tool's business.
+	// Requiring +x failed a real air-gapped install on a file that was present
+	// and correct: curl -o install.sh https://get.rke2.io leaves it 644.
+	if strings.Contains(air, "[ -x ") {
+		t.Error("the install demands an executable bit on a file it runs with sh")
+	}
+	if !strings.Contains(air, "[ -r ") {
+		t.Error("the install does not check that the installer can be read")
+	}
 }
 
 // "Started" is not the target. systemd calls a unit active the moment the

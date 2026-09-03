@@ -177,20 +177,29 @@ func nodeLabelStep(spec v1alpha1.ClusterSpec) *engine.ShellStep {
 	// Node names are resolved from addresses at run time, for the same reason
 	// the join phase does it: the address is what the document says, and the
 	// name is whatever the node happened to call itself.
-	byAddr := `kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{"
-"}{end}' 2>/dev/null`
+	// {"\n"} is an escape kubectl's jsonpath parser reads; a real newline
+	// inside the quotes is "unterminated quoted string" and produces nothing.
+	// It used to be a real newline, behind 2>/dev/null, so the loop below ran
+	// over an empty list, the step exited 0, and three retries reported that
+	// the target state was not reached without ever saying why.
+	byAddr := `kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{"\n"}{end}'`
 
 	return &engine.ShellStep{
 		Name: "gateway-nodes",
 		Check: kubectl + fmt.Sprintf(`want=%s
-have=$(kubectl get nodes -l %s -o jsonpath='{range .items[*]}{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{"
-"}{end}' 2>/dev/null | sort | tr '
+have=$(kubectl get nodes -l %s -o jsonpath='{range .items[*]}{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{"\n"}{end}' | sort | tr '
 ' ' ' | sed 's/ $//')
 [ "$have" = "$want" ] || { echo "the gateway answers on '$have', the document says '$want'"; exit 1; }
 echo "the gateway nodes are $want"`, shellQuote(list), dataplane.GatewayNodeLabel),
 
+		// Read first, then loop. A failing kubectl inside a pipeline leaves the
+		// loop with nothing to read and the step with a zero exit; in an
+		// assignment, set -e stops here and the reason is on stderr.
 		Do: kubectl + fmt.Sprintf(`set -e
-%s | while read -r name addr; do
+nodes=$(%s)
+[ -n "$nodes" ] || { echo "the cluster reported no nodes to label"; exit 1; }
+echo "$nodes" | while read -r name addr; do
+  [ -n "$name" ] || continue
   case " %s " in
     *" $addr "*) kubectl label node "$name" %s=true --overwrite >/dev/null ;;
     *) kubectl label node "$name" %s- >/dev/null 2>&1 || true ;;

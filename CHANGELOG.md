@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.80.0] - 2026-09-03
+
+### Fixed
+- The gateway never got its nodes. `gateway-nodes` read node addresses with a
+  jsonpath whose `{"..."}` held a real newline instead of `\n`; kubectl answers
+  that with "unterminated quoted string", and the read was behind
+  `2>/dev/null`. So the loop ran over an empty list, labelled nothing, exited
+  0, and the step retried three times reporting EX-003 -- applied without error
+  but the target state was not reached -- without once printing the reason.
+  Fixed on a `node-ips` gateway that could not come up in the air-gapped lab.
+  - The jsonpath now uses the escape, and its stderr is no longer discarded.
+  - `Do` reads into a variable before looping, so a failing kubectl stops the
+    step under `set -e` rather than leaving a loop with nothing to iterate.
+  - `TestNoRawNewlineInsideJSONPath` scans the whole tree for the same shape;
+    the idiom is copied between phases and the next copy is the one that
+    matters.
+
 ## [0.79.0] - 2026-09-03
 
 ### Fixed

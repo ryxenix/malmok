@@ -46,8 +46,8 @@ against nothing with `malmok apply --demo`.</sub>
 
 > **Status: alpha.** Single-node and two-node clusters are verified repeatedly
 > on real hardware, and the tool has built a production cluster in a data
-> centre. **Three-server HA, airgapped installs and external registries are
-> not verified.** Read [what is verified](#what-is-verified) first.
+> centre. **Three-server HA and external registries are not verified.** Read
+> [what is verified](#what-is-verified) first.
 
 ```
 malmok apply --tui     # TUI wizard: build, grow, resume, upgrade
@@ -166,7 +166,8 @@ cluster. So the untested rows are in the same table as the tested ones.
 | ACME HTTP-01 certificates | **verified on hardware** | Let's Encrypt issued on the production cluster; TLS 1.3, chain and hostname checked |
 | ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
 | Three-server HA (etcd quorum) | **not verified** | no hardware yet |
-| Airgap / proxy | **not verified** | schema only |
+| Airgap install (no egress) | **verified on hardware** | two nodes with egress rejected; RKE2, Cilium and the Gateway API from carried artifacts |
+| Proxy | **not verified** | schema only |
 | External registry mirror | **not verified** | schema only |
 | Storage backends | out of scope | the application's concern |
 | Observability (VictoriaMetrics) | **verified on hardware** | installed on the production cluster; 19 scrape targets, samples stored |

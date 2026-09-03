@@ -69,7 +69,7 @@ const managedFileHeader = "# Managed by malmok. Changes here are overwritten on 
 
 // fingerprintAnnotation is how the repository Secret says which credential it
 // holds, so the check never has to read a password back off the cluster.
-const fingerprintAnnotation = "platform.ryxen.dev/fingerprint"
+const fingerprintAnnotation = "malmok.dev/fingerprint"
 
 // kubectl is the prelude every cluster-scoped step needs.
 var kubectl = rke2.Kubectl

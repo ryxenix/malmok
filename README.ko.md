@@ -63,15 +63,57 @@ Malmok은 관리형 Kubernetes 서비스나 애플리케이션 배포 플랫폼�
 CLI로 실행합니다.
 
 ```bash
-malmok apply --tui     # TUI 마법사 (구축·확장·재개·업그레이드)
-malmok plan -f cluster.yaml --validate-only  # 문서만 검증 (네트워크 접근 없음)
-malmok preflight -f cluster.yaml             # 노드 읽기 전용 점검
-malmok plan -f cluster.yaml                  # 노드를 측정하고 설치 계획 출력
-malmok apply -f cluster.yaml                 # 문서에 따라 구축
-TARGET_RKE2=v1.36.3+rke2r1                   # 목표 버전 지정
-malmok upgrade --to "$TARGET_RKE2"            # RKE2 업그레이드 (노드 1대씩)
-malmok report          # 감사 리포트 · DNS 레코드 시트
+# TUI 마법사: 구축·확장·재개·업그레이드
+malmok apply --tui
+
+# 네트워크 접근 없이 문서만 검증
+malmok plan -f cluster.yaml --validate-only
+
+# 노드 읽기 전용 점검
+malmok preflight -f cluster.yaml
+
+# 노드를 측정하고 설치 계획 출력
+malmok plan -f cluster.yaml
+
+# 문서에 따라 구축
+malmok apply -f cluster.yaml
+
+# 목표 버전을 지정하고 노드 한 대씩 RKE2 업그레이드
+TARGET_RKE2=v1.36.3+rke2r1
+malmok upgrade --to "$TARGET_RKE2"
+
+# 감사 리포트와 DNS 레코드 시트 생성
+malmok report
 ```
+
+<details>
+<summary>Fish 셸</summary>
+
+```fish
+# TUI 마법사: 구축·확장·재개·업그레이드
+malmok apply --tui
+
+# 네트워크 접근 없이 문서만 검증
+malmok plan -f cluster.yaml --validate-only
+
+# 노드 읽기 전용 점검
+malmok preflight -f cluster.yaml
+
+# 노드를 측정하고 설치 계획 출력
+malmok plan -f cluster.yaml
+
+# 문서에 따라 구축
+malmok apply -f cluster.yaml
+
+# 목표 버전을 지정하고 노드 한 대씩 RKE2 업그레이드
+set TARGET_RKE2 v1.36.3+rke2r1
+malmok upgrade --to "$TARGET_RKE2"
+
+# 감사 리포트와 DNS 레코드 시트 생성
+malmok report
+```
+
+</details>
 
 ## 무엇을 하는 도구인가
 
@@ -95,15 +137,60 @@ RKE2는 kubectl을 아무도 찾지 않는 곳에 묻어 두고 helm CLI는 아�
 
 ## 설치
 
-[릴리스](https://github.com/ryxenix/malmok/releases)에서 플랫폼에 맞는 바이너리를
-내려받고, 동봉된 `SHA256SUMS`와 대조하십시오. Linux·macOS, amd64·arm64 빌드를
-제공합니다.
+최신 릴리스를 명령 하나로 설치할 수 있습니다.
+
+**Bash 및 POSIX 계열 셸(기본)**
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh
+```
+
+**Fish**
+
+```fish
+curl -fsSL https://malmok.dev/install.sh | sh
+```
+
+내려받은 설치 스크립트는 POSIX `sh`에서 실행되므로 Fish에서도 Bash 전용 문법
+없이 호출할 수 있습니다.
+
+설치 스크립트는 Linux·macOS와 amd64·arm64를 판별하고, 알맞은
+[릴리스](https://github.com/ryxenix/malmok/releases)를 내려받아 공개된
+`SHA256SUMS`로 검증한 뒤 `/usr/local/bin`에 `malmok`을 설치합니다. 실행 전에
+스크립트를 직접 확인하려면 다음과 같이 사용하십시오.
+
+```bash
+curl -fsSLo install-malmok.sh https://malmok.dev/install.sh
+less install-malmok.sh
+sh install-malmok.sh
+```
+
+특정 릴리스, 설치 경로 또는 Linux 에어갭 바이너리를 선택하려면 `sh -s --`
+뒤에 `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, `--airgap`을 전달합니다.
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
+```
+
+릴리스 페이지에서 바이너리를 직접 내려받을 수도 있습니다. Linux·macOS,
+amd64·arm64 빌드를 제공하며, 동봉된 `SHA256SUMS`와 대조해야 합니다.
 
 바이너리를 내려받은 뒤 `MALMOK_BIN`에 파일명을 지정하고 PATH에 설치하십시오.
 Linux amd64의 예시는 다음과 같습니다.
 
 ```bash
-MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64  # X.Y.Z를 릴리스 버전으로 교체
+# X.Y.Z를 릴리스 버전으로 교체
+MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64
+chmod +x "$MALMOK_BIN"
+sudo install "$MALMOK_BIN" /usr/local/bin/malmok
+malmok --version
+```
+
+Fish에서 직접 설치할 때는 다음과 같습니다.
+
+```fish
+# X.Y.Z를 릴리스 버전으로 교체
+set MALMOK_BIN ./malmok_vX.Y.Z_linux_amd64
 chmod +x "$MALMOK_BIN"
 sudo install "$MALMOK_BIN" /usr/local/bin/malmok
 malmok --version
@@ -188,7 +275,7 @@ TUI로 하려면 `malmok apply --tui`를 실행하십시오. 마법사가 `clust
 > 파일을 읽지 못하고, 말목도 그 파일을 읽지 못합니다.
 
 ```yaml
-apiVersion: platform.ryxen.dev/v1alpha1
+apiVersion: malmok.dev/v1alpha1
 kind: ClusterSpec
 
 metadata:

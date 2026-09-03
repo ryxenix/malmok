@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.86.0] - 2026-09-04
+
+### Changed
+- The schema group is `malmok.dev`. `platform.ryxen.dev` was a reverse-DNS
+  namespace carved out of a domain that was never registered -- a namespace
+  anyone could take, in the `apiVersion` of every document and in annotation
+  keys on the objects of running clusters. `malmok.dev` is registered to this
+  project.
+  - `apiVersion: malmok.dev/v1alpha1`, and the handoff document is
+    `malmok.dev/handoff/v1alpha1`.
+  - Annotation keys move with it: `malmok.dev/fingerprint`, `/san`,
+    `/chain-depth`, `/not-after`, `/source`, `/zone`, `/exposure`,
+    `/matrix-case`, `/proxmox-vmid`, `/simulated`.
+  - The `platform.` prefix is gone. It existed to carve a namespace out of a
+    personal domain; the domain is the project's now, so the prefix said
+    nothing. This matches how projects that own their name do it --
+    `cert-manager.io`, `argoproj.io`.
+  - A document on the retired group is refused with the migration rather than
+    with two strings to diff: the group moved and nothing else changed, so the
+    error prints the `sed` that does the whole thing.
+  - An existing cluster carries the old annotation keys. The next apply writes
+    the new ones; the steps are idempotent, so this costs one re-application of
+    a few annotated objects and nothing else.
+  - The CHANGELOG is not rewritten. Entries below record what the module path
+    and the group were at the time, and editing them to match today would make
+    the record wrong rather than current.
+
 ## [0.85.0] - 2026-09-04
 
 ### Fixed

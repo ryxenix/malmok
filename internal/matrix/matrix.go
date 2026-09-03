@@ -274,7 +274,7 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 			Name:    c.Name,
 			Profile: v1alpha1.ProfileHomelab,
 			Annotations: map[string]string{
-				"platform.ryxen.dev/matrix-case": c.Name,
+				"malmok.dev/matrix-case": c.Name,
 			},
 		},
 		Network: v1alpha1.NetworkSpec{Mode: v1alpha1.NetworkOnline},

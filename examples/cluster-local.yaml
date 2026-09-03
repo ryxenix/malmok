@@ -9,7 +9,7 @@
 # Set `local: false` on a node to force SSH even though the address is this
 # machine's. That is the way out of the one case the address cannot decide: a
 # container with host networking sees the host's addresses and is not the host.
-apiVersion: platform.ryxen.dev/v1alpha1
+apiVersion: malmok.dev/v1alpha1
 kind: ClusterSpec
 
 metadata:

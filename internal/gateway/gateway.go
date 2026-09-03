@@ -38,7 +38,7 @@ const managedFileHeader = "# Managed by malmok. Changes here are overwritten on 
 //
 // It is what the check compares, so the private key never has to be read back
 // off the cluster to decide whether the Secret is current.
-const fingerprintAnnotation = "platform.ryxen.dev/fingerprint"
+const fingerprintAnnotation = "malmok.dev/fingerprint"
 
 var kubectl = fmt.Sprintf("export PATH=$PATH:%s\nexport KUBECONFIG=%s\n", rke2.BinDir, rke2.Kubeconfig)
 
@@ -431,7 +431,7 @@ func GatewayManifest(spec v1alpha1.ClusterSpec) string {
 		b.WriteString("  name: " + yamlString(gw.Name) + "\n")
 		b.WriteString("  namespace: " + yamlString(namespaceOfGateway(gw)) + "\n")
 		if gw.Zone != "" {
-			b.WriteString("  labels:\n    platform.ryxen.dev/zone: " + yamlString(gw.Zone) + "\n")
+			b.WriteString("  labels:\n    malmok.dev/zone: " + yamlString(gw.Zone) + "\n")
 		}
 		b.WriteString("spec:\n  gatewayClassName: " + yamlString(class) + "\n")
 

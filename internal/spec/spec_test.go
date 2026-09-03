@@ -13,7 +13,7 @@ import (
 // minimal is a document that validates, so each test can break exactly one
 // thing and see only that error.
 const minimal = `
-apiVersion: platform.ryxen.dev/v1alpha1
+apiVersion: malmok.dev/v1alpha1
 kind: ClusterSpec
 metadata:
   name: test
@@ -90,7 +90,7 @@ func TestUnknownKeysAreRejected(t *testing.T) {
 func TestAPIVersionAndKindAreChecked(t *testing.T) {
 	for _, tc := range []struct{ name, doc, want string }{
 		{"wrong apiVersion", strings.Replace(minimal,
-			"platform.ryxen.dev/v1alpha1", "platform.ryxen.dev/v1", 1), "apiVersion"},
+			"malmok.dev/v1alpha1", "malmok.dev/v1", 1), "apiVersion"},
 		{"wrong kind", strings.Replace(minimal, "kind: ClusterSpec", "kind: Cluster", 1), "kind"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -384,7 +384,7 @@ func TestResolve(t *testing.T) {
 
 func TestProfileFillsOnlyWhatWasLeftUnset(t *testing.T) {
 	doc := parse(t, `
-apiVersion: platform.ryxen.dev/v1alpha1
+apiVersion: malmok.dev/v1alpha1
 kind: ClusterSpec
 metadata:
   name: t
@@ -877,5 +877,38 @@ func TestKeepingSwapRequiresTellingTheKubelet(t *testing.T) {
 		if err := check(stated); mentionsSwap(err) {
 			t.Errorf("%q does not satisfy the rule: %v", arg, err)
 		}
+	}
+}
+
+// A document written against the retired group is the only wrong apiVersion
+// this loader will realistically meet, so it gets an answer rather than two
+// strings to diff. The group moved because the old one was carved out of a
+// domain nobody had registered.
+func TestTheRetiredAPIVersionSaysHowToMigrate(t *testing.T) {
+	doc := []byte("apiVersion: platform.ryxen.dev/v1alpha1\nkind: ClusterSpec\nmetadata:\n  name: c\n")
+	dir := t.TempDir()
+	p := filepath.Join(dir, "cluster.yaml")
+	if err := os.WriteFile(p, doc, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(p)
+	if err == nil {
+		t.Fatal("a document on the retired group loaded")
+	}
+	for _, want := range []string{"retired", v1alpha1.APIVersion, "sed"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error does not mention %q: %v", want, err)
+		}
+	}
+
+	// An apiVersion that was never this tool's gets the plain message; the
+	// migration advice would be wrong for it.
+	other := filepath.Join(dir, "other.yaml")
+	if err := os.WriteFile(other, []byte("apiVersion: example.com/v1\nkind: ClusterSpec\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(other); err == nil || strings.Contains(err.Error(), "sed") {
+		t.Errorf("an unrelated apiVersion is offered the migration: %v", err)
 	}
 }

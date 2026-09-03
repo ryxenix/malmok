@@ -30,7 +30,7 @@ import (
 // HandoffVersion names the schema so a consumer can refuse what it does not
 // understand instead of misreading it.
 const (
-	HandoffVersion = "platform.ryxen.dev/handoff/v1alpha1"
+	HandoffVersion = "malmok.dev/handoff/v1alpha1"
 	HandoffKind    = "ClusterHandoff"
 )
 

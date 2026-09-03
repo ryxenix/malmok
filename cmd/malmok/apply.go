@@ -322,7 +322,7 @@ func demoSpec(o demo.Options) v1alpha1.ClusterSpec {
 		Metadata: v1alpha1.Metadata{
 			Name:        "demo",
 			Profile:     v1alpha1.ProfileHomelab,
-			Annotations: map[string]string{"platform.ryxen.dev/simulated": "true"},
+			Annotations: map[string]string{"malmok.dev/simulated": "true"},
 		},
 		Topology: v1alpha1.TopologySpec{
 			RegistrationAddress: "k8s-api.demo.invalid",

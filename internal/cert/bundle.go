@@ -75,11 +75,11 @@ func (b Bundle) Annotations() map[string]string {
 		san = b.SANs[0]
 	}
 	return map[string]string{
-		"platform.ryxen.dev/fingerprint": b.Fingerprint,
-		"platform.ryxen.dev/not-after":   b.NotAfter.UTC().Format(time.RFC3339),
-		"platform.ryxen.dev/san":         san,
-		"platform.ryxen.dev/chain-depth": fmt.Sprintf("%d", b.ChainDepth),
-		"platform.ryxen.dev/source":      "byo-dir",
+		"malmok.dev/fingerprint": b.Fingerprint,
+		"malmok.dev/not-after":   b.NotAfter.UTC().Format(time.RFC3339),
+		"malmok.dev/san":         san,
+		"malmok.dev/chain-depth": fmt.Sprintf("%d", b.ChainDepth),
+		"malmok.dev/source":      "byo-dir",
 	}
 }
 

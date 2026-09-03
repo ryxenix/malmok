@@ -6,7 +6,7 @@
 # 주목할 지점: pki.mode는 클러스터 기본값일 뿐이고, listener마다 tls.source로
 # 오버라이드한다. 단일 pki.mode로는 이 구성을 표현할 수 없다.
 
-apiVersion: platform.ryxen.dev/v1alpha1
+apiVersion: malmok.dev/v1alpha1
 kind: ClusterSpec
 
 metadata:
@@ -109,7 +109,7 @@ gateway:
       address: 10.10.20.241        # DNS 요구서 산출을 위해 사전 고정
       routeNamespaces: selector
       namespaceSelector:
-        platform.ryxen.dev/exposure: public
+        malmok.dev/exposure: public
       listeners:
         - name: http
           protocol: HTTP

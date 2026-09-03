@@ -139,7 +139,7 @@ func TestHandoffDescribesTheCluster(t *testing.T) {
 				s := testSpec()
 				s.Metadata.Annotations = map[string]string{"customer": "acme"}
 				s.Topology.Servers[0].Annotations = map[string]string{
-					"platform.ryxen.dev/proxmox-vmid": "104",
+					"malmok.dev/proxmox-vmid": "104",
 				}
 				return s
 			},
@@ -148,7 +148,7 @@ func TestHandoffDescribesTheCluster(t *testing.T) {
 				if h.Cluster.Annotations["customer"] != "acme" {
 					t.Errorf("cluster annotations = %+v", h.Cluster.Annotations)
 				}
-				if h.Nodes[0].Annotations["platform.ryxen.dev/proxmox-vmid"] != "104" {
+				if h.Nodes[0].Annotations["malmok.dev/proxmox-vmid"] != "104" {
 					t.Errorf("node annotations = %+v", h.Nodes[0].Annotations)
 				}
 			},

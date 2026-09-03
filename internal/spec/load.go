@@ -63,6 +63,17 @@ func Parse(raw []byte) (*Document, error) {
 	}
 
 	if spec.APIVersion != v1alpha1.APIVersion {
+		// The group moved once, from a domain nobody had registered to the
+		// project's own. Documents written before that are the only ones this
+		// error will realistically see, so it says what to do rather than
+		// leaving an operator to diff two strings that differ in the middle.
+		if spec.APIVersion == retiredAPIVersion {
+			return nil, fmt.Errorf(
+				"apiVersion is %q, which was retired: the group is now %q. "+
+					"Nothing else about the document changed -- "+
+					"sed -i 's|%s|%s|' on it is the whole migration",
+				spec.APIVersion, v1alpha1.APIVersion, retiredGroup, v1alpha1.Group)
+		}
 		return nil, fmt.Errorf("apiVersion is %q, want %q", spec.APIVersion, v1alpha1.APIVersion)
 	}
 	if spec.Kind != v1alpha1.KindSpec {
@@ -198,3 +209,10 @@ func SecretRefs(s *v1alpha1.ClusterSpec) map[string]v1alpha1.SourceRef {
 	}
 	return out
 }
+
+// The group this tool used before it had a domain of its own. Kept only so the
+// loader can recognise a document written against it and say what to change.
+const (
+	retiredGroup      = "platform.ryxen.dev"
+	retiredAPIVersion = retiredGroup + "/v1alpha1"
+)

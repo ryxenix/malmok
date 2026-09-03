@@ -382,16 +382,16 @@ func TestBundleOutput(t *testing.T) {
 	}
 
 	ann := b.Annotations()
-	if !strings.HasPrefix(ann["platform.ryxen.dev/fingerprint"], "sha256:") {
-		t.Errorf("fingerprint annotation is %q", ann["platform.ryxen.dev/fingerprint"])
+	if !strings.HasPrefix(ann["malmok.dev/fingerprint"], "sha256:") {
+		t.Errorf("fingerprint annotation is %q", ann["malmok.dev/fingerprint"])
 	}
-	if ann["platform.ryxen.dev/san"] != "*.acme.co.kr" {
-		t.Errorf("san annotation is %q", ann["platform.ryxen.dev/san"])
+	if ann["malmok.dev/san"] != "*.acme.co.kr" {
+		t.Errorf("san annotation is %q", ann["malmok.dev/san"])
 	}
-	if ann["platform.ryxen.dev/chain-depth"] != "2" {
-		t.Errorf("chain-depth annotation is %q", ann["platform.ryxen.dev/chain-depth"])
+	if ann["malmok.dev/chain-depth"] != "2" {
+		t.Errorf("chain-depth annotation is %q", ann["malmok.dev/chain-depth"])
 	}
-	if got := ann["platform.ryxen.dev/not-after"]; got != s.leaf.cert.NotAfter.UTC().Format(time.RFC3339) {
+	if got := ann["malmok.dev/not-after"]; got != s.leaf.cert.NotAfter.UTC().Format(time.RFC3339) {
 		t.Errorf("not-after annotation is %q", got)
 	}
 }

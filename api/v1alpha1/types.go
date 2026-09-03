@@ -29,7 +29,12 @@ package v1alpha1
 // ---------------------------------------------------------------------------
 
 const (
-	APIVersion = "platform.ryxen.dev/v1alpha1"
+	// Group is the schema's namespace. It is a domain this project controls:
+	// a reverse-DNS group borrowed from a domain nobody has registered is a
+	// namespace somebody else can take.
+	Group = "malmok.dev"
+
+	APIVersion = Group + "/v1alpha1"
 	KindSpec   = "ClusterSpec"
 )
 

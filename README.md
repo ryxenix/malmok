@@ -65,15 +65,57 @@ Use the TUI when you want Malmok to guide the run. Use the CLI when the same
 work needs to be reviewed, repeated or automated.
 
 ```bash
-malmok apply --tui     # TUI wizard: build, grow, resume, upgrade
-malmok plan -f cluster.yaml --validate-only  # validate the document offline
-malmok preflight -f cluster.yaml             # read-only measurement of the nodes
-malmok plan -f cluster.yaml                  # measure nodes and show the install plan
-malmok apply -f cluster.yaml                 # build from the document
-TARGET_RKE2=v1.36.3+rke2r1                   # choose the target version
-malmok upgrade --to "$TARGET_RKE2"            # move versions one node at a time
-malmok report          # audit report and DNS record sheet
+# TUI wizard: build, grow, resume, upgrade
+malmok apply --tui
+
+# Validate the document offline
+malmok plan -f cluster.yaml --validate-only
+
+# Read-only measurement of the nodes
+malmok preflight -f cluster.yaml
+
+# Measure nodes and show the install plan
+malmok plan -f cluster.yaml
+
+# Build from the document
+malmok apply -f cluster.yaml
+
+# Choose the target version and move versions one node at a time
+TARGET_RKE2=v1.36.3+rke2r1
+malmok upgrade --to "$TARGET_RKE2"
+
+# Generate the audit report and DNS record sheet
+malmok report
 ```
+
+<details>
+<summary>Fish shell</summary>
+
+```fish
+# TUI wizard: build, grow, resume, upgrade
+malmok apply --tui
+
+# Validate the document offline
+malmok plan -f cluster.yaml --validate-only
+
+# Read-only measurement of the nodes
+malmok preflight -f cluster.yaml
+
+# Measure nodes and show the install plan
+malmok plan -f cluster.yaml
+
+# Build from the document
+malmok apply -f cluster.yaml
+
+# Choose the target version and move versions one node at a time
+set TARGET_RKE2 v1.36.3+rke2r1
+malmok upgrade --to "$TARGET_RKE2"
+
+# Generate the audit report and DNS record sheet
+malmok report
+```
+
+</details>
 
 ## What it does
 
@@ -98,15 +140,62 @@ Three properties shape the design:
 
 ## Install
 
-Download the binary for your platform from
-[releases](https://github.com/ryxenix/malmok/releases) -- Linux and macOS,
-amd64 and arm64 -- and verify it against the included `SHA256SUMS`.
+Install the latest release with one command:
+
+**Bash and other POSIX shells (default)**
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh
+```
+
+**Fish**
+
+```fish
+curl -fsSL https://malmok.dev/install.sh | sh
+```
+
+The downloaded installer runs under POSIX `sh`, so invoking it from Fish does
+not require Bash-specific syntax.
+
+The installer detects Linux or macOS and amd64 or arm64, downloads the matching
+[release](https://github.com/ryxenix/malmok/releases), verifies it against the
+published `SHA256SUMS`, and installs `malmok` in `/usr/local/bin`. To inspect
+the script before running it:
+
+```bash
+curl -fsSLo install-malmok.sh https://malmok.dev/install.sh
+less install-malmok.sh
+sh install-malmok.sh
+```
+
+Pass `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, or `--airgap` after
+`sh -s --` to select a release, installation directory, or Linux air-gap
+binary. For example:
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
+```
+
+You can also download a binary directly from the releases page -- Linux and
+macOS, amd64 and arm64 are provided -- and verify it against the included
+`SHA256SUMS`.
 
 After downloading the binary, set `MALMOK_BIN` to its filename and install it
 on your PATH. For example, on Linux amd64:
 
 ```bash
-MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64  # replace X.Y.Z with the release
+# Replace X.Y.Z with the release version
+MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64
+chmod +x "$MALMOK_BIN"
+sudo install "$MALMOK_BIN" /usr/local/bin/malmok
+malmok --version
+```
+
+The equivalent manual installation in Fish is:
+
+```fish
+# Replace X.Y.Z with the release version
+set MALMOK_BIN ./malmok_vX.Y.Z_linux_amd64
 chmod +x "$MALMOK_BIN"
 sudo install "$MALMOK_BIN" /usr/local/bin/malmok
 malmok --version
@@ -191,7 +280,7 @@ RKE2 version with values for your environment.
 > cannot read this file, and Malmok cannot read that one.
 
 ```yaml
-apiVersion: platform.ryxen.dev/v1alpha1
+apiVersion: malmok.dev/v1alpha1
 kind: ClusterSpec
 
 metadata:

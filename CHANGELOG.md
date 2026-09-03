@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.84.0] - 2026-09-04
+
+### Removed
+- `os.varLibRancherDevice` and `os.manageFirewall`. Both were declared in the
+  schema and read by nothing. A field that does nothing is worse than an
+  absent one: the document makes a promise on the tool's behalf and the
+  operator has no way to tell the difference. `manageFirewall: false` in
+  particular looked like an opt-out from something the tool never did.
+  Documents that set either now fail to load, naming the field and the line --
+  which is the point. This is what `v1alpha1` means.
+
+### Fixed
+- PF-304's registry entry said "apply must add the cluster port rules". No
+  step has ever added a firewall rule, and the registry is what a customer
+  ticket quotes. It now says what is true: the ports have to be opened in the
+  firewall that is running, and PF-601 measures whether they are. The probe's
+  own detail was already correct; only the registry promised the work.
+
 ## [0.83.0] - 2026-09-03
 
 ### Changed

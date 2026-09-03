@@ -178,7 +178,7 @@ var preflightCodes = []Code{
 	{
 		ID: "PF-304", Family: FamilyPreflight, Category: catSecurity,
 		Summary:  "Host firewall state",
-		Message:  "firewalld or ufw is active; apply must add the cluster port rules",
+		Message:  "firewalld or ufw is active; the cluster ports have to be opened in it (PF-601 measures whether they are)",
 		Severity: SeverityWarn,
 	},
 	{

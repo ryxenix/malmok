@@ -273,17 +273,11 @@ type OSSpec struct {
 
 	Hardening HardeningSpec `yaml:"hardening,omitempty" json:"hardening,omitempty"`
 
-	// VarLibRancherDevice: /var/lib/rancher on the root partition is the single
-	// most common on-prem outage (image accumulation fills /). The engine warns
-	// loudly if this is unset and /var/lib/rancher is not already a mountpoint.
-	VarLibRancherDevice string `yaml:"varLibRancherDevice,omitempty" json:"varLibRancherDevice,omitempty"`
-
 	// NTPServers: required in airgap (no pool.ntp.org). Clock skew breaks TLS
 	// immediately, so PF-501/502 are hard blockers.
 	NTPServers []string `yaml:"ntpServers,omitempty" json:"ntpServers,omitempty"`
 
-	DisableSwap    *bool `yaml:"disableSwap,omitempty"  json:"disableSwap,omitempty"`      // default true
-	ManageFirewall *bool `yaml:"manageFirewall,omitempty" json:"manageFirewall,omitempty"` // default true
+	DisableSwap *bool `yaml:"disableSwap,omitempty" json:"disableSwap,omitempty"` // default true
 }
 
 type HardeningSpec struct {

@@ -50,7 +50,6 @@ topology:
 
 os:
   family: auto
-  varLibRancherDevice: /dev/mapper/vg0-rancher
   ntpServers: ["10.10.0.5"]
   hardening:
     prepareCISPrerequisites: true   # 사전조건만. 활성화는 day-2

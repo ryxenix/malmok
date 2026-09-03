@@ -64,7 +64,7 @@ Source: internal/codes/preflight.go
 | `PF-301` | info | SELinux mode | SELinux mode recorded for the audit report |
 | `PF-302` | block | rke2-selinux package is obtainable | SELinux is enforcing on an RHEL-family node but the rke2-selinux package is not available |
 | `PF-303` | warn | AppArmor profiles | AppArmor profiles are active and may constrain container runtimes |
-| `PF-304` | warn | Host firewall state | firewalld or ufw is active; apply must add the cluster port rules |
+| `PF-304` | warn | Host firewall state | firewalld or ufw is active; the cluster ports have to be opened in it (PF-601 measures whether they are) |
 | `PF-305` | info | CIS profile prerequisites | CIS prerequisites recorded; missing items become degrade only when the CIS profile is requested |
 
 ### Storage

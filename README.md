@@ -10,10 +10,10 @@ wizard and a CLI over the same engine, with nothing to install on the nodes.
 
 *[한국어 README](README.ko.md)*
 
-<p align="center"><img src="docs/img/tui-finished.png" alt="The Malmok wizard on its last screen: what was built, and where the run was written" width="900"></p>
+<p align="center"><img src="docs/img/tui-wizard.gif" alt="The Malmok wizard, start to finish: where, nodes, checks, install, result" width="900"></p>
 
-<sub>`malmok apply --tui`. The same run headless is `malmok apply -f cluster.yaml`; try it
-against nothing with `malmok apply --demo`.</sub>
+<sub>`malmok apply --tui`, recorded against `--demo` -- no node is contacted, which is why the
+install finishes in seconds. The same run headless is `malmok apply -f cluster.yaml`.</sub>
 
 > **Status: alpha.** Single-node and two-node clusters are verified repeatedly
 > on real hardware, and the tool has built a production cluster in a data

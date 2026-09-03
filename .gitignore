@@ -1,9 +1,9 @@
 bin/
 out/
 
-# docs/img 에는 README 가 참조하는 스크린샷만 둔다.
-# scripts/screenshot.sh 로 재생성한다 — 손으로 찍어 넣지 않는다.
+# docs/img 에는 README 가 참조하는 것만 둔다.
+# scripts/record.sh 로 재생성한다 — 손으로 찍어 넣지 않는다.
 docs/img/*
-!docs/img/tui-*.png
+!docs/img/tui-*.gif
 dist/
 internal/tools/payload/

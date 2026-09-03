@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.82.0] - 2026-09-03
+
+### Changed
+- Both READMEs open with a recording of the wizard rather than a still of its
+  last screen: where, nodes, preflight, install, result, in 32 seconds. The
+  still showed where a run ends and not what using the tool is like -- the
+  address being validated as it is typed, the phases turning over, the log
+  filling in.
+- `scripts/record.sh` takes it, in either language. `scripts/screenshot.sh`
+  and the stills are gone; nothing referenced them once the recordings landed,
+  and a still is one `magick out.gif[0]` away from the recording anyway.
+- The caption says the recording is a `--demo` run. The install finishing in
+  seconds is a property of contacting no node, not a claim about a real one.
+
 ## [0.81.0] - 2026-09-03
 
 ### Changed

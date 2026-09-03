@@ -10,10 +10,10 @@ CLI가 같은 엔진 위에 있고, 노드에는 아무것도 설치하지 않�
 
 *[English README](README.md)*
 
-<p align="center"><img src="docs/img/tui-finished-ko.png" alt="말목 마법사의 마지막 화면 - 무엇을 구축했고 실행 기록이 어디에 쌓였는지" width="900"></p>
+<p align="center"><img src="docs/img/tui-wizard-ko.gif" alt="말목 마법사 처음부터 끝까지 - 설치 위치, 노드, 사전 검사, 설치, 결과" width="900"></p>
 
-<sub>`malmok apply --tui --lang ko`. 같은 실행을 화면 없이 하려면
-`malmok apply -f cluster.yaml`, 노드 없이 흉내만 내려면 `malmok apply --demo`.</sub>
+<sub>`malmok apply --tui --lang ko` 를 `--demo` 로 녹화한 것. 노드를 건드리지 않으므로 설치가
+몇 초에 끝난다. 같은 실행을 화면 없이 하려면 `malmok apply -f cluster.yaml`.</sub>
 
 > **상태: 알파.** 단일 노드와 2노드 구성은 실제 장비에서 반복 검증했고
 > IDC 프로덕션 서버 구축에 사용했습니다. **3서버 HA·외부

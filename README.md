@@ -352,7 +352,7 @@ cluster. So the untested rows are in the same table as the tested ones.
 | ACME HTTP-01 certificates | **verified on hardware** | Let's Encrypt issued on the production cluster; TLS 1.3, chain and hostname checked |
 | ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
 | Three-server HA (etcd quorum) | **not verified** | no hardware yet |
-| Airgap install (no egress) | **verified on hardware** | dedicated two-node lab run outside the general matrix; egress rejected; RKE2, Cilium and Gateway API from carried artifacts |
+| Airgap install (no egress) | **verified on hardware** | dedicated two-node lab run outside the general matrix; egress dropped rather than rejected, the way a site firewall behaves; RKE2, Cilium and Gateway API from carried artifacts, and every outbound attempt logged and accounted for |
 | Proxy | **not verified** | schema only |
 | External registry mirror | **not verified** | schema only |
 | Storage backends | out of scope | the application's concern |

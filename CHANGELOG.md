@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.88.0] - 2026-09-04
+
+### Fixed
+- Every multi-line file node preparation writes arrived as one line of literal
+  `\n`. The content was quoted with Go's `%q` and handed to a shell `printf
+  '%s'`: the shell strips the quotes and leaves backslash-n as two characters,
+  and printf writes them. Two files were affected and neither failure was
+  visible, because the check that compares the file against the document was
+  quoted the same wrong way and therefore agreed with it.
+  - `registries.yaml`, where RKE2 answered `no registries configured for
+    distributed mirroring` and started no mirror at all.
+  - The private CA in the node trust store, which is worse: a PEM on one line
+    is not a certificate, so a private CA has never actually been installed on
+    a node by this tool. Anything on the node that had to trust it -- a
+    registry, an internal endpoint -- was relying on a file that could not
+    parse.
+  - `TestWrittenFilesKeepTheirNewlines` fails on the shape rather than on
+    either instance of it.
+
+### Verified
+- The air-gapped install was re-run against DROP rather than REJECT, which is
+  what a site firewall does: a rejected connection fails at once, a dropped one
+  fails at the connect timeout, and code that looks fine against the first can
+  sit for minutes against the second. It does not: two nodes, five phases,
+  9m50s, nothing failed.
+- Every outbound attempt during the run was logged and accounted for rather
+  than counted. `_apt` and `fwupd-refresh` are the operating system. The rest
+  was containerd reaching for `registry-1.docker.io`, and with the embedded
+  mirror now actually enabled the agent's share of that went from 96 packets to
+  none -- it takes the images from its peer instead.
+- What remains is RKE2's own cold start: the first server has no peer to mirror
+  from and needs the runtime image before its image archives have finished
+  importing, so it tries Docker Hub for about thirty seconds. It costs nothing
+  -- the install completes -- but a site watching egress will see it, and it is
+  better to be able to say why than to be asked.
+
 ## [0.87.0] - 2026-09-04
 
 ### Fixed

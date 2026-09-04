@@ -362,3 +362,43 @@ func TestSwapIsLeftAloneWhenTheDocumentSaysSo(t *testing.T) {
 		t.Error("disableSwap: false still turns swap off, which is what the field exists to prevent")
 	}
 }
+
+// Every file this package writes goes through printf in a shell program, and
+// Go's %q is the wrong quoting for that: the shell strips its quotes and hands
+// printf a literal backslash-n, which printf '%s' writes as two characters.
+//
+// The result is a one-line file wherever the content had newlines. It reached
+// a node twice -- registries.yaml, where RKE2 answered "no registries
+// configured for distributed mirroring", and the CA trust store, where a PEM
+// arrived as a single line of backslash-n and was not a certificate at all.
+// Neither failed the step: both files existed and matched what the check
+// compared them against, because the check was quoted the same wrong way.
+func TestWrittenFilesKeepTheirNewlines(t *testing.T) {
+	pem := "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+	spec := v1alpha1.ClusterSpec{}
+	spec.Registry.Mode = v1alpha1.RegistryEmbedded
+
+	steps := Steps(&exec.Fake{}, "192.0.2.10", spec, TrustMaterial{CABundle: []byte(pem)})
+
+	var checked int
+	for _, s := range steps {
+		sh := s.(*engine.ShellStep)
+		if sh.Name != "ca-trust" && sh.Name != "registries" {
+			continue
+		}
+		checked++
+		for _, program := range []string{sh.Check, sh.Do} {
+			// The two-character sequence, not a newline. Its presence means
+			// the content was Go-quoted on its way into the shell.
+			if strings.Contains(program, `\n`) {
+				t.Errorf("%s writes an escaped newline rather than a real one:\n%s", sh.Name, program)
+			}
+		}
+		if !strings.Contains(sh.Do, "\n") {
+			t.Errorf("%s writes a single-line body", sh.Name)
+		}
+	}
+	if checked != 2 {
+		t.Fatalf("checked %d steps, want the ca-trust and registries steps", checked)
+	}
+}

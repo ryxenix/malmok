@@ -19,6 +19,7 @@ import (
 	"github.com/ryxenix/malmok/api/v1alpha1"
 	"github.com/ryxenix/malmok/internal/engine"
 	"github.com/ryxenix/malmok/internal/exec"
+	"github.com/ryxenix/malmok/internal/rke2"
 )
 
 // Phase is the phase name these steps belong to.
@@ -229,18 +230,18 @@ func trustStep(t TrustMaterial) *engine.ShellStep {
 		Name: "ca-trust",
 		Check: fmt.Sprintf(`f=%s; [ -d /etc/pki/ca-trust/source/anchors ] && f=%s
 [ -f "$f" ] || { echo "the CA is not installed at $f"; exit 1; }
-printf '%%s' %q | cmp -s - "$f" || { echo "the installed CA at $f differs from the document's"; exit 1; }
+printf '%%s' %s | cmp -s - "$f" || { echo "the installed CA at $f differs from the document's"; exit 1; }
 subject=$(openssl x509 -noout -subject -in "$f" 2>/dev/null || echo unknown)
 echo "installed: $subject"`, caFileDebian, caFileRHEL, pem),
 		Do: fmt.Sprintf(`set -e
 if [ -d /etc/pki/ca-trust/source/anchors ]; then
-  printf '%%s' %q > %s
+  printf '%%s' %s > %s
   update-ca-trust extract
 else
   install -d -m 0755 /usr/local/share/ca-certificates
-  printf '%%s' %q > %s
+  printf '%%s' %s > %s
   update-ca-certificates >/dev/null
-fi`, pem, caFileRHEL, pem, caFileDebian),
+fi`, rke2.ShellQuote(pem), caFileRHEL, rke2.ShellQuote(pem), caFileDebian),
 		Satisfied: "%s",
 		Missing:   "%s",
 	}
@@ -329,14 +330,14 @@ func registriesStep(body string) *engine.ShellStep {
 	return &engine.ShellStep{
 		Name: "registries",
 		Check: fmt.Sprintf(`[ -f %s ] || { echo "%s does not exist"; exit 1; }
-printf '%%s' %q | cmp -s - %s || { echo "%s differs from the document"; exit 1; }
+printf '%%s' %s | cmp -s - %s || { echo "%s differs from the document"; exit 1; }
 echo "%s matches the document"`,
-			registriesFile, registriesFile, body, registriesFile, registriesFile, registriesFile),
+			registriesFile, registriesFile, rke2.ShellQuote(body), registriesFile, registriesFile, registriesFile),
 		Do: fmt.Sprintf(`set -e
 install -d -m 0755 /etc/rancher/rke2
 umask 077
-printf '%%s' %q > %s
-chmod 0600 %s`, body, registriesFile, registriesFile),
+printf '%%s' %s > %s
+chmod 0600 %s`, rke2.ShellQuote(body), registriesFile, registriesFile),
 		Satisfied: "%s",
 		Missing:   "%s",
 	}

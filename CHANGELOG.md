@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.89.0] - 2026-09-07
+
+### Removed
+- `registry.bundle`, and PF-707 with it. The field was in the schema, passed
+  validation, and had a preflight check that verified the artifact's checksum
+  -- and nothing anywhere loaded it. An operator could name a Hauler bundle,
+  watch the tool confirm it byte for byte, and reach a node that had never seen
+  it. That is the worst shape a defect can take on an air-gapped site: it is
+  not wrong until the cluster is half up in a room with no network.
+  - A document that sets it now fails to load, naming the field and the line.
+  - Nothing is left uncovered. PF-701 to PF-703 measure a registry that is
+    named, PF-709 reads the artifact path on the node, and validation refuses
+    an air-gapped document that names no image source at all.
+  - PF-707 is retired rather than reused. Audit reports and customer tickets
+    outlive releases, so the number stays spent.
+  - The wizard's bundle field is gone; the air-gapped registry screen still
+    reaches both answers that exist, and its test now says so.
+  - `registry.mode: internal` no longer describes itself as seeded from a
+    bundle. It is a registry inside the network, seeded by whoever runs it.
+
 ## [0.88.0] - 2026-09-04
 
 ### Fixed

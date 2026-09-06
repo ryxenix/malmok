@@ -54,7 +54,6 @@ func producible(t *testing.T) map[string]bool {
 		CheckClockSkew(nil, time.Second),
 		CheckTimezones(nil),
 		CheckCIDRs(baseSpec()),
-		CheckAirgapBundle(baseSpec(), ""),
 	} {
 		out[r.ID] = true
 	}

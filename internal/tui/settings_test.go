@@ -1082,26 +1082,29 @@ func TestTheNewChoicesReachTheDocument(t *testing.T) {
 func TestTheRegistryScreenCanSatisfyItsValidator(t *testing.T) {
 	w := wizard(t, LangEN, false, 96, 30, StepRegistry)
 
-	// An air-gapped build needs a bundle or a registry address; the bundle
-	// field exists exactly for the build that has no registry to point at.
+	// An air-gapped build has to name an image source, and after registry.bundle
+	// was removed there are two: a registry address here, or the artifact path
+	// on the node screen. The registry address has to be reachable from this
+	// screen or one of the two answers is unreachable.
+	//
+	// It used to be a third field, reg.bundle, which the validator accepted and
+	// nothing ever read.
 	w.cfg.NetworkMode = string(v1alpha1.NetworkAirgap)
 	w.cfg.RegistryMode = string(v1alpha1.RegistryExternal)
 	var labels []string
 	for _, f := range w.fieldsFor(StepRegistry) {
 		labels = append(labels, f.labelKey)
 	}
-	if !contains(labels, "reg.bundle") {
-		t.Errorf("an air-gapped registry screen has no bundle field: %v", labels)
-	}
-
-	// Online, the bundle is not a question anybody asked.
-	w.cfg.NetworkMode = string(v1alpha1.NetworkOnline)
-	labels = nil
-	for _, f := range w.fieldsFor(StepRegistry) {
-		labels = append(labels, f.labelKey)
+	if !contains(labels, "reg.host") {
+		t.Errorf("an air-gapped registry screen cannot name a registry: %v", labels)
 	}
 	if contains(labels, "reg.bundle") {
-		t.Errorf("an online build is asked for an airgap bundle: %v", labels)
+		t.Errorf("the retired bundle field is back: %v", labels)
+	}
+
+	// And the charts, which an air-gapped build also has to mirror.
+	if !contains(labels, "reg.charts") {
+		t.Errorf("an air-gapped registry screen cannot name a chart mirror: %v", labels)
 	}
 
 	// The insecure decision reaches the document as a pointer: stated only

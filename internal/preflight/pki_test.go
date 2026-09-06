@@ -6,15 +6,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/hex"
 	"encoding/pem"
 	"math/big"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -220,123 +216,6 @@ func TestRootKeyInPKIMaterialBlocks(t *testing.T) {
 	if got.Severity != codes.SeverityBlock {
 		t.Errorf("PF-706 severity is %s, want block", got.Severity)
 	}
-}
-
-// ---------------------------------------------------------------------------
-// PF-707
-// ---------------------------------------------------------------------------
-
-func airgapSpec(bundle string) v1alpha1.ClusterSpec {
-	s := baseSpec()
-	s.Network.Mode = v1alpha1.NetworkAirgap
-	s.Registry = v1alpha1.RegistrySpec{Mode: v1alpha1.RegistryInternal, Bundle: bundle}
-	return s
-}
-
-func TestCheckAirgapBundle(t *testing.T) {
-	dir := t.TempDir()
-	body := []byte("this stands in for a hauler artifact")
-	sum := sha256.Sum256(body)
-	digest := hex.EncodeToString(sum[:])
-
-	write := func(name string, data []byte) string {
-		p := filepath.Join(dir, name)
-		if err := os.WriteFile(p, data, 0o644); err != nil {
-			t.Fatal(err)
-		}
-		return p
-	}
-
-	t.Run("matches its checksum", func(t *testing.T) {
-		p := write("good.tar.zst", body)
-		write("good.tar.zst.sha256", []byte(digest+"  good.tar.zst\n"))
-
-		got := CheckAirgapBundle(airgapSpec(p), "")
-		if got.Failed() {
-			t.Fatalf("PF-707 failed on a good bundle: %s", got.Detail)
-		}
-	})
-
-	t.Run("checksum mismatch", func(t *testing.T) {
-		p := write("bad.tar.zst", append(body, 'x'))
-		write("bad.tar.zst.sha256", []byte(digest+"\n"))
-
-		got := CheckAirgapBundle(airgapSpec(p), "")
-		if got.Code != "BUNDLE_CHECKSUM_MISMATCH" {
-			t.Fatalf("PF-707 is %s/%s: %s", got.Status, got.Code, got.Detail)
-		}
-		// The likely cause is worth naming: it is what people check first.
-		if !strings.Contains(got.Detail, "interrupted and resumed") {
-			t.Errorf("the failure does not suggest a cause: %s", got.Detail)
-		}
-	})
-
-	t.Run("no checksum beside it", func(t *testing.T) {
-		p := write("lonely.tar.zst", body)
-		got := CheckAirgapBundle(airgapSpec(p), "")
-		if got.Code != "BUNDLE_UNVERIFIED" || got.Severity == codes.SeverityBlock {
-			t.Fatalf("PF-707 is %s/%s/%s: %s", got.Status, got.Severity, got.Code, got.Detail)
-		}
-	})
-
-	t.Run("missing entirely", func(t *testing.T) {
-		got := CheckAirgapBundle(airgapSpec(filepath.Join(dir, "nope.tar.zst")), "")
-		if got.Code != "BUNDLE_MISSING" {
-			t.Fatalf("PF-707 is %s/%s", got.Status, got.Code)
-		}
-	})
-
-	t.Run("empty file", func(t *testing.T) {
-		p := write("empty.tar.zst", nil)
-		if got := CheckAirgapBundle(airgapSpec(p), ""); got.Code != "BUNDLE_TRUNCATED" {
-			t.Fatalf("PF-707 is %s/%s", got.Status, got.Code)
-		}
-	})
-
-	t.Run("airgap with no bundle at all", func(t *testing.T) {
-		if got := CheckAirgapBundle(airgapSpec(""), ""); got.Code != "BUNDLE_MISSING" {
-			t.Fatalf("PF-707 is %s/%s", got.Status, got.Code)
-		}
-	})
-
-	// A bundle is one image source of three, and it is the one nothing loads
-	// yet. Failing on its absence blocked every air-gapped install that named
-	// either of the others -- which is to say every one that would have worked.
-	t.Run("no bundle but the artifacts are carried", func(t *testing.T) {
-		s := airgapSpec("")
-		s.Kubernetes.ArtifactPath = "/opt/rke2-artifacts"
-		got := CheckAirgapBundle(s, "")
-		if got.Status != StatusSkip {
-			t.Fatalf("PF-707 is %s/%s on a carried artifact path: %s", got.Status, got.Code, got.Detail)
-		}
-		if !strings.Contains(got.Detail, "/opt/rke2-artifacts") {
-			t.Errorf("PF-707 does not name the path it deferred to: %s", got.Detail)
-		}
-	})
-
-	t.Run("no bundle but a registry is named", func(t *testing.T) {
-		s := airgapSpec("")
-		s.Registry.SystemDefaultRegistry = "harbor.acme.internal"
-		if got := CheckAirgapBundle(s, ""); got.Status != StatusSkip {
-			t.Fatalf("PF-707 is %s/%s on a named registry: %s", got.Status, got.Code, got.Detail)
-		}
-	})
-
-	t.Run("a file:// reference relative to the document", func(t *testing.T) {
-		write("rel.tar.zst", body)
-		write("rel.tar.zst.sha256", []byte(digest+"\n"))
-
-		got := CheckAirgapBundle(airgapSpec("file://rel.tar.zst"), dir)
-		if got.Failed() {
-			t.Fatalf("PF-707 did not resolve a relative reference: %s", got.Detail)
-		}
-	})
-
-	t.Run("skipped when not an airgap", func(t *testing.T) {
-		if got := CheckAirgapBundle(baseSpec(), ""); got.Status != StatusSkip {
-			t.Errorf("PF-707 is %s, want skip", got.Status)
-		}
-	})
 }
 
 // ---------------------------------------------------------------------------

@@ -151,7 +151,7 @@ fallback:
 netmode:
   online: direct egress to the internet
   proxy: through an HTTP proxy, DMZ
-  airgap: no egress at all; images come from a bundle
+  airgap: no egress at all; images come from the artifacts on the node or a mirrored registry
 dgpolicy:
   confirm: stop and say what would change
   auto: take the lesser option and record it
@@ -230,14 +230,13 @@ hint:
   artifacts: "a directory on each node holding rke2.linux-<arch>.tar.gz, its checksum, the images archive and install.sh"
   charts: "a Helm repository (https://) or an OCI registry (oci://); the images move separately"
   password: Used for the checks only; it is never written to cluster.yaml. Leave empty to use a key or an agent
-  version: RKE2's stable channel fills this when the network answers; Space flips to the latest release and back. On an air-gapped site, type the version the bundle carries
+  version: RKE2's stable channel fills this when the network answers; Space flips to the latest release and back. On an air-gapped site, type the version the carried artifacts hold
   registration: A VIP or DNS name. Empty means this server's own address -- allowed where network policy permits no VIP and no DNS, at the cost of re-joining every node if HA comes later
   lbpool: CIDRs the gateway takes its external address from
   noproxy: Include the pod and service CIDRs, or in-cluster traffic goes through the proxy
   registry: Every system image is pulled from here
   sourceref: file://, env:// or sops:// -- a reference, not the value
   rootkey: This is the intermediate key. The root key stays offline
-  bundle: The Hauler artifact carried across the gap. Either this or a registry address -- an air-gapped build needs one of the two
   acmeserver: Empty means Let's Encrypt production. Point it at staging while testing -- a mistake against production spends a rate limit that resets in a week
   sudopassword: Only used to elevate on this machine; never written to cluster.yaml. Leave empty if malmok is already running as root
   toggle_steps: steps
@@ -276,7 +275,6 @@ reg:
   user: Username ref
   pass: Password ref
   ca: CA certificate ref
-  bundle: Airgap bundle path
   tls: Registry certificate
   tls.verify: verify
   tls.verify.note: the CA above, or a public one, has to vouch for it
@@ -312,7 +310,6 @@ regmode:
   embedded: RKE2 shares images between nodes
   upstream: pull from the internet directly
   external: "an existing registry, e.g. Harbor"
-  internal: served from an air-gap bundle
 cap:
   menu: menu
   move: move

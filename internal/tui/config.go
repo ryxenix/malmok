@@ -142,7 +142,6 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 		s.Registry.Password = v1alpha1.SourceRef(c.RegistryPass)
 		s.Registry.CACert = v1alpha1.SourceRef(c.RegistryCA)
 	}
-	s.Registry.Bundle = c.RegistryBundle
 	// The same pointer discipline as node encryption: stated only when it says
 	// something. `insecure: false` written into every document would make the
 	// one that means it indistinguishable from the ones that never thought
@@ -320,7 +319,6 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		RegistryUser:      string(s.Registry.Username),
 		RegistryPass:      string(s.Registry.Password),
 		RegistryCA:        string(s.Registry.CACert),
-		RegistryBundle:    s.Registry.Bundle,
 		RegistryInsecure:  s.Registry.Insecure != nil && *s.Registry.Insecure,
 		TrustBundle:       s.PKI.Trust.ClusterBundle != nil && *s.PKI.Trust.ClusterBundle,
 

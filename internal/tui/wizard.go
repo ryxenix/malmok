@@ -271,8 +271,6 @@ type Config struct {
 	RegistryUser string
 	RegistryPass string
 	RegistryCA   string
-	// RegistryBundle is the Hauler artifact an air-gapped site carried across.
-	RegistryBundle string
 	// RegistryInsecure accepts a registry certificate that cannot be verified.
 	RegistryInsecure bool
 

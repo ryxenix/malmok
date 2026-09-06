@@ -379,12 +379,6 @@ var preflightCodes = []Code{
 		Severity: SeverityBlock,
 	},
 	{
-		ID: "PF-707", Family: FamilyPreflight, Category: catRegistryPKI,
-		Summary:  "Airgap bundle integrity",
-		Message:  "Hauler bundle checksum or signature verification failed",
-		Severity: SeverityBlock,
-	},
-	{
 		ID: "PF-709", Family: FamilyPreflight, Category: catRegistryPKI,
 		Summary:  "RKE2 release artifacts on the node",
 		Message:  "kubernetes.artifactPath does not hold the release artifacts for the version this document asks for",

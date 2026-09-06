@@ -528,7 +528,7 @@ const (
 	// registry of their own.
 	RegistryUpstream RegistryMode = "upstream"
 	RegistryExternal RegistryMode = "external" // existing Harbor
-	RegistryInternal RegistryMode = "internal" // Hauler-served, seeded from bundle
+	RegistryInternal RegistryMode = "internal" // a registry inside the network, seeded by whoever runs it
 	RegistryBYO      RegistryMode = "byo"
 )
 
@@ -555,9 +555,6 @@ type RegistrySpec struct {
 
 	// Mirrors maps upstream host -> private endpoint (containerd registries.yaml).
 	Mirrors map[string][]string `yaml:"mirrors,omitempty" json:"mirrors,omitempty"`
-
-	// Bundle is the Hauler artifact (.tar.zst) carried across the air gap.
-	Bundle string `yaml:"bundle,omitempty" json:"bundle,omitempty"`
 
 	// ChartRepo is where the platform's Helm charts come from.
 	//

@@ -150,7 +150,7 @@ fallback:
 netmode:
   online: 인터넷으로 직접 나감
   proxy: HTTP 프록시 경유 · DMZ
-  airgap: 외부 연결 없음 · 이미지는 번들에서
+  airgap: 외부 연결 없음 · 이미지는 노드의 아티팩트나 미러 레지스트리에서
 dgpolicy:
   confirm: 멈추고 무엇이 바뀌는지 알림
   auto: 낮은 쪽을 택하고 기록
@@ -229,14 +229,13 @@ hint:
   artifacts: "각 노드에 rke2.linux-<arch>.tar.gz·체크섬·이미지 아카이브·install.sh 가 놓인 디렉터리"
   charts: "Helm 저장소(https://) 또는 OCI 레지스트리(oci://). 이미지 미러와는 별개입니다"
   password: 검사에만 쓰이고 cluster.yaml 에 기록되지 않습니다. 비워두면 SSH 키나 ssh-agent 를 씁니다
-  version: 네트워크가 되면 RKE2 stable 채널 값이 채워지고, Space 로 latest 최신판과 전환됩니다. 폐쇄망이면 번들이 담고 있는 버전을 직접 입력하십시오
+  version: 네트워크가 되면 RKE2 stable 채널 값이 채워지고, Space 로 latest 최신판과 전환됩니다. 폐쇄망이면 반입한 아티팩트가 담고 있는 버전을 직접 입력하십시오
   registration: VIP 또는 DNS 이름. 비우면 이 서버 자신의 주소를 씁니다 — VIP 도 DNS 도 정책상 못 쓰는 환경용이며, 나중에 HA 로 가면 전 노드 재조인이 비용입니다
   lbpool: 게이트웨이가 외부 주소를 받아갈 CIDR
   noproxy: pod·service CIDR 을 넣지 않으면 클러스터 내부 통신이 프록시를 탑니다
   registry: 모든 시스템 이미지를 여기서 받습니다
   sourceref: file:// · env:// · sops:// — 값이 아니라 참조
   rootkey: intermediate 키입니다. root 키는 오프라인에 둡니다
-  bundle: 폐쇄망을 건너온 Hauler 아티팩트입니다. 이것 아니면 레지스트리 주소 — 폐쇄망 구축에는 둘 중 하나가 필요합니다
   acmeserver: 비우면 Let's Encrypt 운영 서버입니다. 시험 중에는 staging 을 쓰십시오 — 운영 서버에 실수하면 일주일짜리 발급 한도를 소모합니다
   sudopassword: 이 서버에서 권한 상승에만 쓰이고 cluster.yaml 에 기록되지 않습니다. malmok 을 이미 root 로 실행 중이면 비워두십시오
   toggle_steps: 단계 목록
@@ -275,7 +274,6 @@ reg:
   user: 사용자 참조
   pass: 비밀번호 참조
   ca: CA 인증서 참조
-  bundle: 폐쇄망 번들 경로
   tls: 레지스트리 인증서
   tls.verify: 검증
   tls.verify.note: 위의 CA 나 공인 CA 가 보증해야 합니다
@@ -311,7 +309,6 @@ regmode:
   embedded: RKE2 가 노드 간에 이미지를 공유
   upstream: 인터넷에서 직접 받음
   external: "기존 레지스트리 (예: Harbor)"
-  internal: 폐쇄망 번들에서 제공
 cap:
   menu: 메뉴
   move: 이동

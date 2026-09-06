@@ -355,7 +355,7 @@ const clockRecheckDelay = 20 * time.Second
 
 // documentChecks are everything that needs no node.
 func (s *Session) documentChecks(ctx context.Context) []ProbeResult {
-	out := []ProbeResult{CheckCIDRs(s.Spec), CheckAirgapBundle(s.Spec, s.Dir)}
+	out := []ProbeResult{CheckCIDRs(s.Spec)}
 
 	p := s.Prober
 	if p == nil {

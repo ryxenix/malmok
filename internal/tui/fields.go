@@ -217,15 +217,6 @@ func (w *Wizard) fieldsFor(step Step) []field {
 			get: func(c *Config) string { return c.RegistryChartRepo },
 			set: func(c *Config, v string) { c.RegistryChartRepo = v }})
 
-		// Where the artifacts came across. An air-gapped build has to say
-		// either this or a registry address, and the validator refuses a
-		// document with neither -- so offering the address alone left one of
-		// the two answers unreachable.
-		if w.networkMode() == v1alpha1.NetworkAirgap {
-			fs = append(fs, field{labelKey: "reg.bundle", hint: "hint.bundle",
-				get: func(c *Config) string { return c.RegistryBundle },
-				set: func(c *Config, v string) { c.RegistryBundle = v }})
-		}
 		return fs
 
 	case StepPKI:

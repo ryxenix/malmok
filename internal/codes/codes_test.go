@@ -37,7 +37,9 @@ func TestPreflightInventory(t *testing.T) {
 		"PF-601", "PF-602", "PF-603", "PF-604", "PF-605", "PF-606",
 		"PF-607", "PF-608", "PF-609", "PF-610", "PF-611", "PF-612",
 		// registry / PKI
-		"PF-701", "PF-702", "PF-703", "PF-704", "PF-705", "PF-706", "PF-707", "PF-708", "PF-709",
+		// PF-707 was the airgap bundle. registry.bundle was removed because
+		// nothing loaded it, and a retired number is never reused.
+		"PF-701", "PF-702", "PF-703", "PF-704", "PF-705", "PF-706", "PF-708", "PF-709",
 		// residue
 		"PF-801", "PF-802", "PF-803", "PF-804", "PF-805", "PF-806",
 		// certificate material
@@ -121,7 +123,7 @@ func TestOtherInventories(t *testing.T) {
 // definition and became PF-612, the EX family added 9 for the phase runner,
 // and PF-109 (machine UUID) arrived with the handoff.
 func TestTotalInventory(t *testing.T) {
-	const want = 142
+	const want = 141
 	if got := len(All()); got != want {
 		t.Errorf("registry holds %d codes, want %d", got, want)
 	}

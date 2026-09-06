@@ -587,7 +587,6 @@ func TestEveryProfileIsReachableByComposing(t *testing.T) {
 				m.cfg.ProxyHTTP = "http://proxy.acme.local:3128"
 			}
 			if b.NetworkMode == v1alpha1.NetworkAirgap {
-				m.cfg.RegistryBundle = "/srv/bundle.tar.zst"
 				// Images and charts are two mirrors. An air-gapped document
 				// that names only the first stops at cert-manager.
 				m.cfg.RegistryChartRepo = "oci://harbor.acme.internal/charts"

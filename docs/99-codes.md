@@ -14,14 +14,14 @@ outlive releases.
 
 | Family | Codes | block | degrade | warn | info |
 |---|--:|--:|--:|--:|--:|
-| `PF` | 70 | 37 | 11 | 18 | 4 |
+| `PF` | 69 | 36 | 11 | 18 | 4 |
 | `PV` | 8 | 4 | — | 3 | 1 |
 | `UP` | 8 | 6 | — | 1 | 1 |
 | `EX` | 9 | 8 | — | 1 | — |
 | `MC` | 42 | — | — | — | — |
 | `DG` | 5 | — | — | — | — |
 
-Total: 142 codes.
+Total: 141 codes.
 
 ---
 
@@ -115,7 +115,6 @@ Source: internal/codes/preflight.go
 | `PF-704` | block | Intermediate certificate is valid | Intermediate certificate does not chain to the supplied root, or expires too soon |
 | `PF-705` | block | Certificate notBefore is not in the node's future | Certificate notBefore is later than the node clock; cross-check PF-501 |
 | `PF-706` | block | No root private key in the supplied PKI material | A root private key was found in the supplied material; the offline root key must never leave its custody |
-| `PF-707` | block | Airgap bundle integrity | Hauler bundle checksum or signature verification failed |
 | `PF-708` | block | ACME prerequisites | ACME DNS-01 token is invalid or the zone is not writable |
 | `PF-709` | block | RKE2 release artifacts on the node | kubernetes.artifactPath does not hold the release artifacts for the version this document asks for |
 

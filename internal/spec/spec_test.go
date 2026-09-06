@@ -201,7 +201,6 @@ func TestValidate(t *testing.T) {
 				s.Network.Mode = v1alpha1.NetworkAirgap
 				s.Registry.Mode = v1alpha1.RegistryInternal
 				s.Registry.SystemDefaultRegistry = ""
-				s.Registry.Bundle = ""
 			},
 			wantErr: "nowhere to pull images from",
 		},

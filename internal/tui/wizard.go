@@ -267,6 +267,11 @@ type Config struct {
 	// one without the other gets an install that stops at cert-manager.
 	RegistryChartRepo string
 
+	// RegistryChartDir holds the chart archives themselves, for a closed site
+	// with no registry to mirror into. Either this or the mirror; the archives
+	// win, because bytes on disk are the more specific answer.
+	RegistryChartDir string
+
 	RegistryHost string
 	RegistryUser string
 	RegistryPass string

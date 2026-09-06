@@ -383,11 +383,13 @@ func validateRegistry(s *v1alpha1.ClusterSpec) []error {
 	// ArgoCD each fetch a chart before they fetch an image, so in an air gap
 	// the run reaches l2-pki and stops there -- twenty minutes after the point
 	// where this could have been said.
-	if s.Network.Mode == v1alpha1.NetworkAirgap && r.ChartRepo == "" && wantsCharts(s) {
+	if s.Network.Mode == v1alpha1.NetworkAirgap &&
+		r.ChartRepo == "" && strings.TrimSpace(r.ChartDir) == "" && wantsCharts(s) {
 		errs = append(errs, errors.New(
-			"network.mode is airgap and registry.chartRepo is not set; "+
-				"cert-manager, observability and ArgoCD each fetch a Helm chart, "+
-				"so mirror them and name the mirror (https:// or oci://)"))
+			"network.mode is airgap and neither registry.chartRepo nor registry.chartDir is set; "+
+				"cert-manager, observability and ArgoCD each fetch a Helm chart, so either mirror "+
+				"them and name the mirror (https:// or oci://), or carry the archives across and "+
+				"name the directory holding them"))
 	}
 	return errs
 }

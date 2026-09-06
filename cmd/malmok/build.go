@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -204,7 +207,41 @@ func (o *preflightOptions) resolveMaterial(doc *spec.Document, m *catalogue.Mate
 		return err
 	}
 	m.Bundles = bundles
+
+	if m.Charts, err = loadCharts(doc); err != nil {
+		return err
+	}
 	return nil
+}
+
+// loadCharts reads the archives registry.chartDir holds for the charts this
+// document installs.
+//
+// A missing archive is not an error here. It means that chart comes from a
+// repository instead, which is the normal path and the only one an online
+// build uses; PF-710 is where an air-gapped document with a hole in its
+// chartDir is told about it, before anything is installed.
+func loadCharts(doc *spec.Document) (map[string][]byte, error) {
+	dir := strings.TrimSpace(doc.Spec.Registry.ChartDir)
+	if dir == "" {
+		return nil, nil
+	}
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(doc.Dir(), dir)
+	}
+
+	out := map[string][]byte{}
+	for _, c := range catalogue.Charts(doc.Spec) {
+		b, err := os.ReadFile(filepath.Join(dir, c.File()))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("registry.chartDir: %w", err)
+		}
+		out[c.Name] = b
+	}
+	return out, nil
 }
 
 // assembleBundles builds a certificate bundle for every listener that supplies

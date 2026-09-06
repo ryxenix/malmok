@@ -217,6 +217,16 @@ func (w *Wizard) fieldsFor(step Step) []field {
 			get: func(c *Config) string { return c.RegistryChartRepo },
 			set: func(c *Config, v string) { c.RegistryChartRepo = v }})
 
+		// The other answer to the same question, for the site that has no
+		// registry to mirror into. Offered only in an air gap: online, the
+		// charts come from their repositories and carrying them is work
+		// nobody asked for.
+		if w.networkMode() == v1alpha1.NetworkAirgap {
+			fs = append(fs, field{labelKey: "reg.chartdir", hint: "hint.chartdir",
+				get: func(c *Config) string { return c.RegistryChartDir },
+				set: func(c *Config, v string) { c.RegistryChartDir = v }})
+		}
+
 		return fs
 
 	case StepPKI:

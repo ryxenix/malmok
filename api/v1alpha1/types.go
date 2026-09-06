@@ -573,6 +573,18 @@ type RegistrySpec struct {
 	// Empty means the upstream each chart came from, which is right wherever
 	// there is a route to it.
 	ChartRepo string `yaml:"chartRepo,omitempty" json:"chartRepo,omitempty"`
+
+	// ChartDir holds the chart archives themselves, on the machine running
+	// this tool, named the way `helm pull` writes them:
+	// cert-manager-v1.21.1.tgz. They are read here and embedded in the
+	// HelmChart as chartContent, so a site with no registry of its own can
+	// still have the platform -- the charts cross the gap the way RKE2's
+	// artifacts do, rather than requiring a Harbor to be stood up first.
+	//
+	// It is not a mirror: nothing fetches from it at install time. Whichever
+	// of the two is set wins per chart, and chartDir wins over chartRepo,
+	// because bytes on disk are the more specific answer.
+	ChartDir string `yaml:"chartDir,omitempty" json:"chartDir,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

@@ -86,7 +86,12 @@ type Options struct {
 	// ChartRepo overrides where the charts come from. An airgapped site points
 	// this at a mirror that already holds them.
 	ChartRepo string
-	Timeout   time.Duration
+
+	// Charts are chart archives the loader read from registry.chartDir, keyed
+	// by chart name. Present means the document carried the bytes across and
+	// nothing is fetched for that chart.
+	Charts  map[string][]byte
+	Timeout time.Duration
 }
 
 func (o Options) timeout() time.Duration {
@@ -103,7 +108,14 @@ func (o Options) timeout() time.Duration {
 // internet on a node that has none. Options.ChartRepo stays below it as the
 // caller's own override, and the upstream is the answer wherever there is a
 // route to it.
-func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
+func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart, version string) string {
+	// Bytes win over an address. A document that carried the archive across
+	// the gap has answered the question more specifically than one that names
+	// somewhere to fetch from, and on a closed site the address may be
+	// aspirational.
+	if archive := o.Charts[chart]; len(archive) > 0 {
+		return rke2.ChartContent(archive)
+	}
 	repo := strings.TrimSpace(spec.Registry.ChartRepo)
 	if repo == "" {
 		repo = strings.TrimSpace(o.ChartRepo)
@@ -111,7 +123,7 @@ func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
 	if repo == "" {
 		repo = UpstreamRepo
 	}
-	return rke2.ChartSource(repo, chart)
+	return rke2.ChartSource(repo, chart) + "  version: " + rke2.ShellQuoteYAML(version) + "\n"
 }
 
 // Steps returns the l2-pki catalogue.
@@ -197,6 +209,20 @@ func Steps(runner exec.Runner, spec v1alpha1.ClusterSpec, m Material, o Options)
 	}
 	return steps
 }
+
+// WantsCertManager reports whether this document installs cert-manager.
+//
+// pki.mode none installs nothing, and byo-cert issues nothing: the document
+// supplied the certificate and the gateway phase installs it as the listener's
+// Secret, so there is no issuer to create.
+func WantsCertManager(spec v1alpha1.ClusterSpec) bool {
+	m := spec.PKI.Mode
+	return m != "" && m != v1alpha1.PKINone && m != v1alpha1.PKIBYOCert
+}
+
+// WantsTrustBundle is wantsTrustBundle, for callers that have to know which
+// charts a document installs without building its steps.
+func WantsTrustBundle(spec v1alpha1.ClusterSpec) bool { return wantsTrustBundle(spec) }
 
 // wantsTrustBundle reports whether the cluster bundle is asked for.
 //
@@ -371,7 +397,7 @@ metadata:
   name: cert-manager
   namespace: kube-system
 spec:
-` + o.chartSource(spec, "cert-manager") + `  version: ` + yamlString(CertManagerVersion) + `
+` + o.chartSource(spec, "cert-manager", CertManagerVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-
@@ -415,7 +441,7 @@ metadata:
   name: trust-manager
   namespace: kube-system
 spec:
-` + o.chartSource(spec, "trust-manager") + `  version: ` + yamlString(TrustManagerVersion) + `
+` + o.chartSource(spec, "trust-manager", TrustManagerVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-

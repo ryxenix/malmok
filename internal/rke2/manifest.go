@@ -1,6 +1,7 @@
 package rke2
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -158,6 +159,20 @@ func ChartSource(repo, chart string) string {
 		return "  chart: " + ShellQuoteYAML(strings.TrimSuffix(repo, "/")+"/"+chart) + "\n"
 	}
 	return "  repo: " + ShellQuoteYAML(repo) + "\n  chart: " + chart + "\n"
+}
+
+// ChartContent renders a chart archive into a HelmChart.
+//
+// helm-controller reads a base64 .tgz here and it overrides chart and version,
+// so neither is written beside it: leaving a version line next to bytes that
+// decide the version themselves is a document that can disagree with itself.
+//
+// The archive has to carry its own dependencies. The three charts this tool
+// installs do -- a released .tgz vendors its subcharts -- but a chart packaged
+// without them would send helm to the network at install time, which is the
+// one thing this exists to avoid.
+func ChartContent(archive []byte) string {
+	return "  chartContent: " + ShellQuoteYAML(base64.StdEncoding.EncodeToString(archive)) + "\n"
 }
 
 // ShellQuoteYAML wraps a value so YAML reads it as a string.

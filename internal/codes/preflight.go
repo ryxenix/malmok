@@ -385,6 +385,12 @@ var preflightCodes = []Code{
 		Severity: SeverityBlock,
 	},
 	{
+		ID: "PF-710", Family: FamilyPreflight, Category: catRegistryPKI,
+		Summary:  "Chart archives present for an air-gapped install",
+		Message:  "registry.chartDir does not hold the chart archives this document installs",
+		Severity: SeverityBlock,
+	},
+	{
 		ID: "PF-708", Family: FamilyPreflight, Category: catRegistryPKI,
 		Summary:  "ACME prerequisites",
 		Message:  "ACME DNS-01 token is invalid or the zone is not writable",

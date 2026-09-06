@@ -75,6 +75,11 @@ type Options struct {
 	Timeout time.Duration
 	// Repo overrides the chart repository, for a site that mirrors it.
 	Repo string
+
+	// Charts are chart archives the loader read from registry.chartDir, keyed
+	// by chart name. Present means the document carried the bytes across and
+	// nothing is fetched for that chart.
+	Charts map[string][]byte
 }
 
 func (o Options) timeout() time.Duration {
@@ -86,7 +91,14 @@ func (o Options) timeout() time.Duration {
 
 // chartSource is where the chart comes from, in the shape a HelmChart wants.
 // The document's mirror first, then the caller's override, then upstream.
-func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
+func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart, version string) string {
+	// Bytes win over an address. A document that carried the archive across
+	// the gap has answered the question more specifically than one that names
+	// somewhere to fetch from, and on a closed site the address may be
+	// aspirational.
+	if archive := o.Charts[chart]; len(archive) > 0 {
+		return rke2.ChartContent(archive)
+	}
 	repo := strings.TrimSpace(spec.Registry.ChartRepo)
 	if repo == "" {
 		repo = strings.TrimSpace(o.Repo)
@@ -94,7 +106,7 @@ func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
 	if repo == "" {
 		repo = ChartRepo
 	}
-	return rke2.ChartSource(repo, chart)
+	return rke2.ChartSource(repo, chart) + "  version: " + rke2.ShellQuoteYAML(version) + "\n"
 }
 
 // Enabled reports whether the document asks for a metrics stack.
@@ -168,7 +180,7 @@ metadata:
   name: victoria-metrics
   namespace: kube-system
 spec:
-` + o.chartSource(spec, "victoria-metrics-k8s-stack") + `  version: ` + yamlString(StackChartVersion) + `
+` + o.chartSource(spec, "victoria-metrics-k8s-stack", StackChartVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-

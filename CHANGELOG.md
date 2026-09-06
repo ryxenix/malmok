@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.90.0] - 2026-09-07
+
+### Added
+- `registry.chartDir`: a closed site can carry the Helm charts across instead
+  of standing up a registry to mirror them into. Until now the air-gapped path
+  required `registry.chartRepo`, which means a customer without a Harbor was
+  told to build one before they could have a cluster -- and the tool's value
+  halves at that sentence.
+  - The archives are read from the directory the document names, relative to
+    the document, and embedded in the HelmChart as `chartContent`. helm-
+    controller takes a base64 `.tgz` there and it overrides `chart` and
+    `version`, so neither is written beside it: a version line next to bytes
+    that decide the version is a document disagreeing with itself.
+  - Bytes win over an address. A document that set both gets the archive for
+    the charts it carried and the mirror for the rest.
+  - The three charts this tool installs are self-contained and small enough for
+    it: cert-manager 150 KB, argo-cd 226 KB with redis-ha vendored,
+    victoria-metrics-k8s-stack 327 KB with all five of its subcharts vendored.
+    Base64 costs a third on top, against a Kubernetes object limit near 1.5
+    MiB. A chart packaged without its dependencies would send helm to the
+    network at install time, which is the one thing this exists to avoid.
+  - PF-710 reads the directory before anything is installed. A missing archive
+    is not a failure at install time, it is a silent change of plan: the chart
+    falls back to its upstream repository, and on a closed node that is a
+    HelmChart job retrying against the internet until it gives up. The versions
+    are pinned in code, so the check names the exact files to stage -- and
+    names a wrong version separately, because a directory that looks right is
+    the mistake worth calling out.
+  - `catalogue.Charts` is where "which charts does this document install"
+    lives, so the loader, the check and the wizard cannot drift from each
+    other.
+  - The wizard offers the directory beside the mirror, air-gapped builds only.
+
 ## [0.89.0] - 2026-09-07
 
 ### Removed

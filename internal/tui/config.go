@@ -131,6 +131,7 @@ func (c Config) ApplyTo(s *v1alpha1.ClusterSpec) {
 	s.Registry.Mode = v1alpha1.RegistryMode(c.RegistryMode)
 	s.Registry.SystemDefaultRegistry = c.RegistryHost
 	s.Registry.ChartRepo = c.RegistryChartRepo
+	s.Registry.ChartDir = c.RegistryChartDir
 	s.Kubernetes.ArtifactPath = c.ArtifactPath
 	if c.RegistryHost == "" {
 		// No registry, so no credentials for one. A reference left pointing at
@@ -314,6 +315,7 @@ func FromSpec(s v1alpha1.ClusterSpec) Config {
 		GatewayAddress:  gatewayAddressOf(s),
 
 		RegistryChartRepo: s.Registry.ChartRepo,
+		RegistryChartDir:  s.Registry.ChartDir,
 		ArtifactPath:      s.Kubernetes.ArtifactPath,
 		RegistryHost:      s.Registry.SystemDefaultRegistry,
 		RegistryUser:      string(s.Registry.Username),

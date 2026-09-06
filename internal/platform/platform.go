@@ -94,7 +94,12 @@ type Options struct {
 	// ChartRepo overrides where the argo-cd chart comes from. An airgapped site
 	// points this at a mirror that already holds it.
 	ChartRepo string
-	Timeout   time.Duration
+
+	// Charts are chart archives the loader read from registry.chartDir, keyed
+	// by chart name. Present means the document carried the bytes across and
+	// nothing is fetched for that chart.
+	Charts  map[string][]byte
+	Timeout time.Duration
 }
 
 func (o Options) timeout() time.Duration {
@@ -109,7 +114,14 @@ const UpstreamRepo = "https://argoproj.github.io/argo-helm"
 
 // chartSource is where the chart comes from, in the shape a HelmChart wants.
 // The document's mirror first, then the caller's override, then upstream.
-func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
+func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart, version string) string {
+	// Bytes win over an address. A document that carried the archive across
+	// the gap has answered the question more specifically than one that names
+	// somewhere to fetch from, and on a closed site the address may be
+	// aspirational.
+	if archive := o.Charts[chart]; len(archive) > 0 {
+		return rke2.ChartContent(archive)
+	}
 	repo := strings.TrimSpace(spec.Registry.ChartRepo)
 	if repo == "" {
 		repo = strings.TrimSpace(o.ChartRepo)
@@ -117,7 +129,7 @@ func (o Options) chartSource(spec v1alpha1.ClusterSpec, chart string) string {
 	if repo == "" {
 		repo = UpstreamRepo
 	}
-	return rke2.ChartSource(repo, chart)
+	return rke2.ChartSource(repo, chart) + "  version: " + rke2.ShellQuoteYAML(version) + "\n"
 }
 
 // Steps returns the l2-platform catalogue.
@@ -367,7 +379,7 @@ metadata:
   name: ` + yamlString(ReleaseName) + `
   namespace: kube-system
 spec:
-` + o.chartSource(spec, "argo-cd") + `  version: ` + yamlString(ChartVersion) + `
+` + o.chartSource(spec, "argo-cd", ChartVersion) + `
   targetNamespace: ` + yamlString(Namespace) + `
   createNamespace: true
   valuesContent: |-

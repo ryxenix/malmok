@@ -56,6 +56,9 @@ type Material struct {
 	Token string
 	// PKI is what l2-pki installs: the issuing CA and any ACME credential.
 	PKI pki.Material
+	// Charts are the chart archives registry.chartDir held, keyed by chart
+	// name. A chart absent from here comes from a repository instead.
+	Charts map[string][]byte
 }
 
 // Options carry the timeouts and the airgap artifact locations.
@@ -178,6 +181,10 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 	// PKI before the gateway: a listener whose certificate is issued in-cluster
 	// needs an issuer that already exists, and one that is supplied does not
 	// care about the order -- so the order that works for both is this one.
+	// The archives reach the packages that render HelmCharts. Filled once, so
+	// a phase added later cannot quietly go back to fetching.
+	o.PKI.Charts, o.Observability.Charts, o.Platform.Charts = m.Charts, m.Charts, m.Charts
+
 	if steps := pki.Steps(control, spec, m.PKI, o.PKI); len(steps) > 0 {
 		phases = append(phases, engine.Phase{
 			ID:        pki.Phase,
@@ -353,4 +360,39 @@ func SecretRefs(spec v1alpha1.ClusterSpec) []string {
 	refs := gateway.SecretRefs(spec)
 	sort.Strings(refs)
 	return refs
+}
+
+// ChartRef is one Helm chart this document installs, at the version pinned in
+// code rather than one resolved at install time.
+type ChartRef struct {
+	Name    string
+	Version string
+}
+
+// File is the archive's name as `helm pull` writes it, which is the name an
+// operator staging a chartDir will already have.
+func (c ChartRef) File() string { return c.Name + "-" + c.Version + ".tgz" }
+
+// Charts lists what this document installs, so that the two questions an
+// air-gapped site asks -- which archives do I carry, and are they present --
+// are answered from one place rather than from three packages that can drift.
+//
+// The dataplane is absent on purpose: RKE2 carries Cilium's chart in its own
+// artifacts, which is why an air-gapped cluster has a network before any of
+// this matters.
+func Charts(spec v1alpha1.ClusterSpec) []ChartRef {
+	var out []ChartRef
+	if pki.WantsCertManager(spec) {
+		out = append(out, ChartRef{"cert-manager", pki.CertManagerVersion})
+	}
+	if pki.WantsTrustBundle(spec) {
+		out = append(out, ChartRef{"trust-manager", pki.TrustManagerVersion})
+	}
+	if observability.Enabled(spec) {
+		out = append(out, ChartRef{"victoria-metrics-k8s-stack", observability.StackChartVersion})
+	}
+	if g := spec.Platform.GitOps; g.Enabled != nil && *g.Enabled {
+		out = append(out, ChartRef{"argo-cd", platform.ChartVersion})
+	}
+	return out
 }

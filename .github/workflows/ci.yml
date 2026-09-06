@@ -25,8 +25,23 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
       - name: build
         run: go build ./...
+
+      - name: installer
+        run: |
+          sh -n docs/install.sh
+          sh scripts/install_test.sh
+
+      - name: documentation
+        run: |
+          pip install -r requirements-docs.txt
+          mkdocs build --strict
 
       - name: vet
         run: go vet ./...

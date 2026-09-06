@@ -7,4 +7,5 @@ docs/img/*
 !docs/img/tui-*.gif
 !docs/img/malmok-wordmark.png
 dist/
+site/
 internal/tools/payload/

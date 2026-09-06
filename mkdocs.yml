@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=https://squidfunk.github.io/mkdocs-material/schema.json
+
+site_name: Malmok
+site_description: Repeatable, resumable and auditable RKE2 cluster builds
+site_url: https://malmok.dev/
+repo_url: https://github.com/ryxenix/malmok
+repo_name: ryxenix/malmok
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Malmok contributors
+
+theme:
+  name: material
+  language: en
+  font: false
+  icon:
+    logo: material/server-network
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quick-start.md
+  - Guides:
+      - Air-gapped installation: guides/air-gap.md
+      - Upgrade and recovery: guides/upgrade-and-recovery.md
+  - Reference:
+      - Configuration: reference/configuration.md
+      - Verification matrix: 40-verification-matrix.md
+      - Diagnostic codes: 99-codes.md
+  - About:
+      - FAQ and comparisons: about/comparison.md
+      - Changelog: https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md
+      - Security: https://github.com/ryxenix/malmok/blob/main/SECURITY.md
+
+plugins:
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: ko
+          name: 한국어
+          build: true
+          site_description: 반복 가능하고 중단 후 재개하며 감사 기록을 남기는 RKE2 클러스터 구축
+          theme:
+            palette:
+              - media: "(prefers-color-scheme: light)"
+                scheme: default
+                primary: custom
+                accent: custom
+                toggle:
+                  icon: material/weather-night
+                  name: 어두운 테마로 전환
+              - media: "(prefers-color-scheme: dark)"
+                scheme: slate
+                primary: custom
+                accent: custom
+                toggle:
+                  icon: material/weather-sunny
+                  name: 밝은 테마로 전환
+          nav_translations:
+            Home: 홈
+            Getting started: 시작하기
+            Installation: 설치
+            Quick start: 빠른 시작
+            Guides: 사용 가이드
+            Air-gapped installation: 에어갭 설치
+            Upgrade and recovery: 업그레이드와 복구
+            Reference: 레퍼런스
+            Configuration: 설정
+            Verification matrix: 검증 매트릭스
+            Diagnostic codes: 진단 코드
+            About: 프로젝트 소개
+            FAQ and comparisons: FAQ와 도구 비교
+            Changelog: 변경 이력
+            Security: 보안
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ryxenix/malmok
+      name: Malmok on GitHub

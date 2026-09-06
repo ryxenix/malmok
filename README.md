@@ -16,7 +16,7 @@
 <p align="center">
   <a href="#five-minutes"><strong>Get started</strong></a> ·
   <a href="#what-is-verified"><strong>Verification</strong></a> ·
-  <a href="#documentation"><strong>Docs</strong></a> ·
+  <a href="https://malmok.dev"><strong>Docs</strong></a> ·
   <a href="https://github.com/ryxenix/malmok/releases"><strong>Releases</strong></a>
 </p>
 
@@ -39,18 +39,34 @@
 
 ## Who it is for
 
-Malmok is for platform, SRE and infrastructure engineers who build RKE2
-clusters on machines they control -- bare metal, VMs, on-premises networks,
-DMZs and air-gapped sites.
+Malmok is for people who want to build and manage RKE2 on existing Linux
+machines using a `cluster.yaml` and SSH access.
 
-It turns a `cluster.yaml` and SSH access into a repeatable, resumable and
-auditable cluster build. It is most useful when an installation must be
-measured before it starts, recovered after interruption and handed over with
-a clear record of what happened.
+### Personal projects and homelabs
 
-Malmok is not a managed Kubernetes service or an application deployment
-platform. It builds and operates the cluster foundation; application
-ownership starts above that boundary.
+For running your own RKE2 cluster on home servers, mini PCs or personal VMs:
+
+- Rebuild from a configuration file without looking up manual installation steps each time.
+- Reduce repetitive setup when experimenting with nodes or reinstalling a lab.
+- Start from your workstation with SSH and a CLI, without a separate management cluster.
+
+### Work and team environments
+
+For solution vendors, systems integrators and deployment engineers who repeatedly
+deliver software to customer-provided servers, as well as internal infrastructure teams.
+The starting point is a decision to use RKE2, with the cluster foundation still to build.
+
+- Standardize RKE2 setup across customer sites when delivering AI, document-processing, search or data platforms.
+- Check real node conditions and blockers before making changes.
+- Resume interrupted builds and keep execution records for review and handoff.
+- Prepare an installation for a restricted network after checking the [air-gap requirements and verification limits](docs/guides/air-gap.md).
+
+**Both groups should check the [verification scope](#what-is-verified) before
+adoption. Malmok is alpha software; these use cases are not a production-readiness guarantee.**
+
+Malmok does not provision VMs or replace general configuration management or
+application deployment tools. It builds and operates the cluster foundation;
+you remain responsible for the machines and applications.
 
 ## Start with one document
 
@@ -177,16 +193,36 @@ Three properties shape the design:
 - **The engine does not know about the screen.** It emits JSONL events and the
   TUI draws them. A code path that needs a terminal is a defect.
 
-## How it fits
+## FAQ
 
-Malmok is deliberately narrower than general automation and deliberately
-simpler to operate than a controller-based provisioning stack.
+### What if the customer has already prepared the servers?
 
-| Question | Answer |
-|---|---|
-| **Why not Ansible?** | Use Ansible for general configuration management. Malmok owns one RKE2 lifecycle: read-only measurement, a reviewable plan, resumable execution, stable diagnostic codes and a handoff report. They can be used together; machine provisioning and site policy remain outside Malmok. |
-| **How is this different from k0sctl?** | [k0sctl](https://github.com/k0sproject/k0sctl) is the closest analogue and is the right tool for k0s. Malmok targets RKE2 and carries an opinionated path through Cilium, Gateway API, PKI, GitOps and observability, with the same evidence model used online and in an air gap. |
-| **Why not CAPRKE2?** | If you already operate a management cluster and Cluster API, [CAPRKE2](https://caprke2.docs.rancher.com/) is likely the better fit. Malmok starts with existing SSH-reachable machines, runs from the operator's workstation and leaves no management controller or node agent behind. |
+That is where Malmok starts. Given existing Linux servers and SSH access, it
+checks the environment, shows the RKE2 build plan, installs the cluster,
+resumes interrupted runs and produces a handoff report. No particular server
+provisioning tool is required.
+
+### Could I use Terraform or Ansible instead?
+
+Yes. If you already have reliable RKE2 automation, you do not need to replace
+it. Malmok is not an alternative to IaC as a practice: it uses a declarative
+`cluster.yaml` and packages RKE2-specific checks, execution, recovery and
+reporting so you do not have to assemble and maintain that workflow yourself.
+
+### How is this different from k0sctl or CAPRKE2?
+
+k0sctl targets k0s; Malmok targets RKE2. If you already operate a management
+cluster and Cluster API, consider CAPRKE2. Malmok runs from your workstation
+against existing SSH-reachable machines without a Malmok management controller
+or node agent.
+
+### Can I use it in production today?
+
+Malmok is alpha software, not a production-readiness guarantee. Review the
+[verified and unverified configurations](#what-is-verified) and validate your
+own environment before adoption.
+
+[Read the full FAQ and tool comparisons →](docs/about/comparison.md)
 
 ## Install
 
@@ -380,11 +416,14 @@ air-gap claim above comes from its dedicated hardware run. See
 
 ## Documentation
 
-Public documentation currently includes the evidence behind support claims and
-the generated registry used to troubleshoot a run. Installation, configuration
-and operations guides will move to the project documentation site as they are
-published.
+The official documentation is at [malmok.dev](https://malmok.dev). It combines
+the project overview with the installation and operating guides; the README
+remains the shorter evaluation path.
 
+- [Installation](docs/getting-started/installation.md)
+- [Quick start](docs/getting-started/quick-start.md)
+- [Air-gapped installation](docs/guides/air-gap.md)
+- [Configuration reference](docs/reference/configuration.md)
 - [Verification matrix](docs/40-verification-matrix.md)
 - [Diagnostic code registry](docs/99-codes.md)
 

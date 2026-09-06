@@ -1,0 +1,1 @@
+--8<-- "docs/40-verification-matrix.md"

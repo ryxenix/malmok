@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.91.0] - 2026-09-07
+
+### Added
+- `malmok images` prints the container images an air-gapped site has to carry.
+  Until now an operator had to work them out by reading charts at the
+  customer's site, which is where the answer is hardest to get and most
+  expensive to get wrong.
+  - The chart versions are pinned in this release, so the answer is fixed and
+    is worked out once -- by `scripts/images.sh`, on a machine with a network
+    -- rather than by everyone who installs. The result is committed and
+    embedded, so the command answers on a node with no network and no helm,
+    which is the only place the question is really asked.
+  - With `-f cluster.yaml`, only the charts that document installs.
+  - `TestTheListMatchesThePinnedVersions` fails when a chart version is bumped
+    in Go without regenerating the list. Shipping last release's carry list is
+    a mistake discovered at the customer's site, and it needs no network to
+    catch here.
+  - The extractor walks the rendered manifests and the chart values, because
+    neither alone is enough: a chart states some images only in its values,
+    where an operator reads them at run time. A grep was tried first and was
+    quietly wrong -- it saw 7 of the metrics stack's images and missed its data
+    plane, because a nested key has no value on its own line.
+
+### Known limits
+- The list is not complete, and says so. `victoria-metrics-k8s-stack` templates
+  VMSingle, VMAgent, VMAlert and VMAlertmanager resources whose images the
+  VictoriaMetrics operator fills in at run time; the chart carries only their
+  tags, with the repository in a renovate comment. Reading a comment would be a
+  guess, and a guess in a carry list is discovered in a room with no way to
+  fetch what is missing. Three more images have no tag in their chart at all --
+  it comes from the chart's appVersion -- and are listed separately rather than
+  dropped. `malmok images --help` gives the kubectl one-liner that reads the
+  authoritative set off a cluster that has run the stack.
+- It is a superset in the other direction: rendered from default values, so a
+  component the document disables still appears. Carrying an image nobody pulls
+  costs bytes.
+
 ## [0.90.0] - 2026-09-07
 
 ### Added

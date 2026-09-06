@@ -46,5 +46,6 @@ ADR-002.`,
 	root.AddCommand(newAttachCmd())
 	root.AddCommand(newUpgradeCmd())
 	root.AddCommand(newReportCmd())
+	root.AddCommand(newImagesCmd())
 	return root
 }

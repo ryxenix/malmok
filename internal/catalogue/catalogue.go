@@ -396,3 +396,25 @@ func Charts(spec v1alpha1.ClusterSpec) []ChartRef {
 	}
 	return out
 }
+
+// AllCharts is every chart this release can install, with the repository it
+// comes from.
+//
+// Charts() answers "what does this document install"; this answers "what could
+// any document install", which is the question the image list is generated
+// from. They read the same constants, so a version bumped in one place cannot
+// be missed by the other.
+func AllCharts() []ChartSource {
+	return []ChartSource{
+		{ChartRef{"cert-manager", pki.CertManagerVersion}, pki.UpstreamRepo},
+		{ChartRef{"trust-manager", pki.TrustManagerVersion}, pki.UpstreamRepo},
+		{ChartRef{"victoria-metrics-k8s-stack", observability.StackChartVersion}, observability.ChartRepo},
+		{ChartRef{"argo-cd", platform.ChartVersion}, platform.UpstreamRepo},
+	}
+}
+
+// ChartSource is a chart and where it is published.
+type ChartSource struct {
+	ChartRef
+	Repo string
+}

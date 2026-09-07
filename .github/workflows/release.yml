@@ -54,4 +54,4 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
             --notes-file dist/notes.md \
-            dist/malmok_* dist/malmok-airgap_* dist/SHA256SUMS
+            dist/malmok_* dist/malmok-airgap_* dist/images.txt dist/SHA256SUMS

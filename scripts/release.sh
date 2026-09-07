@@ -74,7 +74,12 @@ done
 
 rm -rf "$payload"
 
-( cd dist && sha256sum malmok_* malmok-airgap_* > SHA256SUMS )
+# The carry list ships beside the binaries. An operator planning an
+# air-gapped install needs it before they have anywhere to run malmok, and
+# asking them to extract it from a binary they cannot yet run is a poor answer.
+cp internal/images/images.txt dist/images.txt
+
+( cd dist && sha256sum malmok_* malmok-airgap_* images.txt > SHA256SUMS )
 
 echo
 cat dist/SHA256SUMS

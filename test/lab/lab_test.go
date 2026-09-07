@@ -473,7 +473,7 @@ func airgapURLs(t *testing.T, bin string) map[string]string {
 
 		idx, ok := indexes[repo]
 		if !ok {
-			resp, err := http.Get(repo + "/index.yaml")
+			resp, err := (&http.Client{Timeout: 60 * time.Second}).Get(repo + "/index.yaml")
 			if err != nil || resp.StatusCode != http.StatusOK {
 				t.Fatalf("read the chart index at %s: %v", repo, err)
 			}
@@ -547,8 +547,9 @@ done`, c.ArtifactPath))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		r.t.Fatal(err)
 	}
+	client := &http.Client{Timeout: 2 * time.Minute}
 	for name, url := range airgapURLs(r.t, r.bin) {
-		resp, err := http.Get(url)
+		resp, err := client.Get(url)
 		if err != nil || resp.StatusCode != http.StatusOK {
 			r.t.Fatalf("fetch %s: %v (status %v)", url, err, resp)
 		}

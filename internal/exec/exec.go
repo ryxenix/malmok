@@ -65,6 +65,19 @@ type Streamer interface {
 	RunStream(ctx context.Context, cmd string, onLine func(string)) (Result, error)
 }
 
+// Feeder is a Runner that can send a command its standard input.
+//
+// It exists because a command is not a place to put a file. The manifest steps
+// embedded the YAML they write in the command string, which is fine for the
+// few kilobytes a HelmChart usually is and is not fine for one carrying a
+// chart archive: measured against a node, a 128KB command reaches the far side
+// and dies on the argument-length limit, and at 256KB the connection itself is
+// dropped before anything runs. A file arrives as bytes on stdin, where there
+// is no such ceiling.
+type Feeder interface {
+	RunInput(ctx context.Context, cmd string, stdin []byte) (Result, error)
+}
+
 // lineWriter collects everything and reports whole lines as they arrive.
 type lineWriter struct {
 	buf    strings.Builder
@@ -127,6 +140,28 @@ func (s Sudo) Run(ctx context.Context, cmd string) (Result, error) {
 	return s.Runner.Run(ctx, full)
 }
 
+// RunInput prefixes the command with sudo and feeds it the bytes.
+//
+// With a password this reads more than it looks like. `sudo -S` takes the
+// password from its own standard input as the first line and then leaves the
+// rest of it to the command, so the two travel together: the password line,
+// then the file. Sending the password through a pipe as Run does would consume
+// the whole of stdin before the command ever saw it.
+func (s Sudo) RunInput(ctx context.Context, cmd string, stdin []byte) (Result, error) {
+	inner, ok := s.Runner.(Feeder)
+	if !ok {
+		return Result{}, fmt.Errorf("exec: %s cannot send standard input", s.Runner.Host())
+	}
+	if r, ok := s.Runner.(Rooted); ok && r.IsRoot() {
+		return inner.RunInput(ctx, cmd, stdin)
+	}
+	if s.Password == "" {
+		return inner.RunInput(ctx, "sudo -n -- sh -c "+quote(cmd), stdin)
+	}
+	withPassword := append([]byte(s.Password+"\n"), stdin...)
+	return inner.RunInput(ctx, "sudo -S -p '' -- sh -c "+quote(cmd), withPassword)
+}
+
 // quote wraps a string for a POSIX shell.
 func quote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
@@ -152,6 +187,8 @@ type Fake struct {
 
 	// Log records every command in order.
 	Log []string
+	// Input records what each RunInput was fed, in the same order.
+	Input []string
 }
 
 // Run answers from the recorded responses.
@@ -179,6 +216,13 @@ func (f *Fake) Run(_ context.Context, cmd string) (Result, error) {
 
 	f.Unmatched = append(f.Unmatched, cmd)
 	return f.Default, nil
+}
+
+// RunInput answers like Run and records what was fed in, so a test can assert
+// the bytes a step meant to write are the bytes it sent.
+func (f *Fake) RunInput(ctx context.Context, cmd string, stdin []byte) (Result, error) {
+	f.Input = append(f.Input, string(stdin))
+	return f.Run(ctx, cmd)
 }
 
 // Host names the fake.

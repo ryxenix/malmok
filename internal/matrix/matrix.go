@@ -37,6 +37,7 @@ const (
 	DimExposure  = "exposure"
 	DimRegistry  = "registry"
 	DimGitOps    = "gitops"
+	DimNetwork   = "network"
 	DimOp        = "operation"
 )
 
@@ -59,6 +60,16 @@ const (
 	OpUpgrade = "upgrade"
 )
 
+// DefaultArtifactPath is where the lab stages RKE2's release artifacts. It is
+// a path on the nodes, not on the machine running the tool, and the harness
+// refuses an air-gapped case whose nodes do not hold the files.
+const DefaultArtifactPath = "/home/k8s/rke2-artifacts"
+
+// DefaultChartDir is where the harness puts the chart archives, relative to
+// the generated document. A site with no registry to mirror into carries them
+// exactly this way.
+const DefaultChartDir = "./charts"
+
 // Case is one row of the matrix: a document to build and a thing to do to it.
 type Case struct {
 	Name string
@@ -70,6 +81,23 @@ type Case struct {
 	Registry  string // embedded | upstream
 	GitOps    bool
 	Op        string
+
+	// Network is online unless this says otherwise. An air-gapped case is not
+	// a document with a different word in it: the harness cuts the nodes off
+	// from everything but the segment before the run, so a step that reaches
+	// for the internet fails here rather than at a customer's site.
+	Network string // "" (online) | airgap
+
+	// ArtifactPath is where the release artifacts were staged on the nodes.
+	// Only an air-gapped case needs it, and only because the images and the
+	// binaries have to already be there.
+	ArtifactPath string
+
+	// ChartDir holds the chart archives, beside the document rather than on
+	// the nodes: they are read by the tool and embedded in each HelmChart. It
+	// is relative on purpose, so the harness can put them next to the
+	// cluster.yaml it generates -- which is what a staging machine does.
+	ChartDir string
 
 	// VIP asks for kube-vip. Without it the server registers under its own
 	// address (acceptNodeRegistration), which is the IDC case: policy forbids
@@ -131,6 +159,16 @@ func Cases() []Case {
 			Why: "the operation with the most to lose: a working cluster, every node restarting, " +
 				"a VIP that has to keep answering and an agent that must follow its server",
 		},
+		{
+			Name: "airgap-pair", Nodes: 2, Dataplane: "cilium-gw", PKI: "none",
+			Exposure: "node-ips", Registry: "embedded", Op: OpBuild,
+			Network: "airgap", ArtifactPath: DefaultArtifactPath, ChartDir: DefaultChartDir,
+			Why: "the customer case this tool exists for. Verified by hand once, which found " +
+				"nine defects in a day -- a private CA that never reached a node's trust store, " +
+				"a registry mirror the default named and never enabled, an artifact check that " +
+				"passed a set the installer ignores. None of them would be caught again by " +
+				"anything that runs on its own",
+		},
 	}
 }
 
@@ -163,6 +201,16 @@ func RequiredPairs() [][2]string {
 		// An upgrade under a VIP: the address every node joins through has to
 		// keep answering while the node serving it restarts.
 		{DimOp + "=" + OpUpgrade, DimExposure + "=node-ips"},
+		// Air-gapped with the Gateway API. That preset is what makes the
+		// artifact set four files rather than two -- the combined image
+		// archive, Cilium's own, the binaries and the Gateway API bundle --
+		// and the reading of them is where three of the nine defects the
+		// hand-run found were hiding.
+		{DimNetwork + "=airgap", DimDataplane + "=cilium-gw"},
+		// Air-gapped on two nodes: the agent is the node that has to take its
+		// images from its peer rather than from a registry, which is the
+		// whole point of the embedded mirror.
+		{DimNetwork + "=airgap", DimNodes + "=2"},
 	}
 }
 
@@ -175,6 +223,7 @@ func Values() map[string][]string {
 		DimExposure:  {"node-ips", "lb-pool", "none"},
 		DimRegistry:  {"embedded", "upstream"},
 		DimGitOps:    {"true", "false"},
+		DimNetwork:   {"online", "airgap"},
 		DimOp:        {OpBuild, OpGrow, OpResume, OpReapply, OpUpgrade},
 	}
 }
@@ -188,8 +237,18 @@ func (c Case) values() []string {
 		DimExposure + "=" + c.Exposure,
 		DimRegistry + "=" + c.Registry,
 		fmt.Sprintf("%s=%t", DimGitOps, c.GitOps),
+		DimNetwork + "=" + c.network(),
 		DimOp + "=" + c.Op,
 	}
+}
+
+// network is the case's mode, defaulting to online so that a row which says
+// nothing about the network reads as the ordinary one.
+func (c Case) network() string {
+	if c.Network == "" {
+		return "online"
+	}
+	return c.Network
 }
 
 // Uncovered reports the dimension values no case exercises. Empty is the only
@@ -277,7 +336,7 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 				"malmok.dev/matrix-case": c.Name,
 			},
 		},
-		Network: v1alpha1.NetworkSpec{Mode: v1alpha1.NetworkOnline},
+		Network: v1alpha1.NetworkSpec{Mode: v1alpha1.NetworkMode(c.network())},
 		Topology: v1alpha1.TopologySpec{
 			Servers: []v1alpha1.NodeSpec{node(h.Server)},
 		},
@@ -289,6 +348,19 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 		},
 		Registry: v1alpha1.RegistrySpec{Mode: v1alpha1.RegistryMode(c.Registry)},
 		PKI:      v1alpha1.PKISpec{Mode: v1alpha1.PKIMode(c.PKI)},
+	}
+
+	// An air-gapped document has to say where the artifacts landed: the
+	// installer reads its tarball and image archives from there rather than
+	// fetching them, and validation refuses a document that names no image
+	// source at all.
+	if c.ArtifactPath != "" {
+		spec.Kubernetes.ArtifactPath = c.ArtifactPath
+	}
+	// The charts cross the gap as files rather than through a mirror, which
+	// is the path a site with no registry of its own has to take.
+	if c.ChartDir != "" {
+		spec.Registry.ChartDir = c.ChartDir
 	}
 
 	// A grown case starts with one node and gains the agent on the second

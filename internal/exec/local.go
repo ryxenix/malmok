@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net"
@@ -77,6 +78,34 @@ func (l *LocalRunner) RunStream(ctx context.Context, cmd string, onLine func(str
 		res.ExitCode = exit.ExitCode()
 	default:
 		// The command could not be run at all -- no shell, context expired.
+		return Result{}, err
+	}
+	return res, nil
+}
+
+// RunInput executes a command with bytes on its standard input.
+//
+// Locally there is no size ceiling to work around, but the step that needs it
+// must behave the same whether the node is this machine or another one --
+// otherwise a manifest too large to send over SSH installs fine in the lab and
+// not at a customer's site.
+func (l *LocalRunner) RunInput(ctx context.Context, cmd string, stdin []byte) (Result, error) {
+	c := osexec.CommandContext(ctx, "sh", "-c", cmd)
+	c.Stdin = bytes.NewReader(stdin)
+
+	stdout := &lineWriter{}
+	stderr := &lineWriter{}
+	c.Stdout, c.Stderr = stdout, stderr
+
+	err := c.Run()
+	res := Result{Stdout: stdout.String(), Stderr: stderr.String()}
+
+	var exit *osexec.ExitError
+	switch {
+	case err == nil:
+	case errors.As(err, &exit):
+		res.ExitCode = exit.ExitCode()
+	default:
 		return Result{}, err
 	}
 	return res, nil

@@ -42,22 +42,59 @@ done
 payload=internal/tools/payload
 rm -rf "$payload" && mkdir -p "$payload"
 
-helm_version=$(curl -sfL --retry 3 --retry-delay 2 https://get.helm.sh/helm-latest-version || echo "")
-helm_version=$(echo "$helm_version" | tr -d '\r\n')
-if [ -z "$helm_version" ]; then
-  echo "could not ask helm which version is current" >&2
-  exit 1
-fi
+# Pinned, not "latest". The same tag has to produce the same binary next year,
+# which it cannot when the payload is whatever upstream published that morning
+# -- and nobody can then say what is inside a release they are auditing.
+#
+# The checksums are the other half, and the more important one. These binaries
+# go inside a tool that runs as root on a customer's nodes, so a download that
+# nothing verifies is a download anybody can substitute. SHA256SUMS over the
+# finished artifacts does not cover this: it records what was built, not what
+# went into it.
+#
+# The values come from upstream's own published sums. To bump a version, take
+# them from there rather than from whatever this script happens to download.
+helm_version=v4.2.4
+k9s_version=v0.51.0
+
+payload_sha() {
+  case "$1" in
+    # https://get.helm.sh/helm-${helm_version}-linux-<arch>.tar.gz.sha256sum
+    helm-linux-amd64) echo c306b46f719b0a4da32d0f78ee21bf90ce8d602f15b22ab753f0674d1670a7f3 ;;
+    helm-linux-arm64) echo 564de2191b881e9f71b5606b25345821ea1682f06ab90499d3ab22b530176da1 ;;
+    # https://github.com/derailed/k9s/releases/download/${k9s_version}/checksums.sha256
+    k9s-linux-amd64)  echo c3752ad51a5a4015a113819c4eeb6e55a4d0e4b8e652494797532f6fc8161dd7 ;;
+    k9s-linux-arm64)  echo 3ee05c82e5f9198928a4e86133608ba6a2c10a2244d6a7789e820f78319d640c ;;
+    *) return 1 ;;
+  esac
+}
+
+fetch_payload() {
+  name=$1
+  url=$2
+  want=$(payload_sha "$name") || { echo "no checksum recorded for $name" >&2; exit 1; }
+
+  echo "fetching $name"
+  curl -sfL --retry 3 --retry-delay 2 -o "${payload}/${name}.tar.gz" "$url"
+
+  got=$(sha256sum "${payload}/${name}.tar.gz" | awk '{print $1}')
+  if [ "$got" != "$want" ]; then
+    echo "$name does not match the checksum recorded for it" >&2
+    echo "  want $want" >&2
+    echo "  got  $got" >&2
+    echo >&2
+    echo "Either upstream republished the file or something is wrong. Find out" >&2
+    echo "which before changing the recorded value: this goes inside a binary" >&2
+    echo "that runs as root on somebody else's nodes." >&2
+    exit 1
+  fi
+}
 
 for arch in amd64 arm64; do
-  echo "fetching helm ${helm_version} ${arch}"
-  curl -sfL --retry 3 --retry-delay 2 \
-    -o "${payload}/helm-linux-${arch}.tar.gz" \
+  fetch_payload "helm-linux-${arch}" \
     "https://get.helm.sh/helm-${helm_version}-linux-${arch}.tar.gz"
-  echo "fetching k9s ${arch}"
-  curl -sfL --retry 3 --retry-delay 2 \
-    -o "${payload}/k9s-linux-${arch}.tar.gz" \
-    "https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_${arch}.tar.gz"
+  fetch_payload "k9s-linux-${arch}" \
+    "https://github.com/derailed/k9s/releases/download/${k9s_version}/k9s_Linux_${arch}.tar.gz"
 done
 
 for target in $targets; do

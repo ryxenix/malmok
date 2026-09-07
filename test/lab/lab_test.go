@@ -15,12 +15,16 @@ package lab
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	sshexec "github.com/ryxenix/malmok/internal/exec"
 	"github.com/ryxenix/malmok/internal/matrix"
@@ -36,6 +40,13 @@ var (
 	user     = env("MALMOK_LAB_USER", "k8s")
 	password = os.Getenv("NODE_PASSWORD")
 	binary   = env("MALMOK_BIN", "../../bin/malmok")
+
+	// airgapVersion is the RKE2 release the artifacts staged on the nodes
+	// carry. It cannot be read from them -- the archive names hold no version
+	// -- and it cannot be the channel's newest, because the artifacts are
+	// 1.3GB and are staged out of band rather than downloaded per run. Unset,
+	// the air-gapped case skips and says what to stage.
+	airgapVersion = os.Getenv("MALMOK_LAB_AIRGAP_VERSION")
 )
 
 func env(key, fallback string) string {
@@ -103,6 +114,9 @@ type labRun struct {
 
 // execute builds the case and then does to it whatever its operation says.
 func (r *labRun) execute(c matrix.Case) {
+	if c.Network == "airgap" {
+		defer r.prepareAirgap(c)()
+	}
 	doc := r.write(c, false)
 
 	switch c.Op {
@@ -156,7 +170,14 @@ func (r *labRun) write(c matrix.Case, grown bool) string {
 	if c.PKI == "private-ca" || c.PKI == "byo-cert" {
 		m = matrix.Material(writeMaterial(r.t, r.dir))
 	}
-	doc := c.Document(r.version, matrix.Hosts{
+	version := r.version
+	if c.Network == "airgap" {
+		// The nodes hold one release. Asking for another is a document that
+		// cannot be satisfied without a network, which is the one thing this
+		// case does not have.
+		version = airgapVersion
+	}
+	doc := c.Document(version, matrix.Hosts{
 		Server: server, Agent: agent, User: user, PasswordRef: "env://NODE_PASSWORD",
 	}, m, grown)
 
@@ -298,6 +319,13 @@ func (r *labRun) onNode(script string) {
 // -- which the port matrix then reports as a firewall.
 func (r *labRun) wipe() {
 	r.t.Helper()
+
+	// Read before rebooting: after, there is nothing to compare against.
+	before := map[string]string{}
+	for _, host := range []string{server, agent} {
+		before[host] = r.bootID(host)
+	}
+
 	for _, host := range []string{agent, server} {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
@@ -319,7 +347,7 @@ func (r *labRun) wipe() {
 		runner.Close()
 		cancel()
 	}
-	r.waitForNodes()
+	r.waitForNodes(before)
 }
 
 const wipeScript = `
@@ -330,7 +358,14 @@ rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /etc/cni /opt/cni /var/lib
 rm -f /root/.kube/config /home/*/.kube/config
 echo wiped`
 
-func (r *labRun) waitForNodes() {
+// waitForNodes waits until every node has actually rebooted.
+//
+// Connecting successfully is not the test. The reboot is issued and returns at
+// once, so a node that has not begun shutting down answers immediately and
+// this used to return before anything had happened -- and the next thing to
+// touch that node met it going down. The boot id is the observable: it is a
+// different string on the other side of a reboot and on no other occasion.
+func (r *labRun) waitForNodes(before map[string]string) {
 	r.t.Helper()
 	deadline := time.Now().Add(5 * time.Minute)
 	for _, host := range []string{server, agent} {
@@ -338,18 +373,33 @@ func (r *labRun) waitForNodes() {
 			if time.Now().After(deadline) {
 				r.t.Fatalf("%s did not come back after the wipe", host)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
-				Host: host, User: user, Password: password, InsecureSkipHostKeyCheck: true,
-			})
-			cancel()
-			if err == nil {
-				runner.Close()
+			if id := r.bootID(host); id != "" && id != before[host] {
 				break
 			}
 			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+// bootID reads /proc/sys/kernel/random/boot_uuid, or "" when the node cannot
+// be asked -- which during a reboot is most of the time and is not an error.
+func (r *labRun) bootID(host string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
+		Host: host, User: user, Password: password, InsecureSkipHostKeyCheck: true,
+	})
+	if err != nil {
+		return ""
+	}
+	defer runner.Close()
+
+	res, err := runner.Run(ctx, "cat /proc/sys/kernel/random/boot_id 2>/dev/null || true")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(res.Out())
 }
 
 func (r *labRun) malmok(timeout time.Duration, args ...string) (string, error) {
@@ -385,4 +435,204 @@ func tail(s string, lines int) string {
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// airgapURLs resolves the chart archives a registry-free site carries.
+//
+// Through each repository's index.yaml, the way helm does. Constructing the URL
+// from the repository and the chart name was tried first and worked for
+// exactly one of the three: jetstack serves <repo>/charts/<name>-<ver>.tgz and
+// the other two publish theirs as GitHub release assets. The index is where a
+// repository states that, so it is what gets read.
+//
+// The versions come from the binary under test, so a bump in Go cannot leave
+// the harness staging last release's charts and calling the result verified.
+func airgapURLs(t *testing.T, bin string) map[string]string {
+	t.Helper()
+	out, err := exec.Command(bin, "images", "--charts").Output()
+	if err != nil {
+		t.Fatalf("ask the binary which charts it pins: %v", err)
+	}
+
+	type entry struct {
+		Version string   `yaml:"version"`
+		URLs    []string `yaml:"urls"`
+	}
+	type index struct {
+		Entries map[string][]entry `yaml:"entries"`
+	}
+
+	indexes := map[string]index{}
+	urls := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		f := strings.Split(line, "\t")
+		if len(f) != 3 {
+			continue
+		}
+		name, version, repo := f[0], f[1], strings.TrimSuffix(f[2], "/")
+
+		idx, ok := indexes[repo]
+		if !ok {
+			resp, err := http.Get(repo + "/index.yaml")
+			if err != nil || resp.StatusCode != http.StatusOK {
+				t.Fatalf("read the chart index at %s: %v", repo, err)
+			}
+			b, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				t.Fatalf("read the chart index at %s: %v", repo, err)
+			}
+			if err := yaml.Unmarshal(b, &idx); err != nil {
+				t.Fatalf("parse the chart index at %s: %v", repo, err)
+			}
+			indexes[repo] = idx
+		}
+
+		var found string
+		for _, e := range idx.Entries[name] {
+			if e.Version == version && len(e.URLs) > 0 {
+				found = e.URLs[0]
+			}
+		}
+		if found == "" {
+			t.Fatalf("%s %s is not in the index at %s; this release pins a version its repository does not publish",
+				name, version, repo)
+		}
+		if !strings.Contains(found, "://") {
+			found = repo + "/" + strings.TrimPrefix(found, "/")
+		}
+		urls[name+"-"+version+".tgz"] = found
+	}
+	return urls
+}
+
+// prepareAirgap gets the nodes into the state a closed site is in, and returns
+// the function that undoes it.
+//
+// The nodes are cut off from everything but the segment with DROP rather than
+// REJECT. The difference is not cosmetic: a rejected connection fails at once
+// and a dropped one fails at the connect timeout, so a step that reaches for
+// the internet looks fine against the first and hangs against the second --
+// and the second is what a site firewall does.
+//
+// The machine running this is not cut off. That is the real shape too: a
+// staging machine has a network, the nodes do not.
+func (r *labRun) prepareAirgap(c matrix.Case) func() {
+	r.t.Helper()
+
+	if airgapVersion == "" {
+		r.t.Skipf("set MALMOK_LAB_AIRGAP_VERSION to the RKE2 release staged in %s on both nodes; "+
+			"an air-gapped install reads its binaries and images from there and cannot fetch a "+
+			"different version", c.ArtifactPath)
+	}
+
+	// The artifacts are staged out of band -- they are 1.3GB and survive a
+	// wipe -- so this asks rather than copies, and says exactly what is
+	// missing rather than failing later inside the install.
+	for _, host := range []string{server, agent} {
+		r.onHost(host, fmt.Sprintf(
+			`d=%s
+[ -d "$d" ] || { echo "no artifact directory at $d; stage the RKE2 release into it"; exit 1; }
+for f in rke2.linux-amd64.tar.gz sha256sum-amd64.txt install.sh \
+         rke2-images.linux-amd64.tar.zst rke2-images-cilium.linux-amd64.tar.zst \
+         gateway-api-v1.4.1-standard-install.yaml; do
+  [ -f "$d/$f" ] || { echo "$d is missing $f"; exit 1; }
+done`, c.ArtifactPath))
+	}
+
+	// The charts go beside the document, which is what a staging machine does
+	// with them. Downloaded here rather than committed: they are the versions
+	// this binary pins, and pinning them twice is how the two drift.
+	dir := filepath.Join(r.dir, "charts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		r.t.Fatal(err)
+	}
+	for name, url := range airgapURLs(r.t, r.bin) {
+		resp, err := http.Get(url)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			r.t.Fatalf("fetch %s: %v (status %v)", url, err, resp)
+		}
+		b, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			r.t.Fatalf("read %s: %v", url, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o644); err != nil {
+			r.t.Fatal(err)
+		}
+	}
+
+	for _, host := range []string{server, agent} {
+		r.rootOn(host, airgapOn)
+	}
+	// Restored even when the case fails: a node left cut off makes every
+	// later case fail for a reason that has nothing to do with it.
+	return func() {
+		for _, host := range []string{server, agent} {
+			r.rootOn(host, airgapOff)
+		}
+	}
+}
+
+const airgapOn = `
+for chain in OUTPUT FORWARD; do iptables -D "$chain" -j MALMOK_AIRGAP 2>/dev/null || true; done
+iptables -F MALMOK_AIRGAP 2>/dev/null || iptables -N MALMOK_AIRGAP
+iptables -A MALMOK_AIRGAP -o lo -j RETURN
+iptables -A MALMOK_AIRGAP -d 192.168.88.0/24 -j RETURN
+iptables -A MALMOK_AIRGAP -d 10.42.0.0/16 -j RETURN
+iptables -A MALMOK_AIRGAP -d 10.43.0.0/16 -j RETURN
+iptables -A MALMOK_AIRGAP -d 127.0.0.0/8 -j RETURN
+iptables -A MALMOK_AIRGAP -j DROP
+iptables -I OUTPUT 1 -j MALMOK_AIRGAP
+iptables -I FORWARD 1 -j MALMOK_AIRGAP
+echo "egress dropped"`
+
+const airgapOff = `
+for chain in OUTPUT FORWARD; do iptables -D "$chain" -j MALMOK_AIRGAP 2>/dev/null || true; done
+iptables -F MALMOK_AIRGAP 2>/dev/null || true
+iptables -X MALMOK_AIRGAP 2>/dev/null || true
+echo "egress restored"`
+
+// onHost runs a check on a named node. onNode is the same thing against the
+// server, and predates there being a second machine worth asking.
+func (r *labRun) onHost(host, script string) {
+	r.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
+		Host: host, User: user, Password: password, InsecureSkipHostKeyCheck: true,
+	})
+	if err != nil {
+		r.t.Fatalf("connect %s: %v", host, err)
+	}
+	defer runner.Close()
+
+	res, err := runner.Run(ctx, script)
+	if err != nil || !res.OK() {
+		r.t.Fatalf("%s (exit %d): %s\n%s\n%s", host, res.ExitCode, script, res.Out(), res.Err())
+	}
+}
+
+// rootOn runs a script as root, for the things only root can do to a node.
+func (r *labRun) rootOn(host, script string) {
+	r.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
+		Host: host, User: user, Password: password, InsecureSkipHostKeyCheck: true,
+	})
+	if err != nil {
+		r.t.Fatalf("connect %s: %v", host, err)
+	}
+	defer runner.Close()
+
+	root, err := sshexec.Elevate(ctx, runner, password)
+	if err != nil {
+		r.t.Fatalf("elevate on %s: %v", host, err)
+	}
+	if res, err := root.Run(ctx, script); err != nil || !res.OK() {
+		r.t.Fatalf("%s (exit %d): %s\n%s", host, res.ExitCode, res.Out(), res.Err())
+	}
 }

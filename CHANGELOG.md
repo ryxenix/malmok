@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.92.0] - 2026-09-07
+
+### Fixed
+- `registry.chartDir` did not work on a node at all. It shipped in 0.90.0
+  verified by rendering, which proved the manifest was right and not that it
+  could be delivered. Adding an air-gapped row to the verification matrix found
+  three reasons in a row, each hidden behind the one before it.
+  - A manifest travelled inside the command that wrote it. Measured against a
+    node: a command of 128KB arrives and dies on the argument-length limit, and
+    at 256KB the connection is dropped before anything runs. A chart embedded
+    as `chartContent` is 200KB for cert-manager and 435KB for the metrics
+    stack, and the failure read as an EOF fifteen milliseconds in -- the node
+    appearing to go away. Manifests now travel on standard input, which carries
+    a megabyte without complaint.
+  - `Sudo` fed the password through a pipe, which consumed the whole of stdin
+    before the command saw any of it. `sudo -S` takes the password as the first
+    line of its own input and leaves the rest to the command, so the two now
+    travel together.
+  - `kubectl apply` keeps a copy of the whole object in the
+    last-applied-configuration annotation, and annotations are capped at 256KB.
+    The cluster answered "metadata.annotations: Too long" about a manifest with
+    no annotations of its own. Applied server-side now, which keeps no such
+    copy.
+- `FetchChannels` retries. The channel server answered 404 twice in half an
+  hour of lab runs while the same URL answered from a shell seconds later, and
+  a single attempt makes that an operator opening the wizard to a version field
+  that could not be filled for a reason that has nothing to do with them.
+
+### Added
+- `airgap-pair` in the verification matrix, and a `network` dimension for it to
+  occupy. Every row until now was online; the air-gapped path was verified by
+  hand, which found nine defects in a day and then had nothing to keep them
+  fixed. The harness cuts the nodes off with DROP rather than REJECT -- a
+  rejected connection fails at once and a dropped one fails at the connect
+  timeout, and the second is what a site firewall does -- and restores them
+  even when the case fails.
+- `exec.Feeder`, for a runner that can send a command its standard input, and
+  `ShellStep.Input` for a step whose subject is too large to put in a command.
+
+### Changed
+- The air-gap payload is pinned and verified. `release.sh` fetched helm and k9s
+  at whatever "latest" meant that morning and checked nothing, so the same tag
+  built twice produced different binaries and a download nobody verified went
+  inside a tool that runs as root on a customer's nodes. Versions are now
+  named and checked against upstream's published sums. `SHA256SUMS` over the
+  finished artifacts never covered this: it records what was built, not what
+  went into it.
+
 ## [0.91.0] - 2026-09-07
 
 ### Added

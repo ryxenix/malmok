@@ -50,22 +50,43 @@ kubectl get %s 2>&1 | tail -5
 exit 1`, int(timeout.Seconds()), resource, resource, path, resource)
 	}
 
+	// The manifest travels on standard input rather than inside the command.
+	//
+	// It used to be quoted into both halves, which is fine for the few
+	// kilobytes a HelmChart usually is and is not fine for one carrying a
+	// chart archive. Measured against a node: a command of 128KB arrives and
+	// dies on the argument-length limit, and one of 256KB has the connection
+	// dropped before anything runs. A chart embedded as chartContent is 200KB
+	// for cert-manager and 435KB for the metrics stack, so both failed -- and
+	// the failure was an EOF fifteen milliseconds in, which reads as the node
+	// going away rather than as a manifest that was too big to send.
+	//
+	// Check reads it too, so the comparison is against the same bytes the
+	// write would produce rather than against a second copy of them.
 	return &engine.ShellStep{
 		Phase: phase,
 		Name:  name,
+		Input: []byte(body),
+
 		Check: Kubectl + fmt.Sprintf(`[ -f %s ] || { echo "%s does not exist"; exit 1; }
-printf '%%s' %s | cmp -s - %s || { echo "%s differs from the document"; exit 1; }%s
-echo "%s matches the document"`, path, path, ShellQuote(body), path, path, present, path),
+cmp -s - %s || { echo "%s differs from the document"; exit 1; }%s
+echo "%s matches the document"`, path, path, path, path, present, path),
 
 		Do: Kubectl + fmt.Sprintf(`set -e
 install -d -m 0755 %s
-printf '%%s' %s > %s
+cat > %s
 # Applied as well as written. The directory is what the cluster reconciles from
 # on every restart, and this is what makes the object exist now: RKE2 skips a
 # file whose contents it has already recorded, so rewriting an identical
 # manifest would not restore something deleted by hand.
-kubectl apply -f %s >/dev/null%s`,
-			ManifestDir, ShellQuote(body), path, path, wait),
+#
+# Server-side, because client-side apply keeps a copy of the whole object in
+# the last-applied-configuration annotation and annotations are capped at
+# 256KB. A HelmChart carrying a chart archive is over that on its own, and the
+# cluster answers "metadata.annotations: Too long" -- a message about
+# annotations for a manifest that has none of its own.
+kubectl apply --server-side --force-conflicts -f %s >/dev/null%s`,
+			ManifestDir, path, path, wait),
 
 		Satisfied: "%s",
 		Missing:   "%s",

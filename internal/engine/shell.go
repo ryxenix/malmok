@@ -56,6 +56,16 @@ type ShellStep struct {
 
 	// Once marks work that cannot honestly claim idempotency (§3.3).
 	Once bool
+
+	// Input is fed to Check and Do on standard input, for a step whose
+	// subject is too large to put in a command.
+	//
+	// A command is not a place to put a file. Measured against a node, a
+	// command carrying 128KB reaches the far side and dies on the
+	// argument-length limit, and at 256KB the connection is dropped before
+	// anything runs -- which is what a chart archive embedded in a HelmChart
+	// does. Bytes on stdin have no such ceiling.
+	Input []byte
 }
 
 // ID is the step identity the state file records.
@@ -130,6 +140,11 @@ func (s *ShellStep) Apply(ctx context.Context) error {
 // exactly what a failure needs and exactly what nobody wants scrolling past
 // while things are working. They are still collected for the failure.
 func (s *ShellStep) stream(ctx context.Context, cmd string, timeout time.Duration) (exec.Result, error) {
+	// A step with input cannot stream: the bytes and the trace share one
+	// session, and what matters here is that the bytes arrive at all.
+	if len(s.Input) > 0 {
+		return s.run(ctx, cmd, timeout)
+	}
 	st, ok := s.Runner.(exec.Streamer)
 	if !ok {
 		return s.run(ctx, cmd, timeout)
@@ -152,6 +167,18 @@ func (s *ShellStep) run(ctx context.Context, cmd string, timeout time.Duration) 
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
+	}
+	if len(s.Input) > 0 {
+		f, ok := s.Runner.(exec.Feeder)
+		if !ok {
+			// Rather than send it as a command and have the connection die
+			// with nothing said: a runner that cannot carry the bytes should
+			// say so, not fail somewhere further down.
+			return exec.Result{}, fmt.Errorf(
+				"%s needs to send %d bytes on standard input and %s cannot",
+				s.Name, len(s.Input), s.Runner.Host())
+		}
+		return f.RunInput(ctx, cmd, s.Input)
 	}
 	return s.Runner.Run(ctx, cmd)
 }

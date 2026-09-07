@@ -35,7 +35,32 @@ type Channels struct {
 // A short timeout and a plain error: this runs where an operator is waiting,
 // and on an air-gapped or proxied site the answer is "no answer" -- which the
 // caller turns into an empty field the operator fills, not into a guess.
+//
+// Three attempts, because the answer is sometimes wrong rather than absent.
+// The server sat behind a CDN that returned 404 twice in half an hour of lab
+// runs while the same URL answered from a shell seconds later, and an operator
+// who opens the wizard during one of those sees a version field that could not
+// be filled for a reason that has nothing to do with them.
 func FetchChannels(ctx context.Context) (Channels, error) {
+	var last error
+	for attempt := range 3 {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return Channels{}, ctx.Err()
+			case <-time.After(time.Duration(attempt) * 500 * time.Millisecond):
+			}
+		}
+		ch, err := fetchChannels(ctx)
+		if err == nil {
+			return ch, nil
+		}
+		last = err
+	}
+	return Channels{}, last
+}
+
+func fetchChannels(ctx context.Context) (Channels, error) {
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 

@@ -178,24 +178,7 @@ func (r *SSHRunner) RunStream(ctx context.Context, cmd string, onLine func(strin
 		return Result{Stdout: stdout.String(), Stderr: stderr.String()}, ctx.Err()
 
 	case err := <-done:
-		res := Result{Stdout: stdout.String(), Stderr: stderr.String()}
-		if err == nil {
-			return res, nil
-		}
-		// A non-zero exit is an answer, not a failure to run.
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
-			res.ExitCode = exitErr.ExitStatus()
-			return res, nil
-		}
-		// A command killed by a signal has no exit status. 128+n is what a
-		// shell reports, and preflight only needs "it did not succeed".
-		var missing *ssh.ExitMissingError
-		if errors.As(err, &missing) {
-			res.ExitCode = 255
-			return res, nil
-		}
-		return res, fmt.Errorf("exec: %s: %w", r.host, err)
+		return r.result(stdout.String(), stderr.String(), err)
 	}
 }
 
@@ -355,4 +338,78 @@ func explainHostKey(err error) error {
 	return fmt.Errorf("%w; known_hosts holds this host as %s -- if the machine "+
 		"was rebuilt the entry is stale, and if it was not, this is the warning it looks like",
 		err, strings.Join(names, ", "))
+}
+
+// RunInput executes a command with bytes on its standard input.
+//
+// The bytes travel as channel data rather than inside the command string,
+// which is what makes a file of any size deliverable: an exec request carrying
+// 256KB is dropped by sshd before the command runs, and one carrying 128KB
+// arrives only to fail on the argument-length limit.
+func (r *SSHRunner) RunInput(ctx context.Context, cmd string, stdin []byte) (Result, error) {
+	r.mu.Lock()
+	closed := r.closed
+	r.mu.Unlock()
+	if closed {
+		return Result{}, ErrNotConnected
+	}
+
+	sess, err := r.client.NewSession()
+	if err != nil {
+		return Result{}, fmt.Errorf("exec: %s: new session: %w", r.host, err)
+	}
+	defer sess.Close()
+
+	stdout := &lineWriter{}
+	stderr := &lineWriter{}
+	sess.Stdout = stdout
+	sess.Stderr = stderr
+
+	in, err := sess.StdinPipe()
+	if err != nil {
+		return Result{}, fmt.Errorf("exec: %s: stdin: %w", r.host, err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		// Written by the same goroutine that waits, so a command that exits
+		// without reading its input cannot leave this blocked on a full pipe.
+		go func() {
+			_, _ = in.Write(stdin)
+			_ = in.Close()
+		}()
+		done <- sess.Run(cmd)
+	}()
+
+	select {
+	case <-ctx.Done():
+		_ = sess.Signal(ssh.SIGKILL)
+		_ = sess.Close()
+		return Result{Stdout: stdout.String(), Stderr: stderr.String()}, ctx.Err()
+	case err := <-done:
+		return r.result(stdout.String(), stderr.String(), err)
+	}
+}
+
+// result turns what the session reported into a Result.
+//
+// Shared with RunStream, which learned the same three cases the hard way: a
+// non-zero exit is an answer, a signal has no exit status at all, and only a
+// connection that failed is an error.
+func (r *SSHRunner) result(stdout, stderr string, err error) (Result, error) {
+	res := Result{Stdout: stdout, Stderr: stderr}
+	if err == nil {
+		return res, nil
+	}
+	var exitErr *ssh.ExitError
+	if errors.As(err, &exitErr) {
+		res.ExitCode = exitErr.ExitStatus()
+		return res, nil
+	}
+	var missing *ssh.ExitMissingError
+	if errors.As(err, &missing) {
+		res.ExitCode = 255
+		return res, nil
+	}
+	return res, fmt.Errorf("exec: %s: %w", r.host, err)
 }

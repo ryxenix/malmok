@@ -9,13 +9,17 @@
 #   export MALMOK_LAB_SERVER=192.0.2.41 MALMOK_LAB_AGENT=192.0.2.44
 #   NODE_PASSWORD=... scripts/matrix.sh                 # every case
 #   NODE_PASSWORD=... scripts/matrix.sh -run idc-single # one case
+#
+# The air-gapped case needs RKE2's release artifacts staged on both nodes and
+# MALMOK_LAB_AIRGAP_VERSION set to the release they carry. Without it that one
+# case skips and says so; the rest run.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 : "${NODE_PASSWORD:?set NODE_PASSWORD to the password for the lab account}"
 : "${MALMOK_LAB_SERVER:?set MALMOK_LAB_SERVER -- this machine gets wiped}"
 : "${MALMOK_LAB_AGENT:?set MALMOK_LAB_AGENT -- this machine gets wiped}"
-export MALMOK_LAB_SERVER MALMOK_LAB_AGENT
+export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION
 
 # The binary the operator runs, not a fresh build of maybe-different code.
 [ -x bin/malmok ] || { echo "no bin/malmok -- run scripts/build.sh first" >&2; exit 1; }
@@ -33,6 +37,7 @@ docker run --rm \
   -e NODE_PASSWORD \
   -e MALMOK_LAB_SERVER \
   -e MALMOK_LAB_AGENT \
+  -e MALMOK_LAB_AIRGAP_VERSION \
   -e MALMOK_BIN=/app-local/bin/malmok \
   -w /app-local \
   golang:alpine \

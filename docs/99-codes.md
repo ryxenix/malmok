@@ -14,14 +14,14 @@ outlive releases.
 
 | Family | Codes | block | degrade | warn | info |
 |---|--:|--:|--:|--:|--:|
-| `PF` | 69 | 36 | 11 | 18 | 4 |
+| `PF` | 70 | 37 | 11 | 18 | 4 |
 | `PV` | 8 | 4 | — | 3 | 1 |
 | `UP` | 8 | 6 | — | 1 | 1 |
 | `EX` | 9 | 8 | — | 1 | — |
 | `MC` | 42 | — | — | — | — |
 | `DG` | 5 | — | — | — | — |
 
-Total: 141 codes.
+Total: 142 codes.
 
 ---
 
@@ -117,6 +117,7 @@ Source: internal/codes/preflight.go
 | `PF-706` | block | No root private key in the supplied PKI material | A root private key was found in the supplied material; the offline root key must never leave its custody |
 | `PF-708` | block | ACME prerequisites | ACME DNS-01 token is invalid or the zone is not writable |
 | `PF-709` | block | RKE2 release artifacts on the node | kubernetes.artifactPath does not hold the release artifacts for the version this document asks for |
+| `PF-710` | block | Chart archives present for an air-gapped install | registry.chartDir does not hold the chart archives this document installs |
 
 ### Residue / conflict
 

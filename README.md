@@ -11,7 +11,7 @@
 
 <p align="center"><strong>Build RKE2 clusters on infrastructure you control — repeatably, resumably and without installing agents.</strong></p>
 
-<p align="center"><sub>Bare metal · VMs · On-premises · DMZ · Air-gapped</sub></p>
+<p align="center"><sub>Bare metal · VMs · On-premises · DMZ · Air-gapped (<a href="#what-is-verified">partly verified</a>)</sub></p>
 
 <p align="center">
   <a href="#five-minutes"><strong>Get started</strong></a> ·
@@ -30,12 +30,14 @@
 |:---:|:---:|:---:|
 | Probe the real nodes and network before changing them | Continue an interrupted run instead of starting over | Keep stable diagnostic codes, JSONL events and handoff reports |
 
-> **Status: alpha.** Single-node and two-node clusters are verified repeatedly
-> on real hardware, and the tool has built a production cluster in a data
-> centre. **Three-server HA and external registries are not verified.** Read
-> [what is verified](#what-is-verified) first. The document schema is
-> `v1alpha1` and may change between minor releases; `malmok plan
-> --validate-only` names every field it does not recognise.
+> **Status: alpha.** Malmok builds RKE2 clusters on Linux servers you already
+> have, repeatably. Try it in a homelab or an evaluation environment and send
+> feedback. Before using it for work, read [what is verified](#what-is-verified)
+> and its limits: single-node and two-node clusters are verified repeatedly on
+> real hardware; **three-server HA, proxies and external registries are not**,
+> and the air-gapped path is verified for RKE2, Cilium and the Gateway API from
+> carried artifacts, not yet for platform charts carried as files. The document
+> schema is `v1alpha1` and may change between minor releases.
 
 ## Who it is for
 
@@ -61,8 +63,9 @@ The starting point is a decision to use RKE2, with the cluster foundation still 
 - Resume interrupted builds and keep execution records for review and handoff.
 - Prepare an installation for a restricted network after checking the [air-gap requirements and verification limits](docs/guides/air-gap.md).
 
-**Both groups should check the [verification scope](#what-is-verified) before
-adoption. Malmok is alpha software; these use cases are not a production-readiness guarantee.**
+**Whichever you are: this is alpha software. It is not verified for production
+delivery, and "supported" in the schema is not the same as "verified" in the
+[table below](#what-is-verified). Read the table before relying on a row.**
 
 Malmok does not provision VMs or replace general configuration management or
 application deployment tools. It builds and operates the cluster foundation;
@@ -394,7 +397,7 @@ cluster. So the untested rows are in the same table as the tested ones.
 | ACME HTTP-01 certificates | **verified on hardware** | Let's Encrypt issued on the production cluster; TLS 1.3, chain and hostname checked |
 | ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
 | Three-server HA (etcd quorum) | **not verified** | no hardware yet |
-| Airgap install (no egress) | **verified on hardware** | dedicated two-node lab run outside the general matrix; egress dropped rather than rejected, the way a site firewall behaves; RKE2, Cilium and Gateway API from carried artifacts, and every outbound attempt logged and accounted for |
+| Airgap install (no egress) | **verified on hardware, partly** | two-node lab run, egress dropped the way a site firewall does; RKE2, Cilium and the Gateway API from carried artifacts, every outbound attempt accounted for. **Platform charts carried as files (`registry.chartDir`) are not yet verified end to end** -- the delivery path was fixed in 0.92.0 and the lab case has not passed since |
 | Proxy | **not verified** | schema only |
 | External registry mirror | **not verified** | schema only |
 | Storage backends | out of scope | the application's concern |

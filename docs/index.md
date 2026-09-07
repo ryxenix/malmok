@@ -21,16 +21,21 @@ runs and leaves evidence an operator can hand over.
   <a href="https://github.com/ryxenix/malmok" class="md-button">View on GitHub</a>
 </div>
 
-<p class="malmok-kicker">Bare metal · VMs · On-premises · DMZ · Air-gapped</p>
+<p class="malmok-kicker">Bare metal · VMs · On-premises · DMZ · Air-gapped (partly verified)</p>
 
 </div>
 
 !!! warning "Alpha software"
 
-    Malmok has built a production single-node cluster and has repeatedly
-    completed two-node and air-gapped hardware runs. Three-server HA, proxy
-    networks and external registry mirrors are not yet verified. The document
-    schema is `v1alpha1` and can change between minor releases.
+    Try Malmok in a homelab or an evaluation environment and send feedback.
+    Before using it for work, read the verification scope and its limits.
+
+    Single-node and two-node clusters are verified repeatedly on real
+    hardware. Three-server HA, proxy networks and external registry mirrors
+    are not. The air-gapped path is verified for RKE2, Cilium and the Gateway
+    API from carried artifacts; carrying the platform charts as files is not
+    yet verified end to end. The document schema is `v1alpha1` and can change
+    between minor releases.
 
 ## Is Malmok for you?
 

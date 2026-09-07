@@ -121,23 +121,48 @@ type Sudo struct {
 	Password string
 }
 
-// Run prefixes the command with sudo.
-func (s Sudo) Run(ctx context.Context, cmd string) (Result, error) {
+// elevated is the command that runs cmd with the privileges the probes need.
+//
+// One place, because Run and RunStream have to elevate identically: they did
+// not, and the difference was invisible. RunStream did not exist, so every
+// step that streams silently stopped streaming the moment it was wrapped --
+// which is every step on every node reached over SSH.
+func (s Sudo) elevated(cmd string) string {
 	// A runner that is already root needs no sudo, and asking for it would
 	// require the binary to be installed and the account to be in the sudoers
 	// file for no gain. `sudo malmok` on the machine being installed is
 	// the ordinary local invocation and a minimal image frequently has neither.
 	if r, ok := s.Runner.(Rooted); ok && r.IsRoot() {
-		return s.Runner.Run(ctx, cmd)
+		return cmd
 	}
 	if s.Password == "" {
-		return s.Runner.Run(ctx, "sudo -n -- sh -c "+quote(cmd))
+		return "sudo -n -- sh -c " + quote(cmd)
 	}
 	// -S reads the password from stdin and -p '' keeps the prompt out of
 	// stderr, so a probe reading stderr does not find a prompt in it.
-	full := fmt.Sprintf("printf '%%s\\n' %s | sudo -S -p '' -- sh -c %s",
+	return fmt.Sprintf("printf '%%s\\n' %s | sudo -S -p '' -- sh -c %s",
 		quote(s.Password), quote(cmd))
-	return s.Runner.Run(ctx, full)
+}
+
+// Run prefixes the command with sudo.
+func (s Sudo) Run(ctx context.Context, cmd string) (Result, error) {
+	return s.Runner.Run(ctx, s.elevated(cmd))
+}
+
+// RunStream prefixes the command with sudo and keeps reporting its lines.
+//
+// Without this method Sudo does not satisfy Streamer -- embedding an interface
+// promotes that interface's methods and no others -- so every step that waits
+// fell back to running silently. The waits print where they have got to
+// precisely so an operator can tell waiting from hung; over SSH, which is
+// every real install, none of it was ever carried out, and a wait that failed
+// after fifteen minutes left no record of what it had seen.
+func (s Sudo) RunStream(ctx context.Context, cmd string, onLine func(string)) (Result, error) {
+	st, ok := s.Runner.(Streamer)
+	if !ok {
+		return s.Run(ctx, cmd)
+	}
+	return st.RunStream(ctx, s.elevated(cmd), onLine)
 }
 
 // RunInput prefixes the command with sudo and feeds it the bytes.
@@ -158,6 +183,8 @@ func (s Sudo) RunInput(ctx context.Context, cmd string, stdin []byte) (Result, e
 	if s.Password == "" {
 		return inner.RunInput(ctx, "sudo -n -- sh -c "+quote(cmd), stdin)
 	}
+	// Not elevated(): the password travels on stdin here rather than inside
+	// the command, which is why this one cannot share that construction.
 	withPassword := append([]byte(s.Password+"\n"), stdin...)
 	return inner.RunInput(ctx, "sudo -S -p '' -- sh -c "+quote(cmd), withPassword)
 }

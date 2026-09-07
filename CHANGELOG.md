@@ -19,6 +19,17 @@
   its own order. The step writes this file and then compares what it finds
   against what it meant to write, which made it report drift it had caused.
 
+- No step reached over SSH has ever streamed its progress. `Elevate` wraps every
+  remote runner in `Sudo`, `Sudo` embeds the `Runner` interface, and embedding
+  an interface promotes that interface's methods and no others -- so
+  `ShellStep`'s `Runner.(exec.Streamer)` failed for every step on every node
+  and each one silently fell back to running mute. The waits print where they
+  have got to precisely so an operator can tell waiting from hung; none of it
+  was carried out, and a wait that failed after fifteen minutes left no record
+  in the bundle of what it had seen. Only a local install running as root ever
+  streamed, because that path is not wrapped. The unit tests passed throughout:
+  they hand `ShellStep` a runner that nothing has wrapped.
+
 ### Added
 - `test/lab/cache/compose.yaml`, a pull-through image cache for the lab, and
   `MALMOK_LAB_MIRROR` to point the matrix at one. Every case wipes both nodes,

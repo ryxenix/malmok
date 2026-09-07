@@ -141,6 +141,9 @@ malmok upgrade --to "$TARGET_RKE2"
 
 # Generate the audit report and DNS record sheet
 malmok report
+
+# List the container images an air-gapped site has to carry
+malmok images -f cluster.yaml
 ```
 
 <details>
@@ -168,6 +171,9 @@ malmok upgrade --to "$TARGET_RKE2"
 
 # Generate the audit report and DNS record sheet
 malmok report
+
+# List the container images an air-gapped site has to carry
+malmok images -f cluster.yaml
 ```
 
 </details>

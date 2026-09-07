@@ -16,9 +16,14 @@ Prepare these on a connected staging machine:
 - the RKE2 tarball, its checksum file and the upstream RKE2 `install.sh`;
 - the RKE2 image archives required by the selected dataplane;
 - the Gateway API bundle when Gateway API CRDs are enabled;
-- every application image the cluster will run; and
-- mirrored Helm charts for cert-manager, observability or Argo CD when those
-  components are enabled.
+- every application image the cluster will run;
+- the images the platform charts pull. `malmok images -f cluster.yaml` lists
+  them, from the chart versions this release pins, and answers on a machine
+  with no network. `images.txt` in the release carries the same list for
+  planning before you have anywhere to run the binary; and
+- the Helm charts for cert-manager, observability or Argo CD when those
+  components are enabled -- either mirrored, or carried as `.tgz` files and
+  named with `registry.chartDir`.
 
 The release's air-gap Malmok binary embeds Helm and k9s for amd64 or arm64. It
 does not embed RKE2, Kubernetes images or your application payloads.
@@ -70,9 +75,29 @@ registry:
 ```
 
 This is a fragment, not a complete `cluster.yaml`. Add topology, PKI, storage
-and platform settings for the site. If RKE2's image archives are preloaded on
-the nodes, an embedded registry can be used instead of rewriting system images
-to an internal registry.
+and platform settings for the site.
+
+A site with no registry of its own does not have to stand one up. Carry the
+chart archives instead and name the directory holding them:
+
+```yaml
+registry:
+  mode: embedded
+  chartDir: ./charts        # cert-manager-v1.21.1.tgz, and the rest
+```
+
+Malmok reads them next to the document and embeds each one in its HelmChart, so
+nothing is fetched at install time. PF-710 names the exact files to stage, and
+names a wrong version separately -- a directory that looks right is the
+mistake worth catching before the install window.
+
+With `registry.mode: embedded`, RKE2's own registry mirror is enabled and the
+nodes share images peer to peer. Images preloaded from a tarball are pinned and
+shared under whatever registry they are tagged for, including one that does not
+exist, so a bundle seeded onto one node reaches the rest: staging is per
+cluster, not per node. The mirror needs TCP 5001 open between nodes, and a
+closed 5001 does not fail -- containerd falls back to the upstream registry,
+which on a closed node is a pull that hangs.
 
 !!! danger "A chart mirror and an image mirror are different inputs"
 

@@ -138,6 +138,9 @@ malmok upgrade --to "$TARGET_RKE2"
 
 # 감사 리포트와 DNS 레코드 시트 생성
 malmok report
+
+# 폐쇄망에 반입해야 하는 컨테이너 이미지 목록
+malmok images -f cluster.yaml
 ```
 
 <details>
@@ -165,6 +168,9 @@ malmok upgrade --to "$TARGET_RKE2"
 
 # 감사 리포트와 DNS 레코드 시트 생성
 malmok report
+
+# 폐쇄망에 반입해야 하는 컨테이너 이미지 목록
+malmok images -f cluster.yaml
 ```
 
 </details>

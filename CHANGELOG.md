@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.93.0] - 2026-09-07
+
+### Fixed
+- `registry.mirrors` never reached a node. The field is in the schema, is
+  documented, and the network preflight dials the endpoints and reports them
+  reachable -- and then the renderer returned before reading it. Three ways to
+  hit that: `mode: embedded` returned early with the wildcard entry, an empty
+  mode returned nothing, and any mode without `systemDefaultRegistry` also
+  returned nothing, so a field whose purpose is to name somebody else's cache
+  required naming a private registry first. A check that reports on something
+  the machine is never told is worse than no check.
+- An https mirror endpoint was described nowhere in `configs:`, so a cache
+  behind a private CA got no `ca_file` and every pull through it failed with an
+  opaque x509 error. `TrustSpec`'s own comment calls that the single most
+  common private-CA misinstall.
+- Two mirrors rendered a different file each run, because the map was walked in
+  its own order. The step writes this file and then compares what it finds
+  against what it meant to write, which made it report drift it had caused.
+
+### Added
+- `test/lab/cache/compose.yaml`, a pull-through image cache for the lab, and
+  `MALMOK_LAB_MIRROR` to point the matrix at one. Every case wipes both nodes,
+  which takes containerd's image store with it, so the platform's images were
+  fetched from the internet again for every case -- 438 pull and import lines
+  on one node in one run, and a `metrics-ready` step that timed out waiting for
+  them in two of the first four cases. Off by default: a run that passes
+  through a cache has not shown that a customer without one installs.
+
 ## [0.92.0] - 2026-09-07
 
 ### Fixed

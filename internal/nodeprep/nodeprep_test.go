@@ -230,6 +230,107 @@ func TestRegistriesYAML(t *testing.T) {
 		}
 	})
 
+	// registry.mirrors is in the schema, is documented, and the network
+	// preflight dials the endpoints and reports them reachable. None of that
+	// put them on a node: the renderer returned before it read the field
+	// whenever the mode was embedded, empty, or named no private registry.
+	t.Run("a named mirror reaches the node whatever the mode is", func(t *testing.T) {
+		for _, mode := range []v1alpha1.RegistryMode{
+			v1alpha1.RegistryEmbedded, v1alpha1.RegistryUpstream, "",
+		} {
+			spec := embeddedSpec()
+			spec.Registry = v1alpha1.RegistrySpec{
+				Mode:    mode,
+				Mirrors: map[string][]string{"docker.io": {"http://192.168.88.253:5100"}},
+			}
+			got := registriesYAML(spec, TrustMaterial{})
+			if !strings.Contains(got, `"docker.io":`) ||
+				!strings.Contains(got, "http://192.168.88.253:5100") {
+				t.Errorf("mode %q dropped the mirror the document named:\n%s", mode, got)
+			}
+			// http has no certificate to verify, so an entry describing one
+			// would be a TLS setting for a connection that carries no TLS.
+			if strings.Contains(got, "configs:") {
+				t.Errorf("mode %q described TLS for an http endpoint:\n%s", mode, got)
+			}
+		}
+	})
+
+	// The embedded mirror and a cache are not alternatives: RKE2 tries the
+	// peers first and the listed endpoint after them, so a cluster shares what
+	// it already holds and reaches the cache for what it does not.
+	t.Run("the embedded mirror keeps every registry while a mirror is named", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode:    v1alpha1.RegistryEmbedded,
+			Mirrors: map[string][]string{"docker.io": {"http://cache:5100"}},
+		}
+		got := registriesYAML(spec, TrustMaterial{})
+		if !strings.Contains(got, `"*":`) {
+			t.Errorf("only docker.io takes part now, so nothing else is shared peer to peer:\n%s", got)
+		}
+		if strings.Count(got, `"*":`) != 1 {
+			t.Errorf("the wildcard is written twice, which is a duplicate key:\n%s", got)
+		}
+	})
+
+	// The step writes this file and then compares what it finds against what
+	// it meant to write. Map order made that comparison report drift the step
+	// had caused itself, on any document with more than one mirror.
+	t.Run("two mirrors render the same file every time", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode: v1alpha1.RegistryEmbedded,
+			Mirrors: map[string][]string{
+				"docker.io":       {"http://cache:5100"},
+				"registry.k8s.io": {"http://cache:5101"},
+				"quay.io":         {"http://cache:5102"},
+				"ghcr.io":         {"http://cache:5103"},
+			},
+		}
+		first := registriesYAML(spec, TrustMaterial{})
+		for i := 0; i < 20; i++ {
+			if got := registriesYAML(spec, TrustMaterial{}); got != first {
+				t.Fatalf("run %d rendered a different file:\n%s\n---\n%s", i, first, got)
+			}
+		}
+	})
+
+	// TrustSpec's own comment calls a missing registries.yaml CA the single
+	// most common private-CA misinstall. A mirror endpoint on https was
+	// exactly that: described nowhere, so every pull through it failed with an
+	// opaque x509 error.
+	t.Run("an https mirror is given the CA the private registry gets", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode:    v1alpha1.RegistryEmbedded,
+			Mirrors: map[string][]string{"docker.io": {"cache.acme.internal"}},
+		}
+		got := registriesYAML(spec, TrustMaterial{CABundle: []byte("pem")})
+		if !strings.Contains(got, `"cache.acme.internal":`) || !strings.Contains(got, "ca_file:") {
+			t.Errorf("the https mirror got no CA:\n%s", got)
+		}
+	})
+
+	// A cache is somebody else's endpoint. The registry's credentials are for
+	// the registry.
+	t.Run("a mirror is not sent the registry credentials", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode:                  v1alpha1.RegistryExternal,
+			SystemDefaultRegistry: "harbor.acme.internal",
+			Mirrors:               map[string][]string{"docker.io": {"cache.acme.internal"}},
+		}
+		got := registriesYAML(spec, TrustMaterial{RegistryUser: "robot", RegistryPass: "s3cret"})
+		cache := got[strings.Index(got, `"cache.acme.internal":`):]
+		if i := strings.Index(cache[1:], `"harbor`); i >= 0 {
+			cache = cache[:i+1]
+		}
+		if strings.Contains(cache, "s3cret") {
+			t.Errorf("the registry password was handed to the cache:\n%s", got)
+		}
+	})
+
 	t.Run("insecure skips verification instead of naming a CA", func(t *testing.T) {
 		spec := embeddedSpec()
 		yes := true

@@ -14,6 +14,7 @@ package nodeprep
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/ryxenix/malmok/api/v1alpha1"
@@ -250,32 +251,41 @@ fi`, rke2.ShellQuote(pem), caFileRHEL, rke2.ShellQuote(pem), caFileDebian),
 const registriesFile = "/etc/rancher/rke2/registries.yaml"
 
 // registriesYAML renders containerd's mirror configuration, or "" when the
-// document configures no external registry.
+// document configures no external registry and no embedded one.
 //
-// The embedded mirror needs no file: it serves what the nodes already have.
+// Three separate things end up in this one file, and they are independent:
+//
+//   - the embedded mirror, which is a registry name with no endpoint under it;
+//   - mirrors the document names, which are endpoints to try before upstream;
+//   - the private registry a mode names, with its credentials and its CA.
+//
+// They used to be one decision, so naming a mirror without also naming a
+// private registry wrote nothing at all.
 func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
-	// The embedded mirror has no endpoint to point at: a name under mirrors:
-	// with nothing under it is how RKE2 is told that a registry takes part.
-	// "*" is every registry, which is what an air-gapped node wants -- images
-	// seeded from a tarball are shared under whatever registry they are tagged
-	// for, including one that does not exist.
-	//
-	// It assumes every node in the cluster is equally trusted, because a peer
-	// can fetch any image another peer holds without presenting the
-	// credentials that image was originally pulled with. That is true of the
-	// profiles this is the default for, and it is why the modes that name a
-	// private registry do not use it.
-	if spec.Registry.EmbeddedMirror() {
-		return managedFileHeader + "\nmirrors:\n  \"*\":\n"
+	embedded := spec.Registry.EmbeddedMirror()
+
+	// host is the private registry, when a mode names one. It is what the
+	// credentials and the CA belong to, and what "*" points at when the
+	// document names no mirrors of its own.
+	host := ""
+	if spec.Registry.Mode != "" && !embedded {
+		host = strings.TrimSpace(spec.Registry.SystemDefaultRegistry)
+		if host == "" {
+			host = t.RegistryHost
+		}
 	}
-	if spec.Registry.Mode == "" {
-		return ""
+
+	// Sorted, because the step writes this file and then compares what it
+	// finds against what it meant to write. Walking the map in its own order
+	// produced a different file each run, which is drift the step caused
+	// reporting as drift it found.
+	upstreams := make([]string, 0, len(spec.Registry.Mirrors))
+	for u := range spec.Registry.Mirrors {
+		upstreams = append(upstreams, u)
 	}
-	host := strings.TrimSpace(spec.Registry.SystemDefaultRegistry)
-	if host == "" {
-		host = t.RegistryHost
-	}
-	if host == "" {
+	sort.Strings(upstreams)
+
+	if !embedded && host == "" && len(upstreams) == 0 {
 		return ""
 	}
 
@@ -283,42 +293,116 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 	b.WriteString(managedFileHeader + "\n")
 	b.WriteString("mirrors:\n")
 
-	// A system default registry mirrors everything; explicit mirrors are listed
-	// as the document wrote them.
-	if len(spec.Registry.Mirrors) == 0 {
+	// A name under mirrors: with nothing under it is how RKE2 is told that a
+	// registry takes part in the embedded mirror, and "*" is every registry --
+	// which is what an air-gapped node wants, because images seeded from a
+	// tarball are shared under whatever registry they are tagged for,
+	// including one that does not exist.
+	//
+	// It assumes every node in the cluster is equally trusted: a peer can
+	// fetch any image another peer holds without presenting the credentials
+	// that image was originally pulled with. That is true of the profiles this
+	// is the default for, and it is why the modes that name a private registry
+	// do not use it.
+	//
+	// Endpoints and the embedded mirror are not alternatives. RKE2 tries the
+	// embedded mirror first and the listed endpoints after it, so a cluster
+	// can share what it already has and reach a cache for what it does not.
+	if embedded && !contains(upstreams, "*") {
+		b.WriteString("  \"*\":\n")
+	}
+	if host != "" && len(upstreams) == 0 {
 		b.WriteString("  \"*\":\n    endpoint:\n      - \"https://" + host + "\"\n")
-	} else {
-		for upstream, endpoints := range spec.Registry.Mirrors {
-			b.WriteString("  \"" + upstream + "\":\n    endpoint:\n")
-			for _, e := range endpoints {
-				if !strings.Contains(e, "://") {
-					e = "https://" + e
-				}
-				b.WriteString("      - \"" + e + "\"\n")
-			}
+	}
+	for _, upstream := range upstreams {
+		b.WriteString("  \"" + upstream + "\":\n")
+		endpoints := spec.Registry.Mirrors[upstream]
+		if len(endpoints) == 0 {
+			// Deliberate: a bare name is how a document adds one registry to
+			// the embedded mirror without redirecting it anywhere.
+			continue
+		}
+		b.WriteString("    endpoint:\n")
+		for _, e := range endpoints {
+			b.WriteString("      - \"" + endpointURL(e) + "\"\n")
 		}
 	}
 
-	b.WriteString("configs:\n  \"" + host + "\":\n")
-	if t.RegistryUser != "" || t.RegistryPass != "" {
-		b.WriteString("    auth:\n")
-		b.WriteString("      username: " + yamlString(t.RegistryUser) + "\n")
-		b.WriteString("      password: " + yamlString(t.RegistryPass) + "\n")
+	// configs describes the hosts a pull actually connects to, which is the
+	// private registry AND every https mirror endpoint. Describing only the
+	// first meant a mirror behind a private CA got no ca_file and failed with
+	// an opaque x509 error on every pull.
+	//
+	// http endpoints need no entry: there is no certificate to verify.
+	configured := make([]string, 0, len(upstreams)+1)
+	if host != "" {
+		configured = append(configured, host)
 	}
-	insecure := spec.Registry.Insecure != nil && *spec.Registry.Insecure
-	b.WriteString("    tls:\n")
-	if insecure {
-		b.WriteString("      insecure_skip_verify: true\n")
-	} else if len(t.CABundle) > 0 {
-		ca := t.RegistryCAPath
-		if ca == "" {
-			ca = caFileDebian
+	for _, upstream := range upstreams {
+		for _, e := range spec.Registry.Mirrors[upstream] {
+			u := endpointURL(e)
+			if !strings.HasPrefix(u, "https://") {
+				continue
+			}
+			if h := strings.TrimPrefix(u, "https://"); !contains(configured, h) {
+				configured = append(configured, h)
+			}
 		}
-		b.WriteString("      ca_file: " + ca + "\n")
-	} else {
-		b.WriteString("      insecure_skip_verify: false\n")
+	}
+	sort.Strings(configured)
+	if len(configured) == 0 {
+		return b.String()
+	}
+
+	insecure := spec.Registry.Insecure != nil && *spec.Registry.Insecure
+	b.WriteString("configs:\n")
+	for _, h := range configured {
+		b.WriteString("  \"" + h + "\":\n")
+		// Credentials belong to the private registry the document named. A
+		// mirror is somebody else's endpoint and sending them there would be
+		// handing the registry's password to a cache.
+		if h == host && (t.RegistryUser != "" || t.RegistryPass != "") {
+			b.WriteString("    auth:\n")
+			b.WriteString("      username: " + yamlString(t.RegistryUser) + "\n")
+			b.WriteString("      password: " + yamlString(t.RegistryPass) + "\n")
+		}
+		b.WriteString("    tls:\n")
+		switch {
+		case insecure:
+			b.WriteString("      insecure_skip_verify: true\n")
+		case len(t.CABundle) > 0:
+			ca := t.RegistryCAPath
+			if ca == "" {
+				ca = caFileDebian
+			}
+			b.WriteString("      ca_file: " + ca + "\n")
+		default:
+			b.WriteString("      insecure_skip_verify: false\n")
+		}
 	}
 	return b.String()
+}
+
+// endpointURL gives an endpoint a scheme when the document left it off.
+//
+// https is the assumption, because a mirror without one is almost always a
+// registry and not a LAN cache; a cache on plain http says so.
+func endpointURL(e string) string {
+	e = strings.TrimSpace(e)
+	if strings.Contains(e, "://") {
+		return e
+	}
+	return "https://" + e
+}
+
+// contains reports whether the slice holds the string.
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // registriesStep writes containerd's mirror configuration.

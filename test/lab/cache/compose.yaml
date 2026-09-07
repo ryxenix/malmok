@@ -1,0 +1,94 @@
+# A pull-through image cache for the lab, on the LAN rather than in it.
+#
+# Every matrix case wipes both nodes, and a wipe takes containerd's image store
+# with it. The platform's images -- Grafana, kube-state-metrics, node-exporter,
+# the VictoriaMetrics operator, cert-manager -- are therefore pulled from the
+# internet again for every case: measured on one run, 438 pull and import lines
+# on the server node alone, and a metrics-ready step that timed out waiting for
+# them twice in four cases.
+#
+# The cache does not change what is installed. It changes where the bytes come
+# from on the second and later cases, and it puts the registry.mirrors path --
+# in the schema, read by the network preflight, and until now never exercised
+# against hardware -- under the matrix.
+#
+# One registry per upstream, because distribution's proxy mode takes exactly
+# one remote. Plain http on purpose: this is a LAN cache holding public images,
+# and https here would mean a certificate for an address, on nodes that are
+# wiped between cases.
+#
+#   sudo docker compose -f test/lab/cache/compose.yaml up -d
+#   curl -s http://192.168.88.253:5100/v2/ && echo
+#
+# Anonymous Docker Hub pulls are rate limited per client address, and this
+# makes the whole lab one client. That is the point after the first case, and
+# it is worth knowing on the first.
+name: malmok-lab-cache
+
+# The shared half. environment is deliberately not here: a YAML merge key
+# replaces the whole mapping rather than merging into it, so a service that
+# sets one variable would silently lose the rest.
+x-cache: &cache
+  image: registry:2.8.3
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "/bin/registry", "--version"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+
+services:
+  # docker.io. registry-1.docker.io is the address the name resolves to for
+  # pulls; docker.io itself does not serve the registry API.
+  docker-io:
+    <<: *cache
+    container_name: malmok-cache-docker-io
+    environment:
+      # PROXY_REMOTEURL is what makes this a pull-through cache rather than a
+      # registry: a miss is fetched from there and kept.
+      REGISTRY_PROXY_REMOTEURL: https://registry-1.docker.io
+      REGISTRY_PROXY_TTL: 168h
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      # Without this the registry answers on its own container's loopback only.
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+    ports: ["5100:5000"]
+    volumes: ["docker-io:/var/lib/registry"]
+
+  registry-k8s-io:
+    <<: *cache
+    container_name: malmok-cache-registry-k8s-io
+    environment:
+      REGISTRY_PROXY_REMOTEURL: https://registry.k8s.io
+      REGISTRY_PROXY_TTL: 168h
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+    ports: ["5101:5000"]
+    volumes: ["registry-k8s-io:/var/lib/registry"]
+
+  quay-io:
+    <<: *cache
+    container_name: malmok-cache-quay-io
+    environment:
+      REGISTRY_PROXY_REMOTEURL: https://quay.io
+      REGISTRY_PROXY_TTL: 168h
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+    ports: ["5102:5000"]
+    volumes: ["quay-io:/var/lib/registry"]
+
+  ghcr-io:
+    <<: *cache
+    container_name: malmok-cache-ghcr-io
+    environment:
+      REGISTRY_PROXY_REMOTEURL: https://ghcr.io
+      REGISTRY_PROXY_TTL: 168h
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+    ports: ["5103:5000"]
+    volumes: ["ghcr-io:/var/lib/registry"]
+
+volumes:
+  docker-io:
+  registry-k8s-io:
+  quay-io:
+  ghcr-io:

@@ -13,13 +13,23 @@
 # The air-gapped case needs RKE2's release artifacts staged on both nodes and
 # MALMOK_LAB_AIRGAP_VERSION set to the release they carry. Without it that one
 # case skips and says so; the rest run.
+#
+# MALMOK_LAB_MIRROR names a pull-through cache for the platform images, which
+# are otherwise fetched again for every case because every case wipes the image
+# store with the node. Stand it up first:
+#
+#   sudo docker compose -f test/lab/cache/compose.yaml up -d
+#   MALMOK_LAB_MIRROR=192.168.88.253 NODE_PASSWORD=... scripts/matrix.sh
+#
+# Off by default on purpose. It puts registry.mirrors in every document, so a
+# run with it on has not shown that a customer without a cache installs.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 : "${NODE_PASSWORD:?set NODE_PASSWORD to the password for the lab account}"
 : "${MALMOK_LAB_SERVER:?set MALMOK_LAB_SERVER -- this machine gets wiped}"
 : "${MALMOK_LAB_AGENT:?set MALMOK_LAB_AGENT -- this machine gets wiped}"
-export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION
+export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_MIRROR
 
 # The binary the operator runs, not a fresh build of maybe-different code.
 [ -x bin/malmok ] || { echo "no bin/malmok -- run scripts/build.sh first" >&2; exit 1; }
@@ -38,6 +48,7 @@ docker run --rm \
   -e MALMOK_LAB_SERVER \
   -e MALMOK_LAB_AGENT \
   -e MALMOK_LAB_AIRGAP_VERSION \
+  -e MALMOK_LAB_MIRROR \
   -e MALMOK_BIN=/app-local/bin/malmok \
   -w /app-local \
   golang:alpine \

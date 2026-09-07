@@ -47,7 +47,49 @@ var (
 	// 1.3GB and are staged out of band rather than downloaded per run. Unset,
 	// the air-gapped case skips and says what to stage.
 	airgapVersion = os.Getenv("MALMOK_LAB_AIRGAP_VERSION")
+
+	// mirror is the address of the pull-through cache in
+	// test/lab/cache/compose.yaml, or "" for no cache.
+	//
+	// Every case wipes both nodes, which takes containerd's image store with
+	// it, so the platform's images are fetched from the internet again for
+	// every case. Pointing the nodes at a cache on the segment makes that the
+	// first case's cost rather than each one's.
+	//
+	// It is off by default and has to be named, for two reasons. A cache is a
+	// second thing that can be wrong, and a run that passes through one has
+	// not shown that a customer's first install works. And it changes the
+	// document: the mirror path is worth exercising -- registry.mirrors is in
+	// the schema and has never been run against hardware -- but a green matrix
+	// with it on is not a green matrix.
+	mirror = os.Getenv("MALMOK_LAB_MIRROR")
 )
+
+// cachePorts maps an upstream registry to the port test/lab/cache/compose.yaml
+// serves it on. One registry per upstream, because a pull-through cache
+// proxies exactly one remote.
+var cachePorts = map[string]int{
+	"docker.io":       5100,
+	"registry.k8s.io": 5101,
+	"quay.io":         5102,
+	"ghcr.io":         5103,
+}
+
+// mirrors is what to put in the document, or nil when no cache was named.
+//
+// http, not https: the cache holds public images on a lab segment, and a
+// certificate would be a certificate for an address, presented to nodes that
+// are wiped between cases.
+func mirrors() map[string][]string {
+	if mirror == "" {
+		return nil
+	}
+	m := make(map[string][]string, len(cachePorts))
+	for upstream, port := range cachePorts {
+		m[upstream] = []string{fmt.Sprintf("http://%s:%d", mirror, port)}
+	}
+	return m
+}
 
 func env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -180,6 +222,14 @@ func (r *labRun) write(c matrix.Case, grown bool) string {
 	doc := c.Document(version, matrix.Hosts{
 		Server: server, Agent: agent, User: user, PasswordRef: "env://NODE_PASSWORD",
 	}, m, grown)
+
+	// The cache lives on the segment, and the air-gapped case leaves the
+	// segment reachable -- it drops everything else. Pointing that case at a
+	// cache would give it somewhere to pull from, which is the one thing it
+	// exists to prove the node does not need.
+	if m := mirrors(); m != nil && c.Network != "airgap" {
+		doc.Registry.Mirrors = m
+	}
 
 	path := filepath.Join(r.dir, "cluster.yaml")
 	if err := spec.Save(path, doc); err != nil {

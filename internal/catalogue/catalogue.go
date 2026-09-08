@@ -29,6 +29,7 @@ import (
 	"github.com/ryxenix/malmok/internal/pki"
 	"github.com/ryxenix/malmok/internal/platform"
 	"github.com/ryxenix/malmok/internal/rke2"
+	"github.com/ryxenix/malmok/internal/storage"
 )
 
 // Runners gives the catalogue a shell on each node.
@@ -68,6 +69,7 @@ type Options struct {
 	Gateway   gateway.Options
 	PKI       pki.Options
 	Platform  platform.Options
+	Storage   storage.Options
 
 	Observability observability.Options
 }
@@ -173,6 +175,23 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 			// balancer together, and applying that to a running cluster
 			// replaces kube-proxy and rolls every dataplane pod.
 			Grade:     engine.GradeDisruptive,
+			Traversal: engine.TraversalCluster,
+			Steps:     func(string) []engine.Step { return steps },
+		})
+	}
+
+	// Storage before anything that asks for a volume, which in practice means
+	// before observability. It went missing entirely until 0.93.0: the
+	// document named a driver, the report printed it, and no phase installed
+	// anything -- so the metrics database sat Pending on a claim that could
+	// never bind, two layers away from the field that caused it.
+	//
+	// After the dataplane, because the provisioner is an ordinary pod and
+	// needs a working CNI to run at all.
+	if steps := storage.Steps(control, spec, o.Storage); len(steps) > 0 {
+		phases = append(phases, engine.Phase{
+			ID:        storage.Phase,
+			Grade:     engine.GradeAdditive,
 			Traversal: engine.TraversalCluster,
 			Steps:     func(string) []engine.Step { return steps },
 		})

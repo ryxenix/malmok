@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.94.0] - 2026-09-08
+
+### Added
+- An `l2-storage` phase, because `storage.driver` was a field nothing read. The
+  document named a driver, `malmok plan` printed it, the audit report told the
+  customer "Storage | local-path", and no phase installed anything -- so the
+  cluster came up with no StorageClass at all and nothing said so. It surfaced
+  two layers away, as the metrics database sitting Pending on a claim that
+  could never bind. Five of the ten verification cases died there, including
+  the air-gapped one, which had otherwise got as far as an Accepted
+  GatewayClass with its egress dropped.
+  - `local-path` installs Rancher's local-path-provisioner, rendered from the
+    binary rather than fetched: a closed site carries two images and nothing
+    else. Both are pinned, including the helper image upstream leaves untagged
+    -- an untagged image means `:latest`, which no bundle can carry, and the
+    helper pod runs on every volume create and delete.
+  - `byo-csi` installs nothing and says whether the site's own CSI produced a
+    StorageClass, so a missing one is named here rather than landing on
+    whichever workload asks for a volume first.
+  - `longhorn` and `nfs` are **not installed by this release** and now stop the
+    run and say what to do instead. They are in the schema, in four profiles
+    and in the wizard, and carrying on would leave a cluster with no
+    StorageClass while the report printed the driver that was asked for.
+- The carry list covers images that do not come from a chart. `malmok images`
+  and the release's `images.txt` are generated from the binary now, so the
+  storage provisioner appears in both.
+
+### Fixed
+- `metrics-ready` waited the full fifteen minutes for a claim that could never
+  bind, then retried and waited again, and reported a deadline against the
+  metrics database. A cluster with no StorageClass is decidable in one second,
+  and the step now says so and names the field that decides it.
+
 ## [0.93.0] - 2026-09-07
 
 ### Fixed

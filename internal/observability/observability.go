@@ -243,6 +243,17 @@ case "${v:-0}" in
   *) echo "the metrics database is serving (%s: $v ready)" ;;
 esac`, ready, deploy, deploy),
 		Do: kubectl + fmt.Sprintf(`set -e
+# A claim with no StorageClass anywhere in the cluster is not slow, it is
+# impossible, and it is decidable in one second. Waiting the full timeout for
+# it -- twice, because the step retries -- is how a missing storage phase
+# arrived as a deadline on the metrics database in five verification cases,
+# naming the wrong component in the process.
+if [ "$(kubectl get storageclass --no-headers 2>/dev/null | wc -l)" -eq 0 ]; then
+  echo "the cluster has no StorageClass, so the metrics database's volume claim can never bind."
+  echo "storage.driver in the document decides what provides one; l2-storage installs it."
+  kubectl -n %s get pvc 2>&1 | tail -5
+  exit 1
+fi
 started=$(date +%%s)
 deadline=$(( started + %d ))
 while [ "$(date +%%s)" -lt "$deadline" ]; do
@@ -259,7 +270,7 @@ kubectl -n %s get pods 2>&1 | tail -20
 kubectl -n %s get pvc 2>&1 | tail -10
 # The install job is where a chart that never rendered says why.
 kubectl -n kube-system logs -l job-name=helm-install-victoria-metrics --tail=20 2>&1 | tail -20
-exit 1`, int(o.timeout().Seconds()), ready, Namespace,
+exit 1`, Namespace, int(o.timeout().Seconds()), ready, Namespace,
 			int(o.timeout().Seconds()), Namespace, Namespace),
 		Satisfied: "%s",
 		Missing:   "%s",

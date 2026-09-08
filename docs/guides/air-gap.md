@@ -17,10 +17,11 @@ Prepare these on a connected staging machine:
 - the RKE2 image archives required by the selected dataplane;
 - the Gateway API bundle when Gateway API CRDs are enabled;
 - every application image the cluster will run;
-- the images the platform charts pull. `malmok images -f cluster.yaml` lists
-  them, from the chart versions this release pins, and answers on a machine
-  with no network. `images.txt` in the release carries the same list for
-  planning before you have anywhere to run the binary; and
+- the images the platform pulls. `malmok images -f cluster.yaml` lists them,
+  from the chart versions this release pins plus the storage provisioner it
+  renders itself, and answers on a machine with no network. `images.txt` in the
+  release carries the same list for planning before you have anywhere to run
+  the binary; and
 - the Helm charts for cert-manager, observability or Argo CD when those
   components are enabled -- either mirrored, or carried as `.tgz` files and
   named with `registry.chartDir`.

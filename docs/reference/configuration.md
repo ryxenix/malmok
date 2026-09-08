@@ -46,7 +46,7 @@ the operator. `malmok plan` reports both the resolved value and its source.
 | `kubernetes` | RKE2 version, offline artifact path, dataplane and etcd |
 | `pki` | Certificate source and trust distribution |
 | `registry` | Image registry, mirrors, credentials and chart source |
-| `storage` | Local path, Longhorn, NFS or a site-owned CSI implementation |
+| `storage` | Local path, or a site-owned CSI implementation. Longhorn and NFS are in the schema and are **not installed by this release**: a document naming one stops the run and says so, rather than leaving the cluster with no StorageClass |
 | `gateway` | GatewayClass, addresses, listeners, TLS and DNS report settings |
 | `platform` | GitOps and observability components |
 | `output` | Audit report, run bundle and event-log locations |

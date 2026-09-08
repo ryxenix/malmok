@@ -114,7 +114,13 @@ rm -rf "$payload"
 # The carry list ships beside the binaries. An operator planning an
 # air-gapped install needs it before they have anywhere to run malmok, and
 # asking them to extract it from a binary they cannot yet run is a poor answer.
-cp internal/images/images.txt dist/images.txt
+# From the binary, not from internal/images/images.txt. That file is the
+# chart-derived half; the storage phase renders its own manifest and names its
+# own images, and a release asset missing them is a closed site with a
+# provisioner that never starts.
+# go run rather than one of the cross-built binaries: those are named for the
+# tag and three of the four cannot execute on the machine doing the release.
+go run ./cmd/malmok images > dist/images.txt
 
 ( cd dist && sha256sum malmok_* malmok-airgap_* images.txt > SHA256SUMS )
 

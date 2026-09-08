@@ -43,7 +43,7 @@ kind: ClusterSpec
 | `kubernetes` | RKE2 버전, 아티팩트 경로, 데이터플레인과 etcd |
 | `pki` | 인증서 공급원과 신뢰 배포 |
 | `registry` | 이미지 레지스트리, 미러, 자격증명과 차트 공급원 |
-| `storage` | 스토리지 관련 설정 |
+| `storage` | 스토리지 드라이버. `local-path` 설치, `byo-csi` 는 현장 CSI 확인만. **`longhorn` 과 `nfs` 는 이번 릴리스가 설치하지 않습니다** — 스키마에 있으나 문서가 지정하면 실행을 멈추고 그 사실을 말합니다 |
 | `gateway` | GatewayClass, 주소, 리스너, TLS와 DNS 리포트 |
 | `platform` | GitOps와 관측 구성 요소 |
 | `output` | 감사 리포트, 실행 번들과 이벤트 경로 |

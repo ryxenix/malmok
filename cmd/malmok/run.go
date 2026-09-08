@@ -25,6 +25,7 @@ import (
 	"github.com/ryxenix/malmok/internal/rke2"
 	"github.com/ryxenix/malmok/internal/spec"
 	"github.com/ryxenix/malmok/internal/state"
+	"github.com/ryxenix/malmok/internal/storage"
 )
 
 // buildFlags are what `apply -f` was invoked with.
@@ -108,6 +109,10 @@ func runBuild(cmd *cobra.Command, f buildFlags) error {
 		RKE2:      rke2.Options{InstallTimeout: 20 * time.Minute, ReadyTimeout: 15 * time.Minute},
 		Dataplane: dataplane.Options{Timeout: 15 * time.Minute},
 		Gateway:   gateway.Options{Timeout: 10 * time.Minute},
+		// One image and one Deployment. It is short because everything after
+		// it waits on a volume, and a storage layer that is still coming up
+		// makes those look like their own problem.
+		Storage: storage.Options{Timeout: 10 * time.Minute},
 		// The metrics stack pulls several images and waits on a volume, which
 		// takes longer than a chart that only writes CRDs.
 		Observability: observability.Options{Timeout: 15 * time.Minute},

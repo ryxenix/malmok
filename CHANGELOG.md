@@ -22,6 +22,13 @@
   than producing a bundle with a hole in it, and a bundle over the 2 GiB a
   release asset can be fails with what to split.
 
+### Fixed
+- The documentation workflow failed before it built anything. `cache: pip`
+  keys the cache off a dependency file and looks for `requirements.txt` or
+  `pyproject.toml`; this repository has `requirements-docs.txt` and neither of
+  those, so the step failed outright rather than skipping the cache it could
+  not key.
+
 ### Changed
 - The lab harness supplies the VIP and the load-balancer pool. The matrix
   defaulted to the documentation ranges, which is right for a public repository

@@ -27,6 +27,11 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+          # The cache key comes from the dependency file, and the default
+          # patterns are requirements.txt and pyproject.toml -- neither of
+          # which this repository has. Without naming ours the step fails
+          # outright rather than skipping the cache.
+          cache-dependency-path: requirements-docs.txt
 
       - name: Install documentation dependencies
         run: pip install -r requirements-docs.txt

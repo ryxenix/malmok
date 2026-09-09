@@ -796,11 +796,12 @@ found by installing one on the lab nodes with egress blocked.
 ### Changed
 - Removed things that belong to the author rather than to the tool, ahead of
   making the repository public:
-  - `lab.example.com` was the default gateway domain in the verification
-    matrix and the lab harness. A real domain as a default in a public
-    repository is a default aimed at a real host -- and the ACME case would
-    have asked a certificate authority for it. Now `lab.example.com`, with
-    the address constants moved to the documentation ranges (RFC 5737, 2606).
+  - The author's own domain was the default gateway domain in the
+    verification matrix and the lab harness. A real domain as a default in a
+    public repository is a default aimed at a real host -- and the ACME case
+    would have asked a certificate authority for it. Now `lab.example.com`,
+    with the address constants moved to the documentation ranges
+    (RFC 5737, 2606).
   - A production public IP sat in a preflight fixture, from the day PF-806 was
     written against the machine that showed the fault. Replaced with the
     documentation range.

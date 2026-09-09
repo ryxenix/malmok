@@ -2,7 +2,7 @@
 //
 // Invoked by `go generate ./internal/codes/`. The output is a build artifact:
 // editing it by hand is pointless because the next generate run overwrites it,
-// and CLAUDE.md forbids a hand-maintained registry document precisely so that
+// and a hand-maintained registry document is forbidden precisely so that
 // the markdown can never disagree with the code.
 package main
 

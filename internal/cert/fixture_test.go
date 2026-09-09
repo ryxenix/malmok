@@ -21,8 +21,8 @@ import (
 	"time"
 )
 
-// Fixtures are generated in the test rather than checked in, as CLAUDE.md
-// requires. A checked-in certificate expires, and a test suite that starts
+// Fixtures are generated in the test rather than checked in. A checked-in
+// certificate expires, and a test suite that starts
 // failing on a date nobody chose teaches people to ignore it.
 
 // base is the reference time every fixture is built around, so that "expired"

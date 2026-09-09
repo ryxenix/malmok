@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Screen strings live in catalogues, never in code (CLAUDE.md, ADR-009). They
+// Screen strings live in catalogues, never in code (ADR-009). They
 // are embedded rather than read from disk because the binary has to work on an
 // air-gapped node with nothing beside it.
 //

@@ -16,8 +16,8 @@ import (
 // Servers before agents, and one node at a time within each. The order is not
 // a preference: an agent's kubelet must never lead its API server, so bringing
 // a worker up first puts the cluster outside the supported skew until the
-// servers catch up. And CLAUDE.md's prohibition on restarting every node at
-// once is the same rule a control plane needs to keep quorum.
+// servers catch up. And the rule against restarting every node at once is the
+// same rule a control plane needs to keep quorum.
 const (
 	PhaseServers = "upgrade-server"
 	PhaseAgents  = "upgrade-agent"

@@ -157,7 +157,7 @@ func Build(spec v1alpha1.ClusterSpec, r Runners, m Material, o Options) ([]engin
 		},
 	})
 
-	// Joins are one node at a time. CLAUDE.md forbids restarting every node at
+	// Joins are one node at a time. This tool never restarts every node at
 	// once, and a control plane that loses quorum while two members are joining
 	// is a restore rather than a retry.
 	if rest := servers[1:]; len(rest) > 0 {

@@ -11,7 +11,7 @@ import (
 )
 
 // The generator is a pure function, so the table is the whole test: no cluster,
-// no SSH, no clock. CLAUDE.md requires table-driven tests here for that reason.
+// no SSH, no clock. The tests here are table-driven for that reason.
 
 func node(host string, role v1alpha1.NodeRole, failed ...string) preflight.NodeCapability {
 	c := preflight.NodeCapability{

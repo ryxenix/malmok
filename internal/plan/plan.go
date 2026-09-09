@@ -5,8 +5,8 @@
 //
 //	(ClusterSpec, []NodeCapability) -> Plan. No side effects, no network, no
 //	clock. That is what makes the downgrade decision tree testable without a
-//	cluster, and CLAUDE.md requires table-driven tests here for exactly that
-//	reason: there is no excuse.
+//	cluster, and the tests here are table-driven for exactly that reason:
+//	there is no excuse.
 //
 // The tree it implements is docs/10-preflight-plan.md.
 package plan

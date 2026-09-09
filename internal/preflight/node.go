@@ -18,7 +18,7 @@ import (
 // Nothing here changes the node. Every command reads, tests or dry-runs, and
 // where a value can only be observed after loading a kernel module the probe
 // reports that it could not be measured rather than loading it -- preflight is
-// read-only (CLAUDE.md), and a preflight that modifies the node cannot be run
+// read-only, and a preflight that modifies the node cannot be run
 // twice with the same meaning.
 //
 // Commands are measured, not inferred. `systemctl is-active ufw` reports the

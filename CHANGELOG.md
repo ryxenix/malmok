@@ -566,7 +566,7 @@ found by installing one on the lab nodes with egress blocked.
 
 ### Changed
 - Malmok is the name, not a working title. The tentative marker is gone from
-  CLAUDE.md; publishing a repository under a name settles it either way, and
+  the engineering rules; publishing a repository under a name settles it either way, and
   a "(tentative)" beside a name nobody intends to change reads as indecision.
 - The coverage tables said the observability stack was schema-only. It was
   implemented two releases ago and has since run on the production cluster,
@@ -907,7 +907,7 @@ found by installing one on the lab nodes with egress blocked.
   could use it -- the one thing that has to exist before anything is public.
   Apache-2.0 over MIT for the patent grant: this tool is adopted by companies,
   and a legal review that finds no patent clause stops there.
-- `.github/workflows/ci.yml`. CLAUDE.md has claimed for months that "CI blocks
+- `.github/workflows/ci.yml`. The project has claimed for months that "CI blocks
   an engine -> tui import". No CI existed; the sentence described a guard
   nobody ran. The architecture test was already written
   (`internal/engine/arch_test.go`) -- it just was never executed anywhere but
@@ -1782,7 +1782,7 @@ plain characters, sixteen colours get no gradients.
 
 - The product has a working name: **Malmok (말목)** -- a stake driven into the
   ground, which is what this tool does to a cluster. The TUI title bar, README
-  and CLAUDE.md carry it. The CLI, the binary and the module path stay
+  and the engineering rules carry it. The CLI, the binary and the module path stay
   `malmok`: a rename there touches every import and every document that
   says `malmok apply`, and a working title is not the moment for that.
 
@@ -3047,8 +3047,8 @@ on anything that would change the node.
 - Bundle output per §5: `tls.crt` without the root, `tls.key` normalised to
   PKCS#8 whatever came in, `ca.crt` only for a private root, and the five audit
   annotations.
-- Fixtures are generated in the test rather than checked in, as CLAUDE.md
-  requires. A checked-in certificate expires and teaches people to ignore a
+- Fixtures are generated in the test rather than checked in. A checked-in
+  certificate expires and teaches people to ignore a
   failing suite.
 
 ### Fixed
@@ -3406,7 +3406,7 @@ on anything that would change the node.
   afterwards, MC is day-2 inspection, DG records a downgrade. Nine codes,
   defined in `internal/codes/execution.go`.
 - `TestEngineDoesNotImportTUI` — acceptance criterion D3 and the enforcement
-  `CLAUDE.md` promises. A companion test also bars terminal libraries, since
+  of the rule itself. A companion test also bars terminal libraries, since
   rendering creeps back in one spinner at a time.
 - Every §7 group A and B criterion now runs against the real runner with fake
   steps: second run skips everything, recheck re-observes without applying,
@@ -3420,7 +3420,7 @@ on anything that would change the node.
   `Satisfied` rather than a separate `Satisfied(State) bool`. Splitting them
   needs a per-step state type, which makes a heterogeneous `[]Step` impossible
   without `any`; the contract is identical either way. §6 gains the `EX` table.
-- `CLAUDE.md` naming rules list the `EX-` prefix.
+- The naming rules list the `EX-` prefix.
 
 ## [0.9.0] - 2026-08-03
 
@@ -3434,7 +3434,7 @@ on anything that would change the node.
   replays a finished run, `--verbose` includes log lines, and `-o json` passes
   the stream through unchanged — the engine already emits JSONL, so that format
   is the stream itself rather than a second serialisation.
-- `github.com/spf13/cobra`, the CLI framework fixed by `CLAUDE.md`.
+- `github.com/spf13/cobra`, the CLI framework the project fixes on.
 
 ### Changed
 
@@ -3534,9 +3534,9 @@ on anything that would change the node.
 
 ### Changed
 
-- `CLAUDE.md`'s prohibition table said the TUI is "merely a cluster.yaml
+- The engineering rules' prohibition table said the TUI is "merely a cluster.yaml
   generator". That reading is what would make someone remove the TUI's execute
-  button, and implementation sessions read `CLAUDE.md` rather than the ADRs, so
+  button, and implementation sessions read those rules rather than the ADRs, so
   the row is rewritten and followed by an explicit note: installs run inside the
   TUI; the only forbidden thing is the TUI owning installation logic.
 - `api/v1alpha1/types.go` no longer claims the TUI is "never a participant in
@@ -3582,8 +3582,8 @@ on anything that would change the node.
 - `ProfileCustom` sat inside the const block labelled "Tier-1 profiles" while
   being Tier-3 by its own definition. Moved out, so that "every constant in
   that block has a CI lane" — which the release gate depends on — is true.
-- `CLAUDE.md` pointed the JSONL event schema at `docs/90-events.md` while its
-  own routing table and the README pointed at `docs/11-execute.md`. Both
+- The engineering rules pointed the JSONL event schema at `docs/90-events.md`
+  while their own routing table and the README pointed at `docs/11-execute.md`. Both
   documents were unwritten, so the split was settled by decision:
   `docs/11-execute.md` owns the event schema and `90-events.md` will not exist.
 
@@ -3608,7 +3608,7 @@ on anything that would change the node.
 
 ### Changed
 
-- `CLAUDE.md` now names the generated registry path and states that retired
+- The engineering rules now name the generated registry path and state that retired
   numbers are never reused.
 
 ## [0.3.0] - 2026-08-03
@@ -3618,7 +3618,7 @@ on anything that would change the node.
 - `go.mod` — module `platform.ryxen.dev/malmok`, Go 1.24. Nothing can live
   under `internal/` without it.
 - `internal/codes` — the diagnostic code registry, now the single source of
-  truth as CLAUDE.md requires. 67 preflight codes collected from
+  truth the project requires. 67 preflight codes collected from
   `docs/10-preflight-plan.md` and `docs/20-cert.md` §4, each carrying family,
   category, English summary, default message, severity and failure sub-codes.
 - `PF-612` "Gateway external address is pinned".
@@ -3671,7 +3671,7 @@ on anything that would change the node.
 ### Added
 
 - Initial design-stage import. No executable code.
-- `CLAUDE.md` — session contract: prohibitions, fixed stack, architectural
+- The engineering rules — prohibitions, fixed stack, architectural
   invariants, document routing.
 - `docs/00-architecture.md` — 10 ADRs, L0–L3 layer split, Tier scheme with six
   T1 profiles, roadmap.

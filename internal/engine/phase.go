@@ -29,8 +29,8 @@ const (
 	TraversalParallel Traversal = "parallel"
 
 	// TraversalSequential visits one node at a time and stops at the first
-	// failure. Required wherever a restart is involved: CLAUDE.md forbids
-	// restarting every node at once, and §4.3 forbids continuing past a node
+	// failure. Required wherever a restart is involved: this tool never
+	// restarts every node at once, and §4.3 forbids continuing past a node
 	// that failed, because a cluster half on the new configuration is harder to
 	// diagnose and harder to decide about than one that stopped where it broke.
 	TraversalSequential Traversal = "sequential"

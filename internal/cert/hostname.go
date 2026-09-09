@@ -91,7 +91,7 @@ func matchName(san, host string) bool {
 	// A wildcard directly under a public suffix -- *.co.kr -- is not rejected
 	// here, and deliberately so. Telling co.kr from acme.co.kr requires the
 	// Public Suffix List, which is an external dependency the certificate path
-	// does not take (CLAUDE.md), and every rule-of-thumb substitute breaks a
+	// does not take, and every rule-of-thumb substitute breaks a
 	// real case: counting labels refuses *.internal, which is exactly what a
 	// homelab private CA issues. No public CA can issue such a certificate
 	// under the CA/Browser Forum baseline requirements, so what would be caught

@@ -1,7 +1,7 @@
 // Package exec runs commands on nodes.
 //
-// It is an interface first and an SSH implementation second, because CLAUDE.md
-// requires the probes to be unit testable without a node: every probe takes a
+// It is an interface first and an SSH implementation second, because the probes
+// have to be unit testable without a node: every probe takes a
 // Runner, and the tests hand it recorded output from a real machine rather than
 // output somebody imagined.
 //

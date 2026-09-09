@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestRegistryValid is the collision guard CLAUDE.md requires: number clashes
+// TestRegistryValid is the collision guard: number clashes
 // are prevented by test, not by convention.
 func TestRegistryValid(t *testing.T) {
 	for _, err := range Validate() {

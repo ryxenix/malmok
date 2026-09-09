@@ -14,7 +14,7 @@
 // every locale) and they are never recycled: retiring a code means leaving its
 // number unused, because audit reports and customer tickets outlive releases.
 //
-// Summary and Message are English by policy — see CLAUDE.md. Event log detail
+// Summary and Message are English by policy. Event log detail
 // written in Korean breaks grep and issue-tracker search.
 package codes
 
@@ -279,9 +279,8 @@ var idPattern = regexp.MustCompile(`^(PF|PV|UP|EX|MC|DG)-[0-9]{3}$`)
 // Validate returns every structural problem in the registry. The test suite
 // fails on a non-empty result; nothing else calls it at runtime.
 //
-// This is where number collisions are caught. CLAUDE.md requires that new codes
-// be added here before use, and that collisions be prevented by test rather
-// than by convention.
+// This is where number collisions are caught. New codes are added here before
+// use, and collisions are prevented by test rather than by convention.
 func Validate() []error {
 	errs := append([]error(nil), initErrs...)
 

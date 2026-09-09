@@ -29,7 +29,7 @@ import (
 // on an install window.
 //
 // Every dependency on the outside world is an interface, so the failure paths
-// are unit tested rather than reasoned about (CLAUDE.md).
+// are unit tested rather than reasoned about.
 
 // Resolver looks names up.
 type Resolver interface {

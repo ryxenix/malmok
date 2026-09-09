@@ -28,8 +28,8 @@ func ids(fs []Finding) []string {
 	return out
 }
 
-// The eight fixture shapes CLAUDE.md names, each asserted against the gate that
-// is supposed to catch it.
+// The eight fixture shapes, each asserted against the gate that is supposed to
+// catch it.
 func TestGates(t *testing.T) {
 	tests := []struct {
 		name string

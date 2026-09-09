@@ -132,7 +132,7 @@ func parseKeyDER(der []byte) (crypto.Signer, error) {
 // ---------------------------------------------------------------------------
 
 // The standard library parses PKCS#8 but not the encrypted wrapper, and
-// CLAUDE.md fixes the dependency budget for certificate handling at zero. The
+// The dependency budget for certificate handling is zero. The
 // wrapper is small enough to read directly, and crypto/pbkdf2 has been standard
 // library since Go 1.24, so this stays inside the budget.
 //

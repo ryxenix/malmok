@@ -5,7 +5,7 @@
 // every time it ran, and the thing a customer receives has to be the record of
 // what happened, not a view of what is true this minute.
 //
-// English, fixed (CLAUDE.md). The customer-facing maintenance report is Korean
+// English, fixed. The customer-facing maintenance report is Korean
 // and is a different document with a different audience.
 package report
 

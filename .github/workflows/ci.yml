@@ -1,6 +1,6 @@
 # Every claim this repository makes about itself is checked here.
 #
-# CLAUDE.md has long said that CI blocks an engine -> tui import. Until this
+# The project has long said that CI blocks an engine -> tui import. Until this
 # file existed that sentence described a guard nobody ran. The architecture
 # test lives in internal/engine/arch_test.go; running `go test ./...` is what
 # turns it from a comment into an enforced rule.

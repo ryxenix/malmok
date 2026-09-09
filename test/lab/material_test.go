@@ -17,8 +17,8 @@ import (
 
 // writeMaterial generates the certificate chain a case's PKI mode reads.
 //
-// Generated here rather than kept as files, for the reason CLAUDE.md gives
-// for every certificate fixture: material on disk expires, and a suite that
+// Generated here rather than kept as files, for the reason every certificate
+// fixture in this repository is: material on disk expires, and a suite that
 // starts failing in six months for a reason nobody changed is a suite people
 // stop believing. Root, intermediate and a wildcard leaf, all fresh.
 func writeMaterial(t *testing.T, dir string) matrixMaterial {

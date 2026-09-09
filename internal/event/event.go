@@ -10,7 +10,7 @@
 //	appears in the stream, `--output json` starts carrying terminal output and
 //	machine consumers have to parse a screen.
 //
-// Detail text is English by policy (CLAUDE.md). A renderer that needs Korean
+// Detail text is English by policy. A renderer that needs Korean
 // looks up Code in an i18n catalogue -- which is why a failure event without a
 // Code is untranslatable, and why Validate rejects one.
 package event

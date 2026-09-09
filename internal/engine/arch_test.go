@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// TestEngineDoesNotImportTUI is acceptance criterion D3, and the enforcement
-// CLAUDE.md promises: the dependency runs one way only.
+// TestEngineDoesNotImportTUI is acceptance criterion D3, and the enforcement of
+// the rule itself: the dependency runs one way only.
 //
 // ADR-002 exists because the previous generation of this tool had installation
 // logic inside its TUI, and that is what made it un-maintainable. The rule is

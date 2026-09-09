@@ -303,6 +303,32 @@ type Hosts struct {
 	// PasswordRef is a SourceRef, never a password: cluster.yaml carries no
 	// plaintext secret, and the matrix produces real documents.
 	PasswordRef v1alpha1.SourceRef
+
+	// VIP, LBPool and LBAddress are addresses on the segment the nodes are on.
+	// Empty falls back to the documentation ranges below, which is right for a
+	// default in a public repository and wrong for a run: kube-vip claims the
+	// VIP on an interface, and no interface is on 192.0.2.0/24, so every case
+	// with a VIP failed at vip-interface saying exactly that. The harness knows
+	// which segment it was pointed at; this package must not guess.
+	VIP       string
+	LBPool    string
+	LBAddress string
+}
+
+// vip is the address the cluster registers under.
+func (h Hosts) vip() string { return orDefault(h.VIP, vipAddress) }
+
+// pool is the range the load balancer allocates from.
+func (h Hosts) pool() string { return orDefault(h.LBPool, lbPool) }
+
+// lb is the address a gateway is pinned to.
+func (h Hosts) lb() string { return orDefault(h.LBAddress, lbAddress) }
+
+func orDefault(v, fallback string) string {
+	if strings.TrimSpace(v) == "" {
+		return fallback
+	}
+	return v
 }
 
 // Material names the files a case's certificate mode reads.
@@ -370,9 +396,9 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 	}
 
 	if c.VIP {
-		spec.Topology.RegistrationAddress = vipAddress
+		spec.Topology.RegistrationAddress = h.vip()
 		spec.Topology.VIP = &v1alpha1.VIPSpec{
-			Provider: "kube-vip", Address: vipAddress, Mode: "arp",
+			Provider: "kube-vip", Address: h.vip(), Mode: "arp",
 		}
 	} else {
 		// No VIP: the server registers under its own address, and the
@@ -382,7 +408,7 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 	}
 
 	if c.Exposure == "lb-pool" {
-		spec.Kubernetes.Dataplane.LoadBalancerPool = []string{lbPool}
+		spec.Kubernetes.Dataplane.LoadBalancerPool = []string{h.pool()}
 	}
 
 	switch c.PKI {
@@ -415,7 +441,7 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 		if c.Exposure == "node-ips" {
 			gw.Exposure = v1alpha1.ExposureNodeIPs
 		} else {
-			gw.Address = lbAddress
+			gw.Address = h.lb()
 		}
 		// A certificate mode gets a listener to serve on: supplied material
 		// nobody terminates with is material nobody can tell is broken, and
@@ -447,9 +473,12 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 //
 // The documentation ranges (RFC 5737, RFC 2606) rather than somebody's real
 // network: these are defaults in a public repository, and a default that names
-// a real address is a default aimed at whatever answers there. The harness
-// takes the node addresses from the environment; only the values a case needs
-// to be internally consistent are fixed here.
+// a real address is a default aimed at whatever answers there.
+//
+// They are defaults and not the values a run uses. A VIP has to be on the
+// nodes' own segment -- kube-vip claims it on an interface -- so a run that
+// takes these verbatim fails at vip-interface, which is what every VIP case
+// did until Hosts carried the real ones.
 const (
 	vipAddress = "192.0.2.10"
 	lbPool     = "192.0.2.16/29"

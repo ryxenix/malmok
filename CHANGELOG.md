@@ -2,6 +2,15 @@
 
 ## [0.95.0] - 2026-09-09
 
+### Fixed
+- `ca-trust` installed the private CA correctly and could never confirm it. The
+  0.88.0 quoting fix reached `Do` and not `Check`, which put the certificate's
+  second line where the shell expected another command -- so every private-CA
+  run halted on EX-003, applied and the target state not reached. It named the
+  trust store; the fault was the quoting. Found on hardware two releases later.
+  The newline guard passed throughout, because raw material carries real
+  newlines and that is all it looked for; the new guard checks where they land.
+
 ### Added
 - The release carries the images. `malmok-images_<tag>_linux_<arch>.tar.zst` is
   every image the platform pulls, built in CI from the list the binary itself
@@ -12,6 +21,22 @@
   looks. An image with no build for an architecture fails the release rather
   than producing a bundle with a hole in it, and a bundle over the 2 GiB a
   release asset can be fails with what to split.
+
+### Changed
+- The lab harness supplies the VIP and the load-balancer pool. The matrix
+  defaulted to the documentation ranges, which is right for a public repository
+  and impossible to run: kube-vip claims the VIP on an interface and nothing is
+  on 192.0.2.0/24, so every case with a VIP failed at `vip-interface` saying
+  exactly that. `MALMOK_LAB_VIP` and `MALMOK_LAB_LB_POOL` name real ones.
+- The upgrade case builds at the previous minor instead of at stable. Stable
+  and latest name the same release for weeks at a time, and the case skipped
+  every run of the matrix so far -- while the README cited that matrix as
+  evidence for the row. An upgrade from the previous minor is always available
+  and is the upgrade an operator actually performs.
+- A killed run that ends on its own says so. When `ca-trust` halted every
+  private-CA run in l0, the resume case spent its full fifteen minutes watching
+  a process that had already failed and then reported that a later step never
+  started -- naming the wrong thing twice over.
 
 ## [0.94.0] - 2026-09-08
 

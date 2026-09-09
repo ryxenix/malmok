@@ -30,6 +30,7 @@ cd "$(dirname "$0")/.."
 : "${MALMOK_LAB_SERVER:?set MALMOK_LAB_SERVER -- this machine gets wiped}"
 : "${MALMOK_LAB_AGENT:?set MALMOK_LAB_AGENT -- this machine gets wiped}"
 export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_MIRROR
+export MALMOK_LAB_VIP MALMOK_LAB_LB_POOL
 
 # The binary the operator runs, not a fresh build of maybe-different code.
 [ -x bin/malmok ] || { echo "no bin/malmok -- run scripts/build.sh first" >&2; exit 1; }
@@ -49,6 +50,8 @@ docker run --rm \
   -e MALMOK_LAB_AGENT \
   -e MALMOK_LAB_AIRGAP_VERSION \
   -e MALMOK_LAB_MIRROR \
+  -e MALMOK_LAB_VIP \
+  -e MALMOK_LAB_LB_POOL \
   -e MALMOK_BIN=/app-local/bin/malmok \
   -w /app-local \
   golang:alpine \

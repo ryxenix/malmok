@@ -14,12 +14,14 @@ package lab
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -63,7 +65,27 @@ var (
 	// the schema and has never been run against hardware -- but a green matrix
 	// with it on is not a green matrix.
 	mirror = os.Getenv("MALMOK_LAB_MIRROR")
+
+	// Addresses on the nodes' own segment, for the cases that pin one.
+	//
+	// They cannot be the documentation ranges the matrix defaults to: kube-vip
+	// claims the VIP on an interface, and no interface is on 192.0.2.0/24, so
+	// every case with a VIP failed at vip-interface saying precisely that. The
+	// matrix must not name a real network -- it is a public default aimed at
+	// whatever answers there -- so the harness supplies them instead.
+	//
+	// Both must be free on the segment and outside whatever hands out leases.
+	vip    = env("MALMOK_LAB_VIP", "192.168.88.210")
+	lbPool = env("MALMOK_LAB_LB_POOL", "192.168.88.216/29")
 )
+
+// lbAddress is the address a gateway is pinned to: the first in the pool.
+func lbAddress() string {
+	if i := strings.Index(lbPool, "/"); i > 0 {
+		return lbPool[:i]
+	}
+	return lbPool
+}
 
 // cachePorts maps an upstream registry to the port test/lab/cache/compose.yaml
 // serves it on. One registry per upstream, because a pull-through cache
@@ -113,8 +135,9 @@ func TestMatrix(t *testing.T) {
 	if err != nil || ch.Stable == "" {
 		t.Fatalf("could not read the RKE2 channel: %v", err)
 	}
-	t.Logf("matrix on %s: %d cases, RKE2 stable %s, latest %s",
-		server, len(matrix.Cases()), ch.Stable, ch.Latest)
+	older := previousMinor(t, ch.Stable)
+	t.Logf("matrix on %s: %d cases, RKE2 stable %s, latest %s, upgrades from %s",
+		server, len(matrix.Cases()), ch.Stable, ch.Latest, orNone(older))
 
 	// Sequential by necessity: every case owns the same two machines.
 	for _, c := range matrix.Cases() {
@@ -136,7 +159,8 @@ func TestMatrix(t *testing.T) {
 				_ = os.RemoveAll(dir)
 			})
 
-			run := &labRun{t: t, bin: bin, version: ch.Stable, newer: ch.Latest, dir: dir}
+			run := &labRun{t: t, bin: bin, version: ch.Stable, newer: ch.Latest,
+				older: older, dir: dir}
 			run.wipe()
 			run.execute(c)
 		})
@@ -151,7 +175,11 @@ type labRun struct {
 	// actually install rather than a constant somebody has to remember.
 	version string
 	newer   string
-	dir     string
+	// older is the release before version's minor, which is where an upgrade
+	// case starts. Without it the case had nowhere to come from whenever the
+	// channels had converged, and skipped.
+	older string
+	dir   string
 }
 
 // execute builds the case and then does to it whatever its operation says.
@@ -176,12 +204,20 @@ func (r *labRun) execute(c matrix.Case) {
 		r.apply(doc, 30*time.Minute)
 
 	case matrix.OpUpgrade:
-		// An upgrade needs somewhere to go. When the channels have converged
-		// there is no newer version to move to, and skipping says so rather
-		// than passing on a run that did nothing.
-		if r.newer == "" || r.newer == r.version {
-			r.t.Skipf("stable and latest are both %s, so there is no upgrade to make", r.version)
+		// An upgrade needs somewhere to come from, and stable is the wrong end
+		// to start at: stable and latest converge for weeks at a time, and
+		// this case then skipped every run -- which is how the README came to
+		// cite the verification matrix as evidence for a row the matrix was
+		// not exercising.
+		//
+		// So it builds at the previous minor and moves to what people install
+		// today, which is also the upgrade an operator actually performs.
+		if r.older == "" {
+			r.t.Skip("the channel server named no release before " + r.version +
+				", so there is nothing to upgrade from")
 		}
+		r.version = r.older
+		doc = r.write(c, false)
 		r.apply(doc, 30*time.Minute)
 		r.upgrade(doc, r.newer)
 		// The observable is the version the kubelets report, not the version
@@ -221,6 +257,7 @@ func (r *labRun) write(c matrix.Case, grown bool) string {
 	}
 	doc := c.Document(version, matrix.Hosts{
 		Server: server, Agent: agent, User: user, PasswordRef: "env://NODE_PASSWORD",
+		VIP: vip, LBPool: lbPool, LBAddress: lbAddress(),
 	}, m, grown)
 
 	// The cache lives on the segment, and the air-gapped case leaves the
@@ -288,19 +325,34 @@ func (r *labRun) applyThenKill(doc, step string) {
 		r.t.Fatal(err)
 	}
 
+	// The run exiting on its own is the interesting case, and waiting fifteen
+	// minutes to call it "never started" hides it. That is what happened when
+	// ca-trust halted every private-CA run in l0: this case spent its whole
+	// budget watching a process that had already failed, and reported a step
+	// that never began rather than the failure that stopped it.
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
 	deadline := time.Now().Add(15 * time.Minute)
 	for time.Now().Before(deadline) {
 		body, _ := os.ReadFile(log)
 		if strings.Contains(string(body), step) {
 			_ = cmd.Process.Kill()
-			_ = cmd.Wait()
+			<-done
 			r.t.Logf("killed the run at %s", step)
 			return
 		}
-		time.Sleep(2 * time.Second)
+		select {
+		case err := <-done:
+			r.t.Fatalf("the run ended before %s began (%v):\n%s",
+				step, err, tail(readFile(log), 30))
+		case <-time.After(2 * time.Second):
+		}
 	}
 	_ = cmd.Process.Kill()
-	r.t.Fatalf("%s never started, so there was nothing to interrupt", step)
+	<-done
+	r.t.Fatalf("%s never started within 15m, so there was nothing to interrupt:\n%s",
+		step, tail(readFile(log), 30))
 }
 
 // expectHealthy asks the cluster what it is, from the operator's own account.
@@ -686,4 +738,97 @@ func (r *labRun) rootOn(host, script string) {
 	if res, err := root.Run(ctx, script); err != nil || !res.OK() {
 		r.t.Fatalf("%s (exit %d): %s\n%s", host, res.ExitCode, res.Out(), res.Err())
 	}
+}
+
+// readFile is os.ReadFile for a log that may not exist yet.
+func readFile(path string) string {
+	b, _ := os.ReadFile(path)
+	return string(b)
+}
+
+// previousMinor asks the channel server for the newest release of the minor
+// before the one given.
+//
+// The upgrade case used to build at stable and move to latest, which meant it
+// skipped for as long as those two named the same release -- weeks at a time,
+// and every run of the matrix so far. An upgrade from the previous minor is
+// both always available and the upgrade an operator actually performs.
+//
+// It parses the same document rke2.FetchChannels does. The product needs two
+// answers from it and this needs a third, and widening a product API for a
+// test's benefit is how a test's needs end up in a customer's binary.
+func previousMinor(t *testing.T, stable string) string {
+	t.Helper()
+
+	major, minor, ok := splitMinor(stable)
+	if !ok {
+		t.Logf("cannot read a minor out of %q, so the upgrade case has nowhere to start", stable)
+		return ""
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://update.rke2.io/v1-release/channels", nil)
+	if err != nil {
+		t.Logf("channel request: %v", err)
+		return ""
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Logf("channel server: %v", err)
+		return ""
+	}
+	defer res.Body.Close()
+
+	var body struct {
+		Data []struct {
+			ID     string `json:"id"`
+			Latest string `json:"latest"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Logf("channel answer: %v", err)
+		return ""
+	}
+
+	// The highest minor below stable's, not stable's minus one: a minor with
+	// no channel of its own would otherwise silently mean "no upgrade case".
+	best, bestMinor := "", -1
+	for _, c := range body.Data {
+		cMajor, cMinor, ok := splitMinor(c.ID + ".0")
+		if !ok || cMajor != major || cMinor >= minor || cMinor <= bestMinor {
+			continue
+		}
+		if !strings.Contains(c.Latest, "+rke2r") {
+			continue
+		}
+		best, bestMinor = c.Latest, cMinor
+	}
+	return best
+}
+
+// splitMinor reads the major and minor out of a v1.36.4+rke2r1 or a v1.36.
+func splitMinor(v string) (int, int, bool) {
+	v = strings.TrimPrefix(v, "v")
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) < 2 {
+		return 0, 0, false
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, false
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, false
+	}
+	return major, minor, true
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "nothing"
+	}
+	return s
 }

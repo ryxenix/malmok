@@ -225,6 +225,13 @@ const (
 // docs/11-execute.md §2.1: this belongs to l0 rather than l2 because L1 pulls
 // images before any of the cluster exists. Without it every pull fails with an
 // opaque x509 error, which is the most common private-CA misinstall there is.
+//
+// Both halves quote the certificate. 0.88.0 fixed Do and left Check passing the
+// PEM raw, which put its second line where the shell expected another command:
+// the certificate was installed correctly and could never be confirmed, so
+// every private-CA case halted on EX-003 -- applied, and the target state not
+// reached. It is the same material in both, so it is quoted the same way in
+// both.
 func trustStep(t TrustMaterial) *engine.ShellStep {
 	pem := string(t.CABundle)
 	return &engine.ShellStep{
@@ -233,7 +240,7 @@ func trustStep(t TrustMaterial) *engine.ShellStep {
 [ -f "$f" ] || { echo "the CA is not installed at $f"; exit 1; }
 printf '%%s' %s | cmp -s - "$f" || { echo "the installed CA at $f differs from the document's"; exit 1; }
 subject=$(openssl x509 -noout -subject -in "$f" 2>/dev/null || echo unknown)
-echo "installed: $subject"`, caFileDebian, caFileRHEL, pem),
+echo "installed: $subject"`, caFileDebian, caFileRHEL, rke2.ShellQuote(pem)),
 		Do: fmt.Sprintf(`set -e
 if [ -d /etc/pki/ca-trust/source/anchors ]; then
   printf '%%s' %s > %s

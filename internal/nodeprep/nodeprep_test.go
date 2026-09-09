@@ -474,6 +474,42 @@ func TestSwapIsLeftAloneWhenTheDocumentSaysSo(t *testing.T) {
 // arrived as a single line of backslash-n and was not a certificate at all.
 // Neither failed the step: both files existed and matched what the check
 // compared them against, because the check was quoted the same wrong way.
+// The newline guard passed while the script was broken, because raw material
+// carries real newlines and that is all it looked for. What it missed is where
+// those newlines land: a PEM dropped into a command unquoted puts its second
+// line where the shell expects another command.
+//
+// That is what 0.88.0 shipped in ca-trust's Check. The certificate installed
+// correctly and could never be confirmed, so every private-CA case halted on
+// EX-003 -- applied, and the target state not reached -- two releases later, on
+// hardware, naming the trust store rather than the quoting.
+func TestMaterialIsQuotedWhereverItAppears(t *testing.T) {
+	pem := "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+	spec := v1alpha1.ClusterSpec{}
+	spec.Registry.Mode = v1alpha1.RegistryEmbedded
+
+	for _, s := range Steps(&exec.Fake{}, "192.0.2.10", spec, TrustMaterial{CABundle: []byte(pem)}) {
+		sh := s.(*engine.ShellStep)
+		for half, program := range map[string]string{"Check": sh.Check, "Do": sh.Do} {
+			for i := 0; ; {
+				at := strings.Index(program[i:], pem)
+				if at < 0 {
+					break
+				}
+				at += i
+				// ShellQuote wraps in single quotes, so quoted material is
+				// always preceded by one. Anything else is the shell reading
+				// the second line as a command.
+				if at == 0 || program[at-1] != '\'' {
+					t.Errorf("%s %s inserts the certificate unquoted at byte %d:\n%s",
+						sh.Name, half, at, program)
+				}
+				i = at + len(pem)
+			}
+		}
+	}
+}
+
 func TestWrittenFilesKeepTheirNewlines(t *testing.T) {
 	pem := "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
 	spec := v1alpha1.ClusterSpec{}

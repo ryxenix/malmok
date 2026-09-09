@@ -40,20 +40,13 @@ jobs:
       - name: build
         run: ./scripts/release.sh "${GITHUB_REF_NAME}"
 
-      # The notes come from CHANGELOG.md rather than generated commit titles:
-      # the changelog says why something changed, which is the part an operator
-      # deciding whether to upgrade actually needs.
+      # The notes come from CHANGELOG.md rather than generated commit titles,
+      # cut to one sentence a change: the reasoning is what the changelog is
+      # for, and a release page is read at a glance. What it adds is the table
+      # of pinned versions, which is the first thing an operator deciding
+      # whether to take a release looks for and which the notes never said.
       - name: notes
-        run: |
-          awk -v tag="${GITHUB_REF_NAME#v}" '
-            $0 ~ "^## \\[" tag "\\]" { on = 1; next }
-            on && /^## \[/ { exit }
-            on { print }
-          ' CHANGELOG.md > dist/notes.md
-          if [ ! -s dist/notes.md ]; then
-            echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME}" >&2
-            exit 1
-          fi
+        run: python3 scripts/release_notes.py "${GITHUB_REF_NAME}" > dist/notes.md
 
       - name: publish
         env:

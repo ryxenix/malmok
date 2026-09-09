@@ -135,7 +135,16 @@ else
   ./scripts/airgap-images.sh "$tag"
 fi
 
-( cd dist && sha256sum malmok_* malmok-airgap_* malmok-images_* images.txt > SHA256SUMS )
+# The bundle is in the sums only when it was built. Listing it unconditionally
+# made MALMOK_SKIP_IMAGES=1 fail here instead of skipping: an unmatched glob is
+# passed through literally, and sha256sum then exits non-zero on a file named
+# `malmok-images_*`.
+(
+  cd dist
+  files=(malmok_* malmok-airgap_* images.txt)
+  [ "${MALMOK_SKIP_IMAGES:-}" = "1" ] || files+=(malmok-images_*)
+  sha256sum "${files[@]}" > SHA256SUMS
+)
 
 echo
 cat dist/SHA256SUMS

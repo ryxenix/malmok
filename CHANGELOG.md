@@ -10,6 +10,15 @@
   trust store; the fault was the quoting. Found on hardware two releases later.
   The newline guard passed throughout, because raw material carries real
   newlines and that is all it looked for; the new guard checks where they land.
+- The documentation workflow failed before it built anything. `cache: pip`
+  keys the cache off a dependency file and looks for `requirements.txt` or
+  `pyproject.toml`; this repository has `requirements-docs.txt` and neither of
+  those, so the step failed outright rather than skipping the cache it could
+  not key.
+- `MALMOK_SKIP_IMAGES=1` skipped the image bundle and then failed on the
+  checksums. The list named `malmok-images_*` unconditionally, an unmatched
+  glob is passed through literally, and `sha256sum` exits non-zero on it -- so
+  the escape hatch worked only for the case that did not need one.
 
 ### Added
 - The release carries the images. `malmok-images_<tag>_linux_<arch>.tar.zst` is
@@ -21,13 +30,6 @@
   looks. An image with no build for an architecture fails the release rather
   than producing a bundle with a hole in it, and a bundle over the 2 GiB a
   release asset can be fails with what to split.
-
-### Fixed
-- The documentation workflow failed before it built anything. `cache: pip`
-  keys the cache off a dependency file and looks for `requirements.txt` or
-  `pyproject.toml`; this repository has `requirements-docs.txt` and neither of
-  those, so the step failed outright rather than skipping the cache it could
-  not key.
 
 ### Changed
 - The lab harness supplies the VIP and the load-balancer pool. The matrix

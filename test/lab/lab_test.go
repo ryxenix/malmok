@@ -642,6 +642,30 @@ for f in rke2.linux-amd64.tar.gz sha256sum-amd64.txt install.sh \
 done`, c.ArtifactPath))
 	}
 
+	// The platform images. RKE2's own artifacts carry RKE2; the charts this
+	// tool installs pull twenty more, and on a closed node they have to be
+	// there before anything asks for them -- the storage provisioner first,
+	// which is where the air-gapped case failed once storage existed at all.
+	//
+	// Staged beside the RKE2 artifacts, which is what an operator carrying
+	// both does, and copied into the directory containerd imports from. Here
+	// rather than out of band, because the wipe removes /var/lib/rancher
+	// entirely: anything put there before the case is gone by the time the
+	// case runs.
+	for _, host := range []string{server, agent} {
+		r.rootOn(host, fmt.Sprintf(`set -e
+b=$(ls %s/malmok-images_*linux_amd64.tar.zst 2>/dev/null | head -1)
+if [ -z "$b" ]; then
+  echo "no platform image bundle in %s."
+  echo "Build one with MALMOK_IMAGE_ARCHES=amd64 scripts/airgap-images.sh <tag>"
+  echo "and stage it there, beside the RKE2 artifacts."
+  exit 1
+fi
+install -d -m 0755 /var/lib/rancher/rke2/agent/images
+cp -f "$b" /var/lib/rancher/rke2/agent/images/
+echo "staged $(basename "$b")"`, c.ArtifactPath, c.ArtifactPath))
+	}
+
 	// The charts go beside the document, which is what a staging machine does
 	// with them. Downloaded here rather than committed: they are the versions
 	// this binary pins, and pinning them twice is how the two drift.

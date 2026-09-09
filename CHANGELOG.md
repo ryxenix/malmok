@@ -32,6 +32,11 @@
   release asset can be fails with what to split.
 
 ### Changed
+- The air-gapped lab case stages the platform image bundle. RKE2's artifacts
+  carry RKE2; the charts pull twenty images more, and on a closed node they
+  have to be there first -- the storage provisioner soonest, which is where
+  the case failed as soon as storage existed at all. `MALMOK_IMAGE_ARCHES`
+  builds one architecture, for a lab that does not need both.
 - The lab harness supplies the VIP and the load-balancer pool. The matrix
   defaulted to the documentation ranges, which is right for a public repository
   and impossible to run: kube-vip claims the VIP on an interface and nothing is

@@ -30,11 +30,20 @@ limit=$(( 2 * 1024 * 1024 * 1024 ))
 
 # The list comes from the binary. images.txt is only the chart-derived half:
 # the storage phase renders its own manifest and names its own images.
-mapfile -t refs < <(go run ./cmd/malmok images)
+# A built binary when there is one -- the lab stages bundles from a workstation
+# that keeps its Go toolchain in a container. CI has neither a binary at this
+# point nor a reason to avoid the toolchain.
+if [ -x bin/malmok ]; then
+  mapfile -t refs < <(./bin/malmok images)
+else
+  mapfile -t refs < <(go run ./cmd/malmok images)
+fi
 [ "${#refs[@]}" -gt 0 ] || { echo "malmok images listed nothing" >&2; exit 1; }
 echo "${#refs[@]} images"
 
-for arch in amd64 arm64; do
+# Both, for a release. Overridable so the lab can stage the one architecture
+# its nodes have without pulling twenty images twice.
+for arch in ${MALMOK_IMAGE_ARCHES:-amd64 arm64}; do
   out="dist/malmok-images_${tag}_linux_${arch}.tar"
 
   # --platform, so an amd64 runner produces a bundle an arm64 node can import.

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.95.0] - 2026-09-09
+
+### Added
+- The release carries the images. `malmok-images_<tag>_linux_<arch>.tar.zst` is
+  every image the platform pulls, built in CI from the list the binary itself
+  prints, the way k3s and RKE2 ship theirs. A closed site downloads three
+  things -- the binary, RKE2's artifacts and this -- instead of reading chart
+  values and pulling twenty images by hand. It goes in
+  `/var/lib/rancher/rke2/agent/images/` on each node, where containerd already
+  looks. An image with no build for an architecture fails the release rather
+  than producing a bundle with a hole in it, and a bundle over the 2 GiB a
+  release asset can be fails with what to split.
+
 ## [0.94.0] - 2026-09-08
 
 ### Added

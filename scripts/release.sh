@@ -122,7 +122,20 @@ rm -rf "$payload"
 # tag and three of the four cannot execute on the machine doing the release.
 go run ./cmd/malmok images > dist/images.txt
 
-( cd dist && sha256sum malmok_* malmok-airgap_* images.txt > SHA256SUMS )
+# The images themselves, one file per architecture, the way k3s and RKE2 ship
+# theirs. A closed site then carries three things -- the binary, RKE2's
+# artifacts and this -- instead of reading chart values and pulling twenty
+# images by hand.
+#
+# Skippable, because it downloads over a gigabyte and a maintainer checking
+# what a release will contain usually does not need it. CI never skips.
+if [ "${MALMOK_SKIP_IMAGES:-}" = "1" ]; then
+  echo "skipping the image bundle (MALMOK_SKIP_IMAGES=1)"
+else
+  ./scripts/airgap-images.sh "$tag"
+fi
+
+( cd dist && sha256sum malmok_* malmok-airgap_* malmok-images_* images.txt > SHA256SUMS )
 
 echo
 cat dist/SHA256SUMS

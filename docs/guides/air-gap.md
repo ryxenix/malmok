@@ -17,11 +17,14 @@ Prepare these on a connected staging machine:
 - the RKE2 image archives required by the selected dataplane;
 - the Gateway API bundle when Gateway API CRDs are enabled;
 - every application image the cluster will run;
-- the images the platform pulls. `malmok images -f cluster.yaml` lists them,
-  from the chart versions this release pins plus the storage provisioner it
-  renders itself, and answers on a machine with no network. `images.txt` in the
-  release carries the same list for planning before you have anywhere to run
-  the binary; and
+- the images the platform pulls. The release carries them already:
+  `malmok-images_<tag>_linux_<arch>.tar.zst` holds every one, built from the
+  same list the binary prints. Put it on each node in
+  `/var/lib/rancher/rke2/agent/images/` before RKE2 starts, and containerd
+  imports it the way it imports RKE2's own archives. To check the list rather
+  than carry the bundle, `malmok images -f cluster.yaml` prints it and answers
+  on a machine with no network; `images.txt` in the release is the same list
+  for planning before you have anywhere to run the binary; and
 - the Helm charts for cert-manager, observability or Argo CD when those
   components are enabled -- either mirrored, or carried as `.tgz` files and
   named with `registry.chartDir`.

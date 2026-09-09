@@ -29,6 +29,14 @@ jobs:
       - name: test
         run: go test ./...
 
+      # The image bundle saves and compresses twenty images for two
+      # architectures. The runner's preinstalled Android and .NET toolchains
+      # are several gigabytes this needs more than they are needed here.
+      - name: free disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
       - name: build
         run: ./scripts/release.sh "${GITHUB_REF_NAME}"
 
@@ -54,4 +62,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
             --notes-file dist/notes.md \
-            dist/malmok_* dist/malmok-airgap_* dist/images.txt dist/SHA256SUMS
+            dist/malmok_* dist/malmok-airgap_* dist/malmok-images_* \
+            dist/images.txt dist/SHA256SUMS

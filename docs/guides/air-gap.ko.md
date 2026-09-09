@@ -16,10 +16,14 @@
 - 데이터플레인에 필요한 RKE2 이미지 아카이브
 - Gateway API CRD를 활성화한다면 해당 번들
 - 클러스터에서 실행할 애플리케이션 이미지
-- 플랫폼이 받아오는 이미지. `malmok images -f cluster.yaml` 이 이 릴리스가
-  고정한 차트 버전에 더해 직접 렌더링하는 스토리지 프로비저너 이미지까지
-  출력하며, 네트워크 없는 머신에서도 답합니다. 릴리스 자산 `images.txt` 에 같은
-  목록이 있어 바이너리를 돌릴 곳이 생기기 전에도 계획할 수 있습니다
+- 플랫폼이 받아오는 이미지. 릴리스에 이미 들어 있습니다 —
+  `malmok-images_<tag>_linux_<arch>.tar.zst` 가 전부 담고 있으며, 바이너리가
+  출력하는 그 목록으로 만들어집니다. 각 노드
+  `/var/lib/rancher/rke2/agent/images/` 에 RKE2 기동 전에 두면 containerd 가
+  RKE2 자체 아카이브와 같은 방식으로 적재합니다. 반입 대신 목록만 확인하려면
+  `malmok images -f cluster.yaml` 이 네트워크 없는 머신에서도 답하고, 릴리스
+  자산 `images.txt` 가 같은 목록이라 바이너리를 돌릴 곳이 생기기 전에도
+  계획할 수 있습니다
 - cert-manager, 관측 또는 Argo CD를 활성화한다면 해당 Helm 차트. 미러링하거나,
   `.tgz` 파일로 반입해 `registry.chartDir` 로 그 디렉터리를 지정합니다
 

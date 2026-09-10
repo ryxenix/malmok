@@ -29,11 +29,17 @@
 | `exposure` | node-ips, lb-pool, none |
 | `registry` | embedded, upstream |
 | `gitops` | true, false |
+| `network` | online, airgap |
 | `operation` | build, grow, resume, reapply, upgrade |
 
 `operation` 이 차원인 이유: 이번에 나온 결함 대부분은 첫 구축이 아니라 **그 다음에
 한 일**에서 나왔다. 노드 증설, 중단 후 재개, 같은 문서 재적용은 각각 다른 코드
 경로다.
+
+`network` 가 차원인 이유: 문서에 단어 하나 바꿔 적는 것이 아니라 하네스가 실행
+전에 노드의 egress 를 DROP 한다. 밖으로 나가려는 스텝은 고객사에서가 아니라
+여기서 실패한다. 이 축 하나가 스토리지 이미지 다섯 개 누락, 프리플라이트가 자기
+반입물을 거부하는 결함 등을 드러냈다 — 온라인에서는 전부 보이지 않는 것들이다.
 
 ## 3. 선정 규칙
 
@@ -59,6 +65,22 @@ NODE_PASSWORD=... scripts/matrix.sh                # 전 케이스
 NODE_PASSWORD=... scripts/matrix.sh -run idc-single # 한 케이스
 ```
 
+노드 주소 외에 지정하는 값들. 기본값이 문서용 대역(RFC 5737)인 것은 공개
+저장소의 기본값이 실재하는 주소를 겨누지 않게 하기 위해서다 — 그대로 두면
+kube-vip 이 붙을 인터페이스가 없어 VIP 케이스가 `vip-interface` 에서 멈춘다.
+
+| 변수 | 뜻 |
+|---|---|
+| `MALMOK_LAB_VIP` | VIP 케이스가 쓸 주소. 노드와 같은 세그먼트의 빈 주소 |
+| `MALMOK_LAB_LB_POOL` | 로드밸런서 풀 CIDR |
+| `MALMOK_LAB_AIRGAP_VERSION` | 노드에 반입해 둔 RKE2 릴리스. 없으면 에어갭 케이스는 무엇을 놓아야 하는지 말하고 skip 한다 |
+| `MALMOK_LAB_MIRROR` | pull-through 캐시 주소. 기본 꺼짐 — 캐시를 통과한 초록은 캐시 없는 고객의 설치를 증명하지 않는다 |
+
+에어갭 케이스는 두 가지를 노드에 미리 놓아야 한다. RKE2 릴리스 아티팩트와,
+플랫폼 이미지 번들이다. 번들은 `MALMOK_IMAGE_ARCHES=amd64 scripts/airgap-images.sh <tag>`
+로 만들어 아티팩트 옆에 둔다 — 케이스가 와이프 뒤에 `/var/lib/rancher/rke2/agent/images/`
+로 옮긴다. 미리 거기 넣어둘 수 없다: 와이프가 `/var/lib/rancher` 를 통째로 지운다.
+
 - 케이스마다 **두 노드를 완전 초기화하고 재부팅**한다. 따라서 파괴해도 되는
   구간에만 겨눈다 (`MALMOK_LAB_SERVER` / `MALMOK_LAB_AGENT` 로 지정).
 - 재부팅은 장식이 아니다. `rke2-uninstall` 은 Cilium 이 NIC 에 붙인 tc/eBPF
@@ -82,7 +104,7 @@ NODE_PASSWORD=... scripts/matrix.sh -run idc-single # 한 케이스
 | `grow` | 1노드로 구축 후, 문서에 에이전트를 추가해 재적용 |
 | `resume` | `l1-bootstrap/service` 시작 시점에 SIGKILL, 같은 명령으로 재실행 |
 | `reapply` | 구축 후 같은 문서를 다시 적용 — **바뀐 스텝이 0이어야 통과** |
-| `upgrade` | stable 로 구축한 뒤 latest 로 이동 — **전 노드의 kubelet 이 새 버전을 보고해야 통과**. 채널이 수렴해 올라갈 곳이 없으면 통과가 아니라 skip 한다 |
+| `upgrade` | **이전 마이너**로 구축한 뒤 현재 릴리스로 이동 — **전 노드의 kubelet 이 새 버전을 보고해야 통과**. stable 에서 출발하면 stable 과 latest 가 같은 릴리스를 가리키는 동안 매번 skip 했고, 실제로 매트릭스 전 실행에서 한 번도 돌지 않았다 |
 
 그 뒤 공통 확인 (전부 **운영자 계정에서 sudo 없이**):
 
@@ -90,7 +112,9 @@ NODE_PASSWORD=... scripts/matrix.sh -run idc-single # 한 케이스
 - `kubectl` 이 PATH 에 있다 (kubeconfig 만 있고 도구가 없으면 그 클러스터는
   구축한 기계에서 못 쓴다)
 - cilium-gw 케이스는 GatewayClass 가 Accepted
-- Running/Completed/Pending 이 아닌 파드가 없다
+- 모든 파드가 Running 또는 Completed 로 안정된다. Pending 은 통과가 아니다 —
+  이 도구가 요청했는데 클러스터가 주지 못한 파드다. 30초 간격으로 30회까지
+  기다린다: 세 초짜리 ContainerCreating 을 결함으로 보고하지 않기 위해서다
 
 ## 6. 매트릭스를 넓힐 때
 
@@ -105,7 +129,9 @@ NODE_PASSWORD=... scripts/matrix.sh -run idc-single # 한 케이스
 정직하게 적는다. 이것들은 하드웨어나 외부 서비스가 없어서 빠졌다.
 
 - **3서버 HA 조인** (`l1-join-server`) — 세 번째 VM 필요
-- **폐쇄망 / 프록시 망 모드** — 격리 구간과 프록시 필요
+- **프록시 망 모드** — 프록시 필요. 폐쇄망은 `network` 축으로 들어왔다
 - **acme-dns01** — 공인 DNS 와 ACME 계정 필요
 - **external / internal 레지스트리** — Harbor · Hauler 필요
-- **longhorn · nfs 스토리지** — 스토리지 백엔드 필요
+- **`byo-csi`** — 현장 CSI 필요. 이 단계는 StorageClass 존재만 확인한다
+- **longhorn · nfs 스토리지** — 이번 릴리스가 설치하지 않는다. 문서가 지정하면
+  StorageClass 없는 클러스터를 만드는 대신 실행을 멈춘다

@@ -15,6 +15,12 @@
   `pyproject.toml`; this repository has `requirements-docs.txt` and neither of
   those, so the step failed outright rather than skipping the cache it could
   not key.
+- PF-802 blocked a resume on this tool's own work. Ownership was read from
+  `/etc/rancher/rke2/config.yaml`, which the bootstrap phase writes; node prep
+  writes `registries.yaml` first and creates the directory. A run interrupted
+  between them left a node malmok had written and could not recognise, and the
+  resume then stopped on "an installation this tool did not write" -- the one
+  case resume exists for. Any managed file under the directory counts now.
 - `MALMOK_SKIP_IMAGES=1` skipped the image bundle and then failed on the
   checksums. The list named `malmok-images_*` unconditionally, an unmatched
   glob is passed through literally, and `sha256sum` exits non-zero on it -- so

@@ -463,11 +463,17 @@ const ManagedMarker = "Managed by malmok"
 
 // ours reports whether the RKE2 on this node was put there by this tool.
 //
-// The evidence is the config file's marker rather than a flag the caller
-// passes, because a mode flag can be wrong and a file on the node cannot: what
-// is being asked is who wrote this, and the file says.
+// The evidence is a marker in a file rather than a flag the caller passes,
+// because a mode flag can be wrong and a file on the node cannot: what is
+// being asked is who wrote this, and the file says.
+//
+// Any file under the directory, not config.yaml alone. config.yaml is written
+// by the bootstrap phase and registries.yaml by node prep, which runs first
+// and creates the directory -- so a run interrupted between them left a node
+// this tool had written and could not recognise. PF-802 then blocked the
+// resume on the tool's own work, which is the one case §4 exists for.
 func (n *Node) ours(ctx context.Context) bool {
-	r := n.run(ctx, "grep -qF '"+ManagedMarker+"' /etc/rancher/rke2/config.yaml 2>/dev/null; echo rc=$?")
+	r := n.run(ctx, "grep -qrF '"+ManagedMarker+"' /etc/rancher/rke2/ 2>/dev/null; echo rc=$?")
 	return strings.Contains(r.Out(), "rc=0")
 }
 

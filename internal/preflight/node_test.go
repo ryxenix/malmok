@@ -280,6 +280,20 @@ func TestNodeProbes(t *testing.T) {
 			id:        "PF-802", wantCode: "KUBERNETES_PRESENT",
 		},
 		{
+			// The interruption resume exists for. Node prep writes
+			// registries.yaml and creates the directory; the bootstrap phase
+			// writes config.yaml later. A run killed between them left a node
+			// this tool had written, and PF-802 -- reading config.yaml alone
+			// -- called it somebody else's and blocked the resume on the
+			// tool's own work.
+			name: "a half-finished install of our own is not somebody else's",
+			overrides: map[string]exec.Result{
+				"/etc/rancher/rke2":             {Stdout: "/etc/rancher/rke2\n"},
+				"grep -qrF 'Managed by malmok'": {Stdout: "rc=0\n"},
+			},
+			id: "PF-802", wantStatus: StatusPass, wantIn: "written by malmok",
+		},
+		{
 			name:      "a control plane port is taken",
 			overrides: map[string]exec.Result{"ss -lntpH": {Stdout: "0.0.0.0:6443 users:((\"haproxy\",pid=900,fd=7))\n"}},
 			id:        "PF-803", wantCode: "PORT_IN_USE", wantIn: "haproxy",

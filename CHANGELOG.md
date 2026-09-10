@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.0] - 2026-09-10
 
 ### Changed
 - README and the documentation landing pages say what 1.0 means. 0.95 read as

@@ -18,7 +18,7 @@
 # wiped between cases.
 #
 #   sudo docker compose -f test/lab/cache/compose.yaml up -d
-#   curl -s http://192.168.88.253:5100/v2/ && echo
+#   curl -s http://<cache host>:5100/v2/ && echo
 #
 # Anonymous Docker Hub pulls are rate limited per client address, and this
 # makes the whole lab one client. That is the point after the first case, and

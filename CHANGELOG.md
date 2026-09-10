@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+- The lab harness has no default addresses. `scripts/matrix.sh` has said since
+  it was written that a default here is a loaded gun pointed at whatever lives
+  at that address on somebody else's network -- and the harness carried
+  192.168.88.x defaults anyway, so `go test -tags lab` went around the safety
+  the script documented. Every case wipes and reboots both machines. The suite
+  now skips and says what to name; the cases that pin a VIP or a load-balancer
+  pool skip separately.
+
 ### Fixed
 - CI failed on `cache: pip` the same way the documentation workflow did, and
   0.95.0 fixed only the one it was looking at. Both name

@@ -19,7 +19,7 @@
 # store with the node. Stand it up first:
 #
 #   sudo docker compose -f test/lab/cache/compose.yaml up -d
-#   MALMOK_LAB_MIRROR=192.168.88.253 NODE_PASSWORD=... scripts/matrix.sh
+#   MALMOK_LAB_MIRROR=<cache host> NODE_PASSWORD=... scripts/matrix.sh
 #
 # Off by default on purpose. It puts registry.mirrors in every document, so a
 # run with it on has not shown that a customer without a cache installs.
@@ -29,6 +29,15 @@ cd "$(dirname "$0")/.."
 : "${NODE_PASSWORD:?set NODE_PASSWORD to the password for the lab account}"
 : "${MALMOK_LAB_SERVER:?set MALMOK_LAB_SERVER -- this machine gets wiped}"
 : "${MALMOK_LAB_AGENT:?set MALMOK_LAB_AGENT -- this machine gets wiped}"
+
+# The addresses the VIP and load-balancer cases pin. Not fatal: without them
+# those two cases skip and say so, which is better than refusing to run the
+# other eight on a segment whose spare addresses nobody has picked yet.
+if [ -z "${MALMOK_LAB_VIP:-}" ] || [ -z "${MALMOK_LAB_LB_POOL:-}" ]; then
+  echo "MALMOK_LAB_VIP / MALMOK_LAB_LB_POOL are unset, so the cases that pin an" >&2
+  echo "address will skip. Both must be free on the nodes' segment and outside" >&2
+  echo "whatever hands out leases." >&2
+fi
 export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_MIRROR
 export MALMOK_LAB_VIP MALMOK_LAB_LB_POOL
 

@@ -34,11 +34,20 @@ import (
 	"github.com/ryxenix/malmok/internal/spec"
 )
 
-// The lab it runs against. Addresses come from the environment so the suite
-// can be pointed at a different pair without an edit.
+// The lab it runs against.
+//
+// No default addresses, and that is the point: this suite wipes and reboots
+// both machines before every case. A default here is a loaded gun pointed at
+// whatever happens to live at that address on somebody else's network --
+// scripts/matrix.sh has said so for as long as it has existed, and then the
+// harness carried defaults anyway, so running `go test -tags lab` directly
+// went around the safety the script documented.
+//
+// The account name is a different matter: naming the wrong user fails to
+// connect, which costs a message rather than a machine.
 var (
-	server   = env("MALMOK_LAB_SERVER", "192.168.88.241")
-	agent    = env("MALMOK_LAB_AGENT", "192.168.88.244")
+	server   = os.Getenv("MALMOK_LAB_SERVER")
+	agent    = os.Getenv("MALMOK_LAB_AGENT")
 	user     = env("MALMOK_LAB_USER", "k8s")
 	password = os.Getenv("NODE_PASSWORD")
 	binary   = env("MALMOK_BIN", "../../bin/malmok")
@@ -70,13 +79,14 @@ var (
 	//
 	// They cannot be the documentation ranges the matrix defaults to: kube-vip
 	// claims the VIP on an interface, and no interface is on 192.0.2.0/24, so
-	// every case with a VIP failed at vip-interface saying precisely that. The
-	// matrix must not name a real network -- it is a public default aimed at
-	// whatever answers there -- so the harness supplies them instead.
+	// every case with a VIP failed at vip-interface saying precisely that.
 	//
-	// Both must be free on the segment and outside whatever hands out leases.
-	vip    = env("MALMOK_LAB_VIP", "192.168.88.210")
-	lbPool = env("MALMOK_LAB_LB_POOL", "192.168.88.216/29")
+	// Unset here rather than guessed, for the same reason the node addresses
+	// are. Both must be free on the segment and outside whatever hands out
+	// leases, and only whoever owns the segment knows which those are; the
+	// cases that need them skip and say so.
+	vip    = os.Getenv("MALMOK_LAB_VIP")
+	lbPool = os.Getenv("MALMOK_LAB_LB_POOL")
 )
 
 // lbAddress is the address a gateway is pinned to: the first in the pool.
@@ -121,6 +131,13 @@ func env(key, fallback string) string {
 }
 
 func TestMatrix(t *testing.T) {
+	// Named machines only. Every case wipes and reboots both of them, so the
+	// suite refuses to guess which two -- scripts/matrix.sh enforces the same
+	// thing, and this is the path that goes around the script.
+	if server == "" || agent == "" {
+		t.Skip("set MALMOK_LAB_SERVER and MALMOK_LAB_AGENT to two machines you are " +
+			"willing to lose: every case wipes and reboots both of them")
+	}
 	if password == "" {
 		t.Fatal("NODE_PASSWORD is unset; the harness needs the lab account's password")
 	}
@@ -184,6 +201,18 @@ type labRun struct {
 
 // execute builds the case and then does to it whatever its operation says.
 func (r *labRun) execute(c matrix.Case) {
+	// A case that pins an address needs one that exists on the segment. The
+	// matrix defaults to the documentation ranges, which is right for a public
+	// repository and cannot be installed against: kube-vip claims the VIP on
+	// an interface and nothing is on 192.0.2.0/24.
+	if c.VIP && vip == "" {
+		r.t.Skip("set MALMOK_LAB_VIP to a free address on the nodes' segment; " +
+			"kube-vip claims it on an interface, so it cannot be a documentation range")
+	}
+	if c.Exposure == "lb-pool" && lbPool == "" {
+		r.t.Skip("set MALMOK_LAB_LB_POOL to a free CIDR on the nodes' segment")
+	}
+
 	if c.Network == "airgap" {
 		defer r.prepareAirgap(c)()
 	}

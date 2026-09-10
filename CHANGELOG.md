@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `malmok --help` cited a document the repository does not contain, and so did
+  the help for `apply`, `attach` and `report`. The source comments were fixed
+  before publication and the command output was not, which is the half a user
+  actually reads: `--help` is the first thing anybody runs. The sentences stand
+  on their own now.
+
 ## [0.96.0] - 2026-09-10
 
 ### Changed

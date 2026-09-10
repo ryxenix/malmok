@@ -22,8 +22,8 @@ func newReportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "report",
 		Short: "Build the audit report and the DNS record sheet for a run",
-		Long: `report reads a finished run directory and writes the two artifacts of
-docs/00-architecture.md §7 into it.
+		Long: `report reads a finished run directory and writes its two artifacts into it:
+the audit report and the DNS record sheet.
 
 Nothing is read from the cluster. A report generated from live state would say
 something different every time it ran, and what a customer receives has to be

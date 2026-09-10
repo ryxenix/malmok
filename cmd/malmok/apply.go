@@ -50,7 +50,7 @@ func newApplyCmd() *cobra.Command {
 		Short: "Run the phases that build a cluster",
 		Long: `apply runs the phase catalogue. Every phase is idempotent and every run is
 resumable: an interrupted run continues from where it stopped rather than
-starting over. See docs/11-execute.md.`,
+starting over.`,
 		Example: `  # simulated run -- no node is contacted, nothing is installed
   malmok apply --demo
 

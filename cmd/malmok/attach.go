@@ -34,8 +34,7 @@ func newAttachCmd() *cobra.Command {
 then follows it live.
 
 The engine runs as its own process and outlives the renderer, so a dropped SSH
-session costs nothing: reattach and the screen comes back. See
-docs/11-execute.md §1.2.`,
+session costs nothing: reattach and the screen comes back.`,
 		Example: `  # follow the newest run under the default bundle path
   malmok attach
 

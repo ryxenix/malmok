@@ -33,8 +33,8 @@ func newRootCmd() *cobra.Command {
 production and customer sites, including DMZ and air-gapped installations.
 
 The engine runs from cluster.yaml alone. The TUI drives an install and renders
-its progress, but owns no installation logic — see docs/00-architecture.md
-ADR-002.`,
+its progress, but owns no installation logic: everything the wizard can do, the
+document can do without it.`,
 		Version:       versionLine(),
 		SilenceUsage:  true,
 		SilenceErrors: true,

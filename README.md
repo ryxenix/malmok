@@ -1,4 +1,4 @@
-<h1 align="center">Malmok (말목)</h1>
+<h1 align="center">Malmok</h1>
 
 <p align="center"><img src="docs/img/malmok-wordmark.png" alt="Malmok — an anchored cluster" width="620"></p>
 

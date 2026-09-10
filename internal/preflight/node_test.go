@@ -684,3 +684,32 @@ func TestTheEmbeddedMirrorPortIsMeasured(t *testing.T) {
 		seen[p] = true
 	}
 }
+
+// Seeding images into the data directory before the first install is what an
+// air-gapped site does, and what this tool's own guide tells it to do. PF-802
+// then read the directory as somebody else's installation and blocked the
+// documented procedure -- found on hardware, where the lab staged a bundle the
+// way the guide says to.
+//
+// The filtering happens in the shell on the node, which a recorded runner
+// cannot execute: this asserts the probe still asks for it. The proof that it
+// works is the air-gapped lab case, and only that.
+func TestExistingKubernetesIgnoresSeededImages(t *testing.T) {
+	n, f := ubuntuProber(t, nil)
+	n.Probe(context.Background())
+
+	var asked string
+	for _, cmd := range f.Log {
+		if strings.Contains(cmd, "/var/lib/rancher/rke2") && strings.Contains(cmd, "/etc/rancher/k3s") {
+			asked = cmd
+		}
+	}
+	if asked == "" {
+		t.Fatal("PF-802 never asked the node what is installed")
+	}
+	for _, want := range []string{`ls -A "$p/agent"`, `grep -v '^images$'`} {
+		if !strings.Contains(asked, want) {
+			t.Errorf("the probe no longer excludes a data directory holding only images (%q):\n%s", want, asked)
+		}
+	}
+}

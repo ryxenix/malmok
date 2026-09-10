@@ -15,6 +15,12 @@
   `pyproject.toml`; this repository has `requirements-docs.txt` and neither of
   those, so the step failed outright rather than skipping the cache it could
   not key.
+- PF-802 blocked the air-gap procedure this repository documents. The guide
+  says to seed the image bundle into `/var/lib/rancher/rke2/agent/images/`
+  before RKE2 starts; the check then found a data directory and refused to
+  install, on the grounds of inherited certificates and etcd that a directory
+  of image archives does not have. A data directory holding nothing else is
+  not an installation now.
 - PF-802 blocked a resume on this tool's own work. Ownership was read from
   `/etc/rancher/rke2/config.yaml`, which the bootstrap phase writes; node prep
   writes `registries.yaml` first and creates the directory. A run interrupted

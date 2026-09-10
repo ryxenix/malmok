@@ -479,8 +479,24 @@ func (n *Node) ours(ctx context.Context) bool {
 
 // CheckExistingKubernetes implements PF-802.
 func (n *Node) CheckExistingKubernetes(ctx context.Context) ProbeResult {
-	r := n.run(ctx, "for p in /etc/rancher/rke2 /etc/rancher/k3s /var/lib/rancher/rke2 /var/lib/rancher/k3s; "+
-		"do [ -e $p ] && echo $p; done; true")
+	// A data directory holding nothing but preloaded image archives is not an
+	// installation. Seeding images into agent/images/ before the first install
+	// is what an air-gapped site does -- this tool's own guide says to -- and
+	// there is no cluster state in there: no certificates, no etcd, which is
+	// what the failure below is actually about. Refusing it meant the
+	// documented air-gap procedure was blocked by the tool that documented it.
+	r := n.run(ctx, `for p in /etc/rancher/rke2 /etc/rancher/k3s /var/lib/rancher/rke2 /var/lib/rancher/k3s; do
+  [ -e "$p" ] || continue
+  case "$p" in
+    /var/lib/rancher/*)
+      rest=$(ls -A "$p" 2>/dev/null | grep -v '^agent$')
+      sub=$(ls -A "$p/agent" 2>/dev/null | grep -v '^images$')
+      [ -z "$rest" ] && [ -z "$sub" ] && continue
+      ;;
+  esac
+  echo "$p"
+done
+true`)
 	if r.ExitCode < 0 {
 		return unmeasured("PF-802", "the node could not be asked: "+r.Err())
 	}

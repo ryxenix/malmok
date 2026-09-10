@@ -16,7 +16,31 @@ You need:
 The nodes must be able to reach each other on the ports reported by preflight,
 including 6443, 9345, 2379–2380 and 10250 where their roles require them.
 
-## 1. Describe the cluster
+## Install Malmok and open the wizard
+
+You do not need an existing `cluster.yaml`.
+
+```bash
+# Install on your operator machine; skip if already installed
+curl -fsSL https://malmok.dev/install.sh | sh
+
+# Configure, check and install interactively
+malmok apply --tui
+```
+
+Enter your node addresses and SSH access details in the wizard. It creates
+the configuration file and guides the build using the same engine as the CLI.
+Use `--lang ko` for Korean. To explore without contacting nodes, run
+`malmok apply --demo` after installing Malmok.
+
+For manual downloads or restricted networks, see [installation options](installation.md).
+
+## Alternative: use a configuration file
+
+Choose this path for repeatable or automated runs. It is not a prerequisite
+for the wizard, and you do not need to install again after completing the wizard.
+
+### 1. Describe the cluster
 
 Save this file as `cluster.yaml`. Addresses in `192.0.2.0/24` are reserved for
 documentation; replace them before running anything.
@@ -51,7 +75,7 @@ kubernetes:
     endpoint. Before adding control-plane servers, introduce stable DNS or a
     virtual IP; otherwise existing nodes must be rejoined when it changes.
 
-## 2. Validate without touching a node
+### 2. Validate without touching a node
 
 ```bash
 malmok plan -f cluster.yaml --validate-only
@@ -59,7 +83,7 @@ malmok plan -f cluster.yaml --validate-only
 
 Unknown fields and invalid combinations are reported before SSH is attempted.
 
-## 3. Measure without changing
+### 3. Measure without changing
 
 ```bash
 malmok preflight -f cluster.yaml
@@ -68,7 +92,7 @@ malmok preflight -f cluster.yaml
 Preflight inspects the hosts and runs real network probes. It reports blockers
 and recommendations but does not repair or configure the nodes.
 
-## 4. Review the resolved plan
+### 4. Review the resolved plan
 
 ```bash
 malmok plan -f cluster.yaml
@@ -77,7 +101,7 @@ malmok plan -f cluster.yaml
 The output includes values supplied by the selected profile and the source of
 each value.
 
-## 5. Apply and inspect
+### 5. Apply and inspect
 
 ```bash
 malmok apply -f cluster.yaml
@@ -90,13 +114,4 @@ interrupted, use the run identifier printed by Malmok:
 ```bash
 malmok apply --resume RUN_ID
 ```
-
-## Prefer a guided workflow?
-
-```bash
-malmok apply --tui
-```
-
-The TUI writes the same document and drives the same engine. To explore the
-flow without contacting a node, run `malmok apply --demo`.
 

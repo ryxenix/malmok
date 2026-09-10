@@ -111,7 +111,20 @@ curl -fsSL https://malmok.dev/install.sh | sh
 
 [Review all installation options →](getting-started/installation.md)
 
-## Start with one document
+## Start with the wizard
+
+After installing Malmok, run the wizard without creating a configuration file:
+
+```bash
+malmok apply --tui
+```
+
+Enter your node addresses and SSH access details. The wizard creates
+`cluster.yaml` and guides you through checks and installation.
+
+## Configuration files for repeatable runs { #start-with-one-document }
+
+This is an alternative to the wizard, not a prerequisite for it.
 
 Save the following as `cluster.yaml`, replacing the documentation address,
 SSH account, key and RKE2 version with values from your environment.

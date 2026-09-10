@@ -106,7 +106,20 @@ curl -fsSL https://malmok.dev/install.sh | sh
 
 [설치 옵션 보기 →](getting-started/installation.md)
 
-## 문서 하나로 시작하기 { #cluster-document }
+## 마법사로 시작하기
+
+말목 설치 후 설정 파일을 미리 만들지 않고 마법사를 실행할 수 있습니다.
+
+```bash
+malmok apply --tui --lang ko
+```
+
+대상 노드 주소와 SSH 접근 정보를 입력하면 마법사가 `cluster.yaml`을 생성하고,
+점검과 구축을 안내합니다.
+
+## 구성 파일로 반복·자동화하기 { #cluster-document }
+
+마법사의 선행 작업이 아니라, 파일로 구성을 관리하려는 사용자를 위한 별도 경로입니다.
 
 아래 예제를 `cluster.yaml`로 저장하고 주소, SSH 계정, 키 경로와 RKE2 버전을
 실제 환경에 맞게 바꾸십시오.

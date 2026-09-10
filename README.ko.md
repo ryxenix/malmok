@@ -69,7 +69,113 @@ RKE2 클러스터를 직접 구축하고 관리하려는 사용자를 위한 도
 Malmok은 VM 생성이나 범용 구성 관리, 애플리케이션 배포 도구를 대체하지 않습니다.
 클러스터 기반까지 구축하고 운영하며, 머신과 애플리케이션은 사용자가 관리합니다.
 
-## 문서 하나로 시작하기
+## 요구 사항
+
+- Malmok 실행 환경은 Linux 또는 macOS, amd64 또는 arm64여야 합니다.
+- 대상 노드는 amd64 또는 arm64 기반 Ubuntu나 Rocky/RHEL 계열 Linux여야 합니다.
+  현재 검증 프로파일은 Ubuntu 22.04/24.04와 Rocky 9를 대상으로 합니다. 그 밖의
+  조합을 사용하기 전에 [검증 범위](#검증-범위)를 확인하십시오.
+- 모든 대상 노드에 SSH로 접근할 수 있어야 하며, root 권한 또는 정상적인 권한
+  상승 수단이 필요합니다. 로컬 단일 노드 설치는 SSH 없이 root로 실행할 수
+  있습니다.
+- 노드당 최소 20 GB 여유 디스크가 필요하며, 2 CPU 코어, 4 GB 메모리와 50 GB
+  여유 디스크를 권장합니다. 정확한 차단 조건과 권장 사항은 preflight가
+  보고합니다.
+- 노드끼리 6443(쿠버네티스 API), 9345(RKE2 supervisor — 쿠버네티스 포트
+  문서 어디에도 없어서 가장 많이 놓칩니다), 2379-2380(etcd, 서버 간),
+  10250(kubelet)과 데이터플레인 자체 포트에 도달할 수 있어야 합니다.
+  `registry.mode: embedded`이면 5001도 필요합니다. 노드가 보유 이미지를
+  광고하는 통로인데, 막혀 있어도 실패하지 않고 업스트림 레지스트리로
+  넘어갑니다 — 폐쇄망에서는 그게 멈추는 pull입니다. preflight는 이를
+  추정하지 않습니다. 한쪽 노드에 실제 리스너를 띄우고 상대 노드에서
+  접속해 봅니다.
+
+## 설치
+
+최신 릴리스를 명령 하나로 설치할 수 있습니다.
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh
+```
+
+Bash와 Fish에서 같은 명령을 사용합니다. 내려받은 설치 스크립트 자체는 POSIX
+`sh`에서 실행됩니다.
+
+설치 스크립트는 Linux·macOS와 amd64·arm64를 판별하고, 알맞은
+[릴리스](https://github.com/ryxenix/malmok/releases)를 내려받아 공개된
+`SHA256SUMS`로 검증한 뒤 `/usr/local/bin`에 `malmok`을 설치합니다. 실행 전에
+스크립트를 직접 확인하려면 다음과 같이 사용하십시오.
+
+```bash
+curl -fsSLo install-malmok.sh https://malmok.dev/install.sh
+less install-malmok.sh
+sh install-malmok.sh
+```
+
+특정 릴리스, 설치 경로 또는 Linux 에어갭 바이너리를 선택하려면 `sh -s --`
+뒤에 `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, `--airgap`을 전달합니다.
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
+```
+
+릴리스 페이지에서 바이너리를 직접 내려받을 수도 있습니다. Linux·macOS,
+amd64·arm64 빌드를 제공하며, 동봉된 `SHA256SUMS`와 대조해야 합니다.
+
+바이너리를 내려받은 뒤 `MALMOK_BIN`에 파일명을 지정하고 PATH에 설치하십시오.
+Linux amd64의 예시는 다음과 같습니다.
+
+```bash
+# X.Y.Z를 릴리스 버전으로 교체
+MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64
+chmod +x "$MALMOK_BIN"
+sudo install "$MALMOK_BIN" /usr/local/bin/malmok
+malmok --version
+```
+
+Fish에서 직접 설치할 때는 다음과 같습니다.
+
+```fish
+# X.Y.Z를 릴리스 버전으로 교체
+set MALMOK_BIN ./malmok_vX.Y.Z_linux_amd64
+chmod +x "$MALMOK_BIN"
+sudo install "$MALMOK_BIN" /usr/local/bin/malmok
+malmok --version
+```
+
+소스에서 설치하려면:
+
+```bash
+git clone https://github.com/ryxenix/malmok
+cd malmok
+go build -o bin/malmok ./cmd/malmok
+```
+
+Go 1.25.8 이상이 필요합니다. 다음 방법도 사용할 수 있습니다.
+
+```bash
+go install github.com/ryxenix/malmok/cmd/malmok@latest
+```
+
+단, `go install`로 만든 바이너리에는 릴리스 버전이 주입되지 않아 `malmok
+--version`이 `dev`로 표시됩니다. 정확한 버전 식별이 중요할 때는 릴리스 바이너리를
+사용하십시오.
+
+## 마법사로 시작하기
+
+`cluster.yaml`을 미리 작성할 필요가 없습니다. 말목을 설치한 뒤 마법사에
+대상 노드 주소와 SSH 접근 정보를 입력하면, 구성 파일 생성부터 점검과 구축까지 안내합니다.
+
+```bash
+# 마법사에서 설정하고 클러스터 구축
+malmok apply --tui --lang ko
+```
+
+수동 다운로드와 폐쇄망 환경은 [설치 옵션](#설치)을 확인하십시오.
+
+## 구성 파일로 반복·자동화하기
+
+마법사의 선행 작업이 아니라, 파일로 구성을 관리하려는 사용자를 위한 별도 경로입니다.
 
 말목 클러스터를 구성하는 데 필요한 최소 형태입니다. 문서용 주소, SSH 계정,
 키와 RKE2 버전을 실제 환경의 값으로 바꾼 뒤 `cluster.yaml`로 저장하십시오.
@@ -224,98 +330,6 @@ k0sctl은 k0s를, 말목은 RKE2를 대상으로 합니다. 관리 클러스터�
 
 [자세한 FAQ와 도구 비교 →](docs/about/comparison.ko.md)
 
-## 설치
-
-최신 릴리스를 명령 하나로 설치할 수 있습니다.
-
-```bash
-curl -fsSL https://malmok.dev/install.sh | sh
-```
-
-Bash와 Fish에서 같은 명령을 사용합니다. 내려받은 설치 스크립트 자체는 POSIX
-`sh`에서 실행됩니다.
-
-설치 스크립트는 Linux·macOS와 amd64·arm64를 판별하고, 알맞은
-[릴리스](https://github.com/ryxenix/malmok/releases)를 내려받아 공개된
-`SHA256SUMS`로 검증한 뒤 `/usr/local/bin`에 `malmok`을 설치합니다. 실행 전에
-스크립트를 직접 확인하려면 다음과 같이 사용하십시오.
-
-```bash
-curl -fsSLo install-malmok.sh https://malmok.dev/install.sh
-less install-malmok.sh
-sh install-malmok.sh
-```
-
-특정 릴리스, 설치 경로 또는 Linux 에어갭 바이너리를 선택하려면 `sh -s --`
-뒤에 `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, `--airgap`을 전달합니다.
-
-```bash
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
-```
-
-릴리스 페이지에서 바이너리를 직접 내려받을 수도 있습니다. Linux·macOS,
-amd64·arm64 빌드를 제공하며, 동봉된 `SHA256SUMS`와 대조해야 합니다.
-
-바이너리를 내려받은 뒤 `MALMOK_BIN`에 파일명을 지정하고 PATH에 설치하십시오.
-Linux amd64의 예시는 다음과 같습니다.
-
-```bash
-# X.Y.Z를 릴리스 버전으로 교체
-MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64
-chmod +x "$MALMOK_BIN"
-sudo install "$MALMOK_BIN" /usr/local/bin/malmok
-malmok --version
-```
-
-Fish에서 직접 설치할 때는 다음과 같습니다.
-
-```fish
-# X.Y.Z를 릴리스 버전으로 교체
-set MALMOK_BIN ./malmok_vX.Y.Z_linux_amd64
-chmod +x "$MALMOK_BIN"
-sudo install "$MALMOK_BIN" /usr/local/bin/malmok
-malmok --version
-```
-
-소스에서 설치하려면:
-
-```bash
-git clone https://github.com/ryxenix/malmok
-cd malmok
-go build -o bin/malmok ./cmd/malmok
-```
-
-Go 1.25.8 이상이 필요합니다. 다음 방법도 사용할 수 있습니다.
-
-```bash
-go install github.com/ryxenix/malmok/cmd/malmok@latest
-```
-
-단, `go install`로 만든 바이너리에는 릴리스 버전이 주입되지 않아 `malmok
---version`이 `dev`로 표시됩니다. 정확한 버전 식별이 중요할 때는 릴리스 바이너리를
-사용하십시오.
-
-## 요구 사항
-
-- Malmok 실행 환경은 Linux 또는 macOS, amd64 또는 arm64여야 합니다.
-- 대상 노드는 amd64 또는 arm64 기반 Ubuntu나 Rocky/RHEL 계열 Linux여야 합니다.
-  현재 검증 프로파일은 Ubuntu 22.04/24.04와 Rocky 9를 대상으로 합니다. 그 밖의
-  조합을 사용하기 전에 [검증 범위](#검증-범위)를 확인하십시오.
-- 모든 대상 노드에 SSH로 접근할 수 있어야 하며, root 권한 또는 정상적인 권한
-  상승 수단이 필요합니다. 로컬 단일 노드 설치는 SSH 없이 root로 실행할 수
-  있습니다.
-- 노드당 최소 20 GB 여유 디스크가 필요하며, 2 CPU 코어, 4 GB 메모리와 50 GB
-  여유 디스크를 권장합니다. 정확한 차단 조건과 권장 사항은 preflight가
-  보고합니다.
-- 노드끼리 6443(쿠버네티스 API), 9345(RKE2 supervisor — 쿠버네티스 포트
-  문서 어디에도 없어서 가장 많이 놓칩니다), 2379-2380(etcd, 서버 간),
-  10250(kubelet)과 데이터플레인 자체 포트에 도달할 수 있어야 합니다.
-  `registry.mode: embedded`이면 5001도 필요합니다. 노드가 보유 이미지를
-  광고하는 통로인데, 막혀 있어도 실패하지 않고 업스트림 레지스트리로
-  넘어갑니다 — 폐쇄망에서는 그게 멈추는 pull입니다. preflight는 이를
-  추정하지 않습니다. 한쪽 노드에 실제 리스너를 띄우고 상대 노드에서
-  접속해 봅니다.
-
 ## 노드에서 무엇을 바꾸는가
 
 말목이 root를 요구하는 이유는 호스트를 준비하기 때문입니다. 권한을 주기 전에
@@ -345,15 +359,26 @@ go install github.com/ryxenix/malmok/cmd/malmok@latest
 
 ## 5분 사용법
 
-설치 없이 화면만 보려면 `malmok apply --demo`를 실행하십시오. 노드에 접속하지
-않고 주요 설치 흐름과 TUI 상태를 시뮬레이션합니다.
+### 마법사로 구축
 
-TUI로 하려면 `malmok apply --tui`를 실행하십시오. 마법사가 `cluster.yaml`을
-위에서 본 형태로 만들어 주고, 같은 화면에서 설치까지 진행합니다. 화면 언어는
-영어가 기본이고 `--lang ko` 또는 설정 화면에서 한국어로 바꿀 수 있습니다(선택은
-저장됩니다).
+기존 설정 파일 없이 시작할 수 있습니다.
 
-이제 문서를 검증하고, 노드를 측정하고, 구축한 뒤 결과를 확인합니다.
+```bash
+# 말목 설치 — 이미 설치했다면 생략
+curl -fsSL https://malmok.dev/install.sh | sh
+
+# 마법사에서 설정·점검 후 구축
+malmok apply --tui --lang ko
+```
+
+마법사가 `cluster.yaml`을 생성합니다. 대상 노드 주소와 접근 정보는 입력해야 합니다.
+말목 설치 후 노드에 접속하지 않고 화면만 체험하려면
+`malmok apply --demo --lang ko`를 실행하십시오.
+
+### 다른 방법: 구성 파일로 실행
+
+반복·자동화가 필요하다면 위 YAML 예제를 실제 환경에 맞게 `cluster.yaml`로
+저장하고 아래 명령을 실행하십시오. 마법사에서 구축을 완료했다면 다시 설치할 필요는 없습니다.
 
 ```bash
 # 1. 문서 검증 — 노드에 접속하지 않습니다

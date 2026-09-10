@@ -71,7 +71,115 @@ Malmok does not provision VMs or replace general configuration management or
 application deployment tools. It builds and operates the cluster foundation;
 you remain responsible for the machines and applications.
 
-## Start with one document
+## Requirements
+
+- Run Malmok from Linux or macOS on amd64 or arm64.
+- Target nodes must be Ubuntu or Rocky/RHEL-family Linux on amd64 or arm64.
+  The verified profiles currently cover Ubuntu 22.04/24.04 and Rocky 9; see
+  [what is verified](#what-is-verified) before using another combination.
+- The operator needs SSH access and root access or working privilege
+  escalation on every target node. A local single-node install can be run as
+  root without SSH.
+- Each node needs at least 20 GB free disk space; 2 CPU cores, 4 GB RAM and 50
+  GB free disk are recommended. Preflight reports the exact blockers and
+  recommendations.
+- Nodes must reach each other on 6443 (Kubernetes API), 9345 (the RKE2
+  supervisor -- absent from every Kubernetes port reference, and the one people
+  miss), 2379-2380 (etcd, between servers) and 10250 (kubelet), plus the
+  dataplane's own ports. With `registry.mode: embedded`, also 5001: that is how
+  the nodes advertise which images they hold, and a cluster with it closed does
+  not fail -- every pull goes to the upstream registry instead, which on an
+  air-gapped node is a pull that hangs. Preflight does not infer any of this:
+  it binds a real listener on one node and dials it from the peer.
+
+## Install
+
+Install the latest release with one command:
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh
+```
+
+The command is the same in Bash and Fish. The downloaded installer itself runs
+under POSIX `sh`.
+
+The installer detects Linux or macOS and amd64 or arm64, downloads the matching
+[release](https://github.com/ryxenix/malmok/releases), verifies it against the
+published `SHA256SUMS`, and installs `malmok` in `/usr/local/bin`. To inspect
+the script before running it:
+
+```bash
+curl -fsSLo install-malmok.sh https://malmok.dev/install.sh
+less install-malmok.sh
+sh install-malmok.sh
+```
+
+Pass `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, or `--airgap` after
+`sh -s --` to select a release, installation directory, or Linux air-gap
+binary. For example:
+
+```bash
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
+```
+
+You can also download a binary directly from the releases page -- Linux and
+macOS, amd64 and arm64 are provided -- and verify it against the included
+`SHA256SUMS`.
+
+After downloading the binary, set `MALMOK_BIN` to its filename and install it
+on your PATH. For example, on Linux amd64:
+
+```bash
+# Replace X.Y.Z with the release version
+MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64
+chmod +x "$MALMOK_BIN"
+sudo install "$MALMOK_BIN" /usr/local/bin/malmok
+malmok --version
+```
+
+The equivalent manual installation in Fish is:
+
+```fish
+# Replace X.Y.Z with the release version
+set MALMOK_BIN ./malmok_vX.Y.Z_linux_amd64
+chmod +x "$MALMOK_BIN"
+sudo install "$MALMOK_BIN" /usr/local/bin/malmok
+malmok --version
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/ryxenix/malmok
+cd malmok
+go build -o bin/malmok ./cmd/malmok
+```
+
+This requires Go 1.25.8 or newer. The following works too:
+
+```bash
+go install github.com/ryxenix/malmok/cmd/malmok@latest
+```
+
+A `go install` build is not stamped with the release version and reports `dev`
+from `malmok --version`; use a release binary when the exact version matters.
+
+## Start with the wizard
+
+You do not need to write `cluster.yaml` first. Install Malmok, then enter your
+node addresses and SSH access details in the wizard. It creates the document
+and guides you through checks and installation.
+
+```bash
+# Configure and build interactively
+malmok apply --tui
+```
+
+See [installation options](#install) for manual downloads and air-gapped sites.
+
+## Configuration files for repeatable runs
+
+This is an alternative to the wizard, not a prerequisite for it.
 
 This is the smallest useful shape of a Malmok cluster. Replace the
 documentation address, SSH account, key and RKE2 version with values for your
@@ -233,99 +341,6 @@ own environment before adoption.
 
 [Read the full FAQ and tool comparisons →](docs/about/comparison.md)
 
-## Install
-
-Install the latest release with one command:
-
-```bash
-curl -fsSL https://malmok.dev/install.sh | sh
-```
-
-The command is the same in Bash and Fish. The downloaded installer itself runs
-under POSIX `sh`.
-
-The installer detects Linux or macOS and amd64 or arm64, downloads the matching
-[release](https://github.com/ryxenix/malmok/releases), verifies it against the
-published `SHA256SUMS`, and installs `malmok` in `/usr/local/bin`. To inspect
-the script before running it:
-
-```bash
-curl -fsSLo install-malmok.sh https://malmok.dev/install.sh
-less install-malmok.sh
-sh install-malmok.sh
-```
-
-Pass `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, or `--airgap` after
-`sh -s --` to select a release, installation directory, or Linux air-gap
-binary. For example:
-
-```bash
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
-```
-
-You can also download a binary directly from the releases page -- Linux and
-macOS, amd64 and arm64 are provided -- and verify it against the included
-`SHA256SUMS`.
-
-After downloading the binary, set `MALMOK_BIN` to its filename and install it
-on your PATH. For example, on Linux amd64:
-
-```bash
-# Replace X.Y.Z with the release version
-MALMOK_BIN=./malmok_vX.Y.Z_linux_amd64
-chmod +x "$MALMOK_BIN"
-sudo install "$MALMOK_BIN" /usr/local/bin/malmok
-malmok --version
-```
-
-The equivalent manual installation in Fish is:
-
-```fish
-# Replace X.Y.Z with the release version
-set MALMOK_BIN ./malmok_vX.Y.Z_linux_amd64
-chmod +x "$MALMOK_BIN"
-sudo install "$MALMOK_BIN" /usr/local/bin/malmok
-malmok --version
-```
-
-Or install from source:
-
-```bash
-git clone https://github.com/ryxenix/malmok
-cd malmok
-go build -o bin/malmok ./cmd/malmok
-```
-
-This requires Go 1.25.8 or newer. The following works too:
-
-```bash
-go install github.com/ryxenix/malmok/cmd/malmok@latest
-```
-
-A `go install` build is not stamped with the release version and reports `dev`
-from `malmok --version`; use a release binary when the exact version matters.
-
-## Requirements
-
-- Run Malmok from Linux or macOS on amd64 or arm64.
-- Target nodes must be Ubuntu or Rocky/RHEL-family Linux on amd64 or arm64.
-  The verified profiles currently cover Ubuntu 22.04/24.04 and Rocky 9; see
-  [what is verified](#what-is-verified) before using another combination.
-- The operator needs SSH access and root access or working privilege
-  escalation on every target node. A local single-node install can be run as
-  root without SSH.
-- Each node needs at least 20 GB free disk space; 2 CPU cores, 4 GB RAM and 50
-  GB free disk are recommended. Preflight reports the exact blockers and
-  recommendations.
-- Nodes must reach each other on 6443 (Kubernetes API), 9345 (the RKE2
-  supervisor -- absent from every Kubernetes port reference, and the one people
-  miss), 2379-2380 (etcd, between servers) and 10250 (kubelet), plus the
-  dataplane's own ports. With `registry.mode: embedded`, also 5001: that is how
-  the nodes advertise which images they hold, and a cluster with it closed does
-  not fail -- every pull goes to the upstream registry instead, which on an
-  air-gapped node is a pull that hangs. Preflight does not infer any of this:
-  it binds a real listener on one node and dials it from the peer.
-
 ## What it changes on a node
 
 Malmok needs root because it prepares the host. It is worth knowing what that
@@ -357,12 +372,27 @@ node at a time, waiting for Ready in between.
 
 ## Five minutes
 
-`malmok apply --tui` opens the wizard instead: it writes the `cluster.yaml`
-shown above and installs from the same screen, in English or Korean (`--lang
-ko`, or the settings screen, which remembers). `malmok apply --demo` simulates
-the main installation flow and TUI states without touching a node.
+### Guided setup
 
-Then validate, measure, build and inspect the result:
+No existing configuration file is required.
+
+```bash
+# Install Malmok; skip this if it is already installed
+curl -fsSL https://malmok.dev/install.sh | sh
+
+# Enter the configuration, review checks and install in the wizard
+malmok apply --tui
+```
+
+The wizard writes `cluster.yaml` for you. Node addresses and access details
+are still required. Use `--lang ko` for Korean, or `malmok apply --demo` to
+explore the flow without contacting nodes.
+
+### Alternative: configuration-file workflow
+
+For repeatable or automated runs, save the YAML example above as `cluster.yaml`
+with your own values, then run the commands below. You do not need to repeat
+this installation after completing the wizard.
 
 ```bash
 # 1. check the document -- no node is contacted

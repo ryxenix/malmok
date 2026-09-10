@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- CI failed on `cache: pip` the same way the documentation workflow did, and
+  0.95.0 fixed only the one it was looking at. Both name
+  `requirements-docs.txt` now. Finding one instance of a fault and not grepping
+  for the rest is how the same fix gets made twice.
+
 ## [0.95.0] - 2026-09-09
 
 ### Fixed

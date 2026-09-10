@@ -11,7 +11,7 @@
 
 <p align="center"><strong>Build RKE2 clusters on infrastructure you control — repeatably, resumably and without installing agents.</strong></p>
 
-<p align="center"><sub>Bare metal · VMs · On-premises · DMZ · Air-gapped (<a href="#what-is-verified">partly verified</a>)</sub></p>
+<p align="center"><sub>Bare metal · VMs · On-premises · DMZ · Air-gapped (<a href="#what-is-verified">verified</a>)</sub></p>
 
 <p align="center">
   <a href="#five-minutes"><strong>Get started</strong></a> ·
@@ -34,10 +34,10 @@
 > have, repeatably. Try it in a homelab or an evaluation environment and send
 > feedback. Before using it for work, read [what is verified](#what-is-verified)
 > and its limits: single-node and two-node clusters are verified repeatedly on
-> real hardware; **three-server HA, proxies and external registries are not**,
-> and the air-gapped path is verified for RKE2, Cilium and the Gateway API from
-> carried artifacts, not yet for platform charts carried as files. The document
-> schema is `v1alpha1` and may change between minor releases.
+> real hardware, including upgrade, resume and re-apply; **three-server HA,
+> proxies and external registries are not**. The air-gapped path is verified:
+> RKE2, the charts and every image from carried files, with egress dropped.
+> The document schema is `v1alpha1` and may change between minor releases.
 
 ## Who it is for
 
@@ -386,27 +386,37 @@ malmok report
 An infrastructure tool that overstates its coverage breaks somebody else's
 cluster. So the untested rows are in the same table as the tested ones.
 
+Every row below is what the verification matrix did on the release it names,
+on two machines, with the network it says. All ten of its cases pass on
+0.95.0 -- the air-gapped one last, and only after it had found five more
+defects in getting there.
+
 | Configuration | Status | Evidence |
 |---|---|---|
-| Single node (control-plane + etcd) | **verified on hardware** | production install in a data centre |
-| Two nodes (server + agent) | **verified on hardware** | lab harness, repeated |
-| Grow / resume after interruption / re-apply | **verified on hardware** | verification matrix |
-| RKE2 upgrade | **verified on hardware** | verification matrix |
-| Cilium dataplane + Gateway API | **verified on hardware** | reachable from a public address |
-| private-CA listener certificates | **verified on hardware** | lab harness |
+| Single node (control-plane + etcd) | **verified on hardware** | matrix `idc-single`, `cilium-traefik-single`, 0.95.0; and a production install in a data centre |
+| Two nodes (server + agent) | **verified on hardware** | matrix `canal-pair`, `homelab-full`, `byocert-lb`, 0.95.0 |
+| Grow a cluster from one node to two | **verified on hardware** | matrix `grow-to-two`, 0.95.0 |
+| Resume after interruption | **verified on hardware** | matrix `resume-after-kill`, 0.95.0 -- killed mid-`l1-bootstrap/service`, re-run to completion |
+| Re-apply changes nothing | **verified on hardware** | matrix `reapply-changes-nothing`, 0.95.0 -- every step observed and skipped |
+| RKE2 upgrade | **verified on hardware** | matrix `upgrade-two`, 0.95.0 -- built at v1.35.8+rke2r1, upgraded to v1.36.4+rke2r1, one node at a time, checked against what the kubelets report |
+| Cilium dataplane + Gateway API | **verified on hardware** | matrix, 0.95.0; reachable from a public address |
+| private-CA listener certificates | **verified on hardware** | matrix `homelab-full`, 0.95.0 |
+| Supplied (BYO) certificates | **verified on hardware** | matrix `byocert-lb`, 0.95.0 |
 | ACME HTTP-01 certificates | **verified on hardware** | Let's Encrypt issued on the production cluster; TLS 1.3, chain and hostname checked |
 | ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
 | Three-server HA (etcd quorum) | **not verified** | no hardware yet |
-| Airgap install (no egress) | **verified on hardware, partly** | two-node lab run, egress dropped the way a site firewall does; RKE2, Cilium and the Gateway API from carried artifacts, every outbound attempt accounted for. **Platform charts carried as files (`registry.chartDir`) are not yet verified end to end** -- the delivery path was fixed in 0.92.0 and the lab case has not passed since |
+| Airgap install (no egress) | **verified on hardware** | matrix `airgap-pair`, 0.95.0: egress dropped the way a site firewall does. RKE2 and Cilium from carried artifacts, platform charts carried as files (`registry.chartDir`), every image from a carried bundle, local-path serving claims and the metrics database running -- nothing fetched. The cases were run over three sessions as each fix landed, not as one uninterrupted sweep |
+| local-path storage | **verified on hardware** | matrix, 0.95.0 -- every case that installs the metrics stack binds its volume |
+| Longhorn / NFS storage | **not implemented** | the document is refused rather than producing a cluster with no StorageClass |
+| Site-owned CSI (`byo-csi`) | **not verified** | the phase observes a StorageClass; no site CSI has been run against it |
 | Proxy | **not verified** | schema only |
-| External registry mirror | **not verified** | schema only |
-| Storage backends | out of scope | the application's concern |
-| Observability (VictoriaMetrics) | **verified on hardware** | installed on the production cluster; 19 scrape targets, samples stored |
+| External registry mirror | **not verified** | delivered to the node since 0.93.0, never exercised against a registry on hardware |
+| Observability (VictoriaMetrics) | **verified on hardware** | matrix, 0.95.0 -- the metrics database serving on a cluster this tool built; and 19 scrape targets on the production cluster |
 
-The verification matrix defines combinations across seven dimensions and
-**enforces coverage with tests** -- add a value and use it in no case, and an
-offline test fails. Network mode is not yet one of those dimensions; the
-air-gap claim above comes from its dedicated hardware run. See
+The verification matrix defines combinations across eight dimensions --
+network mode among them, so the air-gapped case is a row and not a separate
+exercise -- and **enforces coverage with tests**: add a value and use it in no
+case, and an offline test fails. See
 [`docs/40-verification-matrix.md`](docs/40-verification-matrix.md).
 
 ## What it deliberately does not do

@@ -31,11 +31,11 @@ runs and leaves evidence an operator can hand over.
     Before using it for work, read the verification scope and its limits.
 
     Single-node and two-node clusters are verified repeatedly on real
-    hardware. Three-server HA, proxy networks and external registry mirrors
-    are not. The air-gapped path is verified for RKE2, Cilium and the Gateway
-    API from carried artifacts; carrying the platform charts as files is not
-    yet verified end to end. The document schema is `v1alpha1` and can change
-    between minor releases.
+    hardware, upgrade, resume and re-apply included. Three-server HA, proxy
+    networks and external registry mirrors are not. The air-gapped path is
+    verified: RKE2, the charts and every image from carried files, with egress
+    dropped. The document schema is `v1alpha1` and can change between minor
+    releases.
 
 ## Is Malmok for you?
 

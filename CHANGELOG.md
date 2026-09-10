@@ -15,6 +15,17 @@
   `pyproject.toml`; this repository has `requirements-docs.txt` and neither of
   those, so the step failed outright rather than skipping the cache it could
   not key.
+- The carry list was missing five images, and only a closed site could tell.
+  The metrics stack templates VMSingle, VMAgent, VMAlert and VMAlertmanager as
+  custom resources, and the VictoriaMetrics operator fills their images in at
+  run time: the chart states a tag and puts the repository in a renovate
+  comment, so rendering it -- which is how the rest of the list is generated --
+  found nothing. Online the node simply fetched them. Air-gapped, the install
+  laid down RKE2, Cilium, the gateway and local-path from carried files and
+  then sat for fifteen minutes on a metrics database that could not pull its
+  own image. They are named in Go now, read from a cluster that ran the stack
+  rather than guessed out of a comment, and a chart bump fails the build until
+  somebody has read them again.
 - PF-802 blocked the air-gap procedure this repository documents. The guide
   says to seed the image bundle into `/var/lib/rancher/rke2/agent/images/`
   before RKE2 starts; the check then found a data directory and refused to

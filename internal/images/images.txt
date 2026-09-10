@@ -5,13 +5,14 @@
 # still sees its image here. Over-listing costs bytes, under-listing
 # costs an install on a site that cannot fetch what is missing.
 #
-# INCOMPLETE for operator-managed components. victoria-metrics-k8s-stack
-# templates VMSingle, VMAgent, VMAlert and VMAlertmanager custom
-# resources whose images the VictoriaMetrics operator fills in at run
-# time; the chart states only their tags, with the repository in a
-# renovate comment. Reading a comment would be a guess, and a guess in
-# a carry list is discovered in a room with no way to fetch what is
-# missing. Take those from a cluster that has run the stack.
+# This file is the chart-derived half. Two things are not in it and are
+# not missing: the storage provisioner, whose manifest this tool renders
+# itself, and the images the VictoriaMetrics operator fills in at run
+# time for VMSingle, VMAgent, VMAlert and VMAlertmanager -- the chart
+# states only their tags, with the repository in a renovate comment, so
+# rendering finds nothing. Both are named in Go and both come out of
+# `malmok images`, which is the complete list and what the release
+# bundle is built from.
 #
 # chart<TAB>version<TAB>image
 argo-cd	10.2.3	ecr-public.aws.com/docker/library/redis:8.2.3-alpine

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.1] - 2026-09-10
 
 ### Fixed
 - `malmok --help` cited a document the repository does not contain, and so did

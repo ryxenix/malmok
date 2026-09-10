@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- README and the documentation landing pages say what 1.0 means. 0.95 read as
+  "nearly done" beside a status banner that says alpha and a table with
+  unverified rows in it -- the number and the sentences were making different
+  claims. The number is a compatibility promise: `0.x` says the schema can
+  still move. 1.0 is when it becomes `v1` and the unverified rows say
+  otherwise.
 - The lab harness has no default addresses. `scripts/matrix.sh` has said since
   it was written that a default here is a loaded gun pointed at whatever lives
   at that address on somebody else's network -- and the harness carried

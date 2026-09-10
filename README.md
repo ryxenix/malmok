@@ -38,6 +38,13 @@
 > proxies and external registries are not**. The air-gapped path is verified:
 > RKE2, the charts and every image from carried files, with egress dropped.
 > The document schema is `v1alpha1` and may change between minor releases.
+>
+> The version is a compatibility promise, not a maturity score: `0.x` says the
+> schema can still move, and 0.95 says nothing about how close 1.0 is. **1.0 is
+> when the schema becomes `v1` and the rows in
+> [what is verified](#what-is-verified) that say *not verified* say otherwise.**
+> The number was 0.1.0 in August; the changelog is what it has been doing
+> since.
 
 ## Who it is for
 

@@ -37,6 +37,10 @@ runs and leaves evidence an operator can hand over.
     dropped. The document schema is `v1alpha1` and can change between minor
     releases.
 
+    The version is a compatibility promise, not a maturity score. **1.0 is
+    when the schema becomes `v1` and the rows marked *not verified* say
+    otherwise.**
+
 ## Is Malmok for you?
 
 Start with existing Linux machines and SSH access. Malmok helps you build and

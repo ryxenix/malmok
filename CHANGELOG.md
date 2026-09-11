@@ -18,6 +18,13 @@
   guide gives the command that takes the address off.
   `MALMOK_LAB_THIRD` names the third machine; without it the case skips.
 
+### Changed
+- README and the documentation mark three-server HA verified, from the
+  `ha-failover` case: three servers under a VIP, the VIP holder rebooted, the
+  address moved, a write landed on two of three etcd members, and the server
+  rejoined by itself. Only that much -- an upgrade across three servers has not
+  been run, and the upgrade guide still says so.
+
 ### Fixed
 - On a cluster with a VIP, the operator's kubeconfig named the machine it was
   on. RKE2 writes 127.0.0.1 -- that server's own API server -- and the copy

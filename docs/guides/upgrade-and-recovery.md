@@ -24,9 +24,10 @@ malmok upgrade --to "$TARGET_RKE2"
 
 !!! warning
 
-    Three-server HA and etcd quorum behavior are not yet hardware-verified by
-    this project. Check the [verification matrix](../40-verification-matrix.md)
-    before using an unverified topology.
+    Three servers are verified for building and for losing one of them, but
+    an upgrade across three servers is not yet hardware-verified by this
+    project. Check the [verification matrix](../40-verification-matrix.md)
+    before upgrading one.
 
 ## Resume an interrupted run
 

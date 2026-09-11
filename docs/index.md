@@ -31,8 +31,9 @@ runs and leaves evidence an operator can hand over.
     Before using it for work, read the verification scope and its limits.
 
     Single-node and two-node clusters are verified repeatedly on real
-    hardware, upgrade, resume and re-apply included. Three-server HA, proxy
-    networks and external registry mirrors are not. The air-gapped path is
+    hardware, upgrade, resume and re-apply included, and three servers are
+    verified for building and for losing one. Proxy networks and external
+    registry mirrors are not. The air-gapped path is
     verified: RKE2, the charts and every image from carried files, with egress
     dropped. The document schema is `v1alpha1` and can change between minor
     releases.

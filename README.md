@@ -34,8 +34,9 @@
 > have, repeatably. Try it in a homelab or an evaluation environment and send
 > feedback. Before using it for work, read [what is verified](#what-is-verified)
 > and its limits: single-node and two-node clusters are verified repeatedly on
-> real hardware, including upgrade, resume and re-apply; **three-server HA,
-> proxies and external registries are not**. The air-gapped path is verified:
+> real hardware, including upgrade, resume and re-apply; three servers are
+> verified for building and for losing one; **proxies and external registries
+> are not**. The air-gapped path is verified:
 > RKE2, the charts and every image from carried files, with egress dropped.
 > The document schema is `v1alpha1` and may change between minor releases.
 >
@@ -437,9 +438,10 @@ An infrastructure tool that overstates its coverage breaks somebody else's
 cluster. So the untested rows are in the same table as the tested ones.
 
 Every row below is what the verification matrix did on the release it names,
-on two machines, with the network it says. All ten of its cases pass on
+on the machines and with the network it says. Ten of its eleven cases pass on
 0.95.0 -- the air-gapped one last, and only after it had found five more
-defects in getting there.
+defects in getting there. The eleventh, three servers losing one, was added
+after that release and passes on main; the fix it needed is not released yet.
 
 | Configuration | Status | Evidence |
 |---|---|---|
@@ -454,7 +456,7 @@ defects in getting there.
 | Supplied (BYO) certificates | **verified on hardware** | matrix `byocert-lb`, 0.95.0 |
 | ACME HTTP-01 certificates | **verified on hardware** | Let's Encrypt issued on the production cluster; TLS 1.3, chain and hostname checked |
 | ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
-| Three-server HA (etcd quorum) | **not verified** | no hardware yet |
+| Three-server HA (etcd quorum) | **verified on hardware** | matrix `ha-failover`, main after 0.96.1 (not yet released): three servers under a VIP, and the one holding the VIP rebooted -- the VIP moved, a write landed with two of three etcd members, and the server rejoined on its own. An upgrade across three servers is not verified. Stopping a server with `rke2-killall.sh` leaves the VIP on it; see the [recovery guide](docs/guides/upgrade-and-recovery.md) |
 | Airgap install (no egress) | **verified on hardware** | matrix `airgap-pair`, 0.95.0: egress dropped the way a site firewall does. RKE2 and Cilium from carried artifacts, platform charts carried as files (`registry.chartDir`), every image from a carried bundle, local-path serving claims and the metrics database running -- nothing fetched. The cases were run over three sessions as each fix landed, not as one uninterrupted sweep |
 | local-path storage | **verified on hardware** | matrix, 0.95.0 -- every case that installs the metrics stack binds its volume |
 | Longhorn / NFS storage | **not implemented** | the document is refused rather than producing a cluster with no StorageClass |

@@ -11,6 +11,8 @@
 
 <p align="center"><strong>Build RKE2 clusters on infrastructure you control — repeatably, resumably and without installing agents.</strong></p>
 
+<p align="center">Malmok takes its name from a Korean word for a wooden stake used to mark boundaries or reinforce foundations — a fitting name for building a cluster's foundation.</p>
+
 <p align="center"><sub>Bare metal · VMs · On-premises · DMZ · Air-gapped (<a href="#what-is-verified">verified</a>)</sub></p>
 
 <p align="center">
@@ -238,13 +240,6 @@ The profile supplies the Cilium dataplane, Gateway API and local-path storage;
 address is not a stable registration endpoint, so introduce a stable DNS name
 or virtual IP before adding servers. More configurations are in
 [`examples/`](examples/).
-
-## 말목 — the name
-
-`말목` (*malmok*, roughly “mal-mok”) is a Korean word for a wooden stake driven
-firmly into the ground to mark a boundary or reinforce a foundation. The name
-fits the tool's role: establishing a dependable base, anchoring the first
-server and bringing the rest of the cluster together around it.
 
 ## One engine, two ways to work
 

@@ -1,6 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.3] - 2026-09-11
+
+### Changed
+- 0.96.2 was tagged and never released, so its changes reach users here: three-server HA verified on hardware, and on a cluster with a VIP the operator's kubeconfig names the VIP.
 
 ### Fixed
 - The release stopped on a registry rate limit and blamed the image.
@@ -13,6 +16,9 @@
   said it.
 
 ## [0.96.2] - 2026-09-11
+
+Tagged and never released: the release job stopped on a registry rate limit
+before anything was published. Everything below shipped in 0.96.3.
 
 ### Added
 - A three-server case that loses a server. `ha-failover` builds three servers

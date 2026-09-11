@@ -27,7 +27,7 @@ sh install-malmok.sh
 
 ```bash
 # 특정 릴리스 설치
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.3
 
 # 사용자 디렉터리에 설치
 curl -fsSL https://malmok.dev/install.sh | sh -s -- --bin-dir ~/.local/bin

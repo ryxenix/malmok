@@ -142,7 +142,7 @@ Pass `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, or `--airgap` after
 binary. For example:
 
 ```bash
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.3
 ```
 
 You can also download a binary directly from the releases page -- Linux and

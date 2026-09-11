@@ -37,7 +37,7 @@ Options follow `sh -s --` when the installer is piped:
 
 ```bash
 # Install a specific release
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.83.0
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.3
 
 # Install without elevated privileges
 curl -fsSL https://malmok.dev/install.sh | sh -s -- --bin-dir ~/.local/bin

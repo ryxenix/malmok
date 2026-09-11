@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- The install examples pin v0.96.3. They named v0.83.0, whose tag and release
+  no longer exist, so the command they showed failed.
+
 ## [0.96.3] - 2026-09-11
 
 ### Changed

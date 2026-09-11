@@ -41,6 +41,40 @@ fi
 [ "${#refs[@]}" -gt 0 ] || { echo "malmok images listed nothing" >&2; exit 1; }
 echo "${#refs[@]} images"
 
+# pull fetches one image for one architecture, and says why when it cannot.
+#
+# The first version treated every failure as a missing architecture, so a
+# registry refusing a request -- "toomanyrequests: Rate exceeded" from ECR
+# Public, on a CI runner whose address is shared with everybody else's -- was
+# reported as "has no linux/amd64 build" and an instruction to stop publishing
+# amd64. The refusal is transient and is retried with a growing wait; the
+# missing-architecture verdict is given only when the registry says exactly
+# that; anything else is printed as the registry said it.
+pull() {
+  local ref=$1 arch=$2 out="" attempt
+  for attempt in $(seq 1 "${MALMOK_PULL_ATTEMPTS:-6}"); do
+    if out=$(docker pull -q --platform "linux/${arch}" "$ref" 2>&1); then
+      return 0
+    fi
+    case "$out" in
+      *"no matching manifest"*|*"does not match the specified platform"*|*"no match for platform"*)
+        echo "$out" >&2
+        echo >&2
+        echo "$ref has no linux/${arch} build, so the ${arch} bundle would be" >&2
+        echo "incomplete. Fix the component or stop publishing ${arch}; do not" >&2
+        echo "ship a bundle with a hole in it." >&2
+        exit 1
+        ;;
+    esac
+    echo "  attempt ${attempt}: $(printf '%s' "$out" | tail -1)" >&2
+    [ "$attempt" -lt "${MALMOK_PULL_ATTEMPTS:-6}" ] && sleep $((attempt * 15))
+  done
+  echo >&2
+  echo "$ref could not be pulled for linux/${arch}. The last thing the registry said:" >&2
+  echo "$out" >&2
+  exit 1
+}
+
 # Both, for a release. Overridable so the lab can stage the one architecture
 # its nodes have without pulling twenty images twice.
 for arch in ${MALMOK_IMAGE_ARCHES:-amd64 arm64}; do
@@ -52,13 +86,7 @@ for arch in ${MALMOK_IMAGE_ARCHES:-amd64 arm64}; do
   # what is missing, which is the whole thing this file exists to prevent.
   for ref in "${refs[@]}"; do
     echo "pulling ${arch} ${ref}"
-    if ! docker pull -q --platform "linux/${arch}" "$ref" >/dev/null; then
-      echo >&2
-      echo "$ref has no linux/${arch} build, so the ${arch} bundle would be" >&2
-      echo "incomplete. Fix the component or stop publishing ${arch}; do not" >&2
-      echo "ship a bundle with a hole in it." >&2
-      exit 1
-    fi
+    pull "$ref" "$arch"
   done
 
   echo "saving $out"

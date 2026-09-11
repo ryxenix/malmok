@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- The release stopped on a registry rate limit and blamed the image.
+  `toomanyrequests: Rate exceeded` from ECR Public -- a CI runner's address is
+  shared, so anonymous pulls run out -- was reported as the image having no
+  linux/amd64 build, with an instruction to stop publishing amd64. Every
+  failed pull was read as a missing architecture. Refusals are retried now
+  with a growing wait, the missing-architecture verdict is given only when the
+  registry says exactly that, and anything else is printed as the registry
+  said it.
+
 ## [0.96.2] - 2026-09-11
 
 ### Added

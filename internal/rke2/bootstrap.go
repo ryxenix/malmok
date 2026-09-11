@@ -27,11 +27,14 @@ const PhaseBootstrap = "l1-bootstrap"
 // units and its uninstall script assume them, and moving them means owning
 // every consequence of that for the life of the cluster.
 const (
-	ConfigDir    = "/etc/rancher/rke2"
-	ConfigFile   = ConfigDir + "/config.yaml"
-	DataDir      = "/var/lib/rancher/rke2"
-	BinDir       = DataDir + "/bin"
-	Kubeconfig   = ConfigDir + "/rke2.yaml"
+	ConfigDir  = "/etc/rancher/rke2"
+	ConfigFile = ConfigDir + "/config.yaml"
+	DataDir    = "/var/lib/rancher/rke2"
+	BinDir     = DataDir + "/bin"
+	Kubeconfig = ConfigDir + "/rke2.yaml"
+	// APIPort is where every server's API server listens, and where the VIP
+	// forwards to.
+	APIPort      = 6443
 	TokenFile    = DataDir + "/server/node-token"
 	InstallerURL = "https://get.rke2.io"
 	// ImagesDir is where an airgapped install expects the image tarballs.
@@ -110,7 +113,7 @@ func BootstrapSteps(runner exec.Runner, node v1alpha1.NodeSpec, spec v1alpha1.Cl
 		add(serviceStep("rke2-server", o)),
 		// The operator's own access, not only the tool's: the account this
 		// logged in as is the account kubectl and k9s will run from.
-		add(kubeconfigStep(node.SSH.User)),
+		add(kubeconfigStep(node.SSH.User, operatorServer(spec))),
 		// And the tools that access is for. A cluster whose kubeconfig is in
 		// place but whose kubectl is buried in /var/lib/rancher looks broken
 		// from the machine it was built on.
@@ -584,6 +587,27 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
+// operatorServer is the address the operator's kubeconfig names, or "" to keep
+// RKE2's own.
+//
+// RKE2's kubeconfig names 127.0.0.1: the API server on the machine it was
+// written on. On a cluster with a VIP that is the wrong address for a person.
+// The failover case measured it: with the first server's control plane taken
+// away and brought back, the VIP had moved and was accepting writes, and
+// kubectl on that server was refused -- because it was asking that server,
+// whose API server had not finished starting. Every restart does the same, and
+// an upgrade restarts every server in turn.
+//
+// The VIP is already on the API server's certificate, since tls-san carries
+// the registration address, so naming it needs nothing else. Without a VIP
+// there is no better address than the local one.
+func operatorServer(spec v1alpha1.ClusterSpec) string {
+	if v := spec.Topology.VIP; v != nil && strings.TrimSpace(v.Address) != "" {
+		return fmt.Sprintf("https://%s:%d", strings.TrimSpace(v.Address), APIPort)
+	}
+	return ""
+}
+
 // kubeconfigStep puts the cluster's kubeconfig where the operator's own tools
 // look for it.
 //
@@ -599,7 +623,7 @@ func shellQuote(s string) string {
 // puts every future member one `usermod` away from cluster-admin. The copy can
 // go stale only if the cluster CA rotates, and the check compares content so a
 // re-run repairs exactly that.
-func kubeconfigStep(user string) *engine.ShellStep {
+func kubeconfigStep(user, server string) *engine.ShellStep {
 	// The account is decided at run time, not at render time: over SSH it is
 	// the login account, and on a local node -- where the tool runs under sudo
 	// and the document names no credentials -- it is whoever sudo elevated.
@@ -610,18 +634,37 @@ func kubeconfigStep(user string) *engine.ShellStep {
 home=$(getent passwd "$u" | cut -d: -f6)
 [ -n "$home" ] || { echo "no home directory for $u"; exit 1; }`, shellQuote(user))
 
+	// What the copy should hold, rendered the same way for the check and the
+	// write. The check compares content, and comparing against the original
+	// while writing an edited copy would report the copy stale on every run,
+	// forever -- the shape of the ca-trust defect, which quoted its material
+	// one way to write it and another to check it.
+	render := "cat " + Kubeconfig
+	named := ""
+	if server != "" {
+		render = fmt.Sprintf(`sed 's#server: https://127.0.0.1:%d#server: %s#' %s`, APIPort, server, Kubeconfig)
+		// If RKE2 ever writes its kubeconfig differently, the substitution
+		// matches nothing and the copy quietly keeps the local address. Said
+		// here instead, where it can be seen.
+		named = fmt.Sprintf(`
+grep -qF 'server: %s' "$home/.kube/config" || { echo "$home/.kube/config does not name %s"; exit 1; }`, server, server)
+	}
+
 	return &engine.ShellStep{
 		Name: "kubeconfig",
 		Check: resolve + fmt.Sprintf(`
-cmp -s %s "$home/.kube/config" || { echo "$u has no current kubeconfig"; exit 1; }
+%s 2>/dev/null | cmp -s - "$home/.kube/config" || { echo "$u has no current kubeconfig"; exit 1; }
 owner=$(stat -c %%U "$home/.kube/config")
-[ "$owner" = "$u" ] || { echo "$home/.kube/config belongs to $owner, not $u"; exit 1; }
-echo "$u can reach the cluster from $home/.kube/config"`, Kubeconfig),
+[ "$owner" = "$u" ] || { echo "$home/.kube/config belongs to $owner, not $u"; exit 1; }%s
+echo "$u can reach the cluster from $home/.kube/config"`, render, named),
 
 		Do: resolve + fmt.Sprintf(`
 set -e
 install -d -m 700 -o "$u" -g "$(id -gn "$u")" "$home/.kube"
-install -m 600 -o "$u" -g "$(id -gn "$u")" %s "$home/.kube/config"`, Kubeconfig),
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+%s > "$tmp"
+install -m 600 -o "$u" -g "$(id -gn "$u")" "$tmp" "$home/.kube/config"`, render),
 
 		Satisfied: "%s",
 		Missing:   "%s",

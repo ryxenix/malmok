@@ -89,7 +89,7 @@ func JoinSteps(node exec.Runner, control exec.Runner, spec v1alpha1.ClusterSpec,
 	if kind == "server" {
 		// Every server holds a kubeconfig, and the operator may sit at any of
 		// them. An agent has none to copy.
-		steps = append(steps, add(kubeconfigStep(target.SSH.User), node))
+		steps = append(steps, add(kubeconfigStep(target.SSH.User, operatorServer(spec)), node))
 	}
 	return steps
 }

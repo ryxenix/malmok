@@ -2,6 +2,7 @@ package rke2
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -543,5 +544,44 @@ func TestEmbeddedRegistryIsActuallyEnabled(t *testing.T) {
 	other.Registry.Mode = v1alpha1.RegistryExternal
 	if got := ServerConfig(serverNode(), other, "tok"); strings.Contains(got, "embedded-registry") {
 		t.Errorf("a document that names an external registry got the embedded mirror:\n%s", got)
+	}
+}
+
+// With a VIP, the operator's kubeconfig names it. RKE2's names 127.0.0.1 -- the
+// API server on the machine it was written on -- and the failover case found
+// what that costs: the VIP had moved and was accepting writes, and kubectl on
+// the server that had been down was refused, asking an API server that had not
+// finished starting.
+func TestTheOperatorKubeconfigNamesTheVIP(t *testing.T) {
+	withVIP := v1alpha1.ClusterSpec{Topology: v1alpha1.TopologySpec{
+		RegistrationAddress: "192.0.2.10",
+		VIP:                 &v1alpha1.VIPSpec{Provider: "kube-vip", Address: "192.0.2.10", Mode: "arp"},
+	}}
+	server := operatorServer(withVIP)
+	if server != "https://192.0.2.10:6443" {
+		t.Fatalf("the operator is pointed at %q", server)
+	}
+	step := kubeconfigStep("k8s", server)
+
+	// The check and the write render the copy the same way, or the check
+	// reports it stale on every run and the step never settles.
+	render := fmt.Sprintf("sed 's#server: https://127.0.0.1:%d#server: %s#' %s", APIPort, server, Kubeconfig)
+	for name, script := range map[string]string{"Check": step.Check, "Do": step.Do} {
+		if !strings.Contains(script, render) {
+			t.Errorf("%s does not render the copy with the VIP:\n%s", name, script)
+		}
+	}
+	// A substitution that matches nothing leaves the local address in place
+	// without a word. The check says so instead.
+	if !strings.Contains(step.Check, "grep -qF 'server: "+server+"'") {
+		t.Errorf("the check does not confirm the copy names the VIP:\n%s", step.Check)
+	}
+
+	// Without a VIP there is no better address than the local one.
+	plain := kubeconfigStep("k8s", operatorServer(v1alpha1.ClusterSpec{}))
+	for name, script := range map[string]string{"Check": plain.Check, "Do": plain.Do} {
+		if strings.Contains(script, "sed 's#server") || !strings.Contains(script, "cat "+Kubeconfig) {
+			t.Errorf("%s edits the kubeconfig of a cluster with no VIP:\n%s", name, script)
+		}
 	}
 }

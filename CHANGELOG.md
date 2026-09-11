@@ -11,6 +11,14 @@
   `MALMOK_LAB_THIRD` names the third machine; without it the case skips.
 
 ### Fixed
+- On a cluster with a VIP, the operator's kubeconfig named the machine it was
+  on. RKE2 writes 127.0.0.1 -- that server's own API server -- and the copy
+  handed to the operator kept it. The failover case measured the cost: with
+  the first server's control plane taken away and brought back, the VIP had
+  moved and was accepting writes, and kubectl on that server was refused while
+  its API server finished starting. Every restart does the same, and an
+  upgrade restarts every server in turn. The copy names the VIP now, which the
+  API server's certificate already carries.
 - The lab's node checks were cut off at two minutes by the connection that ran
   them, so the pod-settle loop that says it waits five minutes waited two.
   Harmless while pods settled quickly; not after a server has been taken away

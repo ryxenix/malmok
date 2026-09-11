@@ -49,6 +49,31 @@ malmok apply -f cluster.yaml
 Phases are idempotent: each checks the target condition before changing it.
 Reapplying the same document should converge without rebuilding healthy work.
 
+## Stopping a server on a cluster with a VIP
+
+`rke2-killall.sh` stops RKE2 by killing its containers outright, and kube-vip
+is one of them. Killed that way it cannot release the VIP, so the address stays
+on that server's network interface after RKE2 is gone. Another server takes the
+address over, and until the stopped server's own kube-vip starts again -- when
+RKE2 does, or the machine reboots -- both of them answer for it. Requests made
+on the stopped server go to itself and are refused, and other machines on the
+segment can be sent there too.
+
+This was measured, not reasoned about. In the three-server failover case the
+stopped server still held the address thirty seconds after another had claimed
+it, and released it only when its own kube-vip restarted.
+
+A server that is going to stay stopped should have the address taken off. Find
+the interface that carries it, then remove it:
+
+```bash
+ip -4 -o addr show | grep -F <VIP>
+sudo ip addr del <VIP>/32 dev <interface>
+```
+
+A reboot does the same on its own, which is why a server that fails outright
+does not leave this behind.
+
 ## Read the evidence first
 
 ```bash

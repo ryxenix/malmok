@@ -948,8 +948,8 @@ func notRunnable(c matrix.Case) string {
 // only the first is given the operator's.
 const kubeRoot = "export PATH=$PATH:/var/lib/rancher/rke2/bin KUBECONFIG=/etc/rancher/rke2/rke2.yaml\n"
 
-// failover takes the control plane away from the server answering for the VIP
-// and requires the cluster to carry on without it.
+// failover reboots the server answering for the VIP and requires the cluster
+// to carry on without it.
 //
 // Three things have to hold for "high availability" to mean anything, and each
 // is measured on the machines rather than inferred:
@@ -966,6 +966,14 @@ const kubeRoot = "export PATH=$PATH:/var/lib/rancher/rke2/bin KUBECONFIG=/etc/ra
 // The server taken away is the one holding the address, not any server.
 // Losing a node nobody was routed to proves only that the cluster can lose a
 // node nobody was using.
+//
+// Taken away by a reboot, not by killing RKE2. Killing it leaves the machine
+// up and the VIP on its interface -- kube-vip dies by SIGKILL with no chance to
+// release it -- so the lost server went on answering for the address and sent
+// its own requests to itself. That is a real hazard, written up in the
+// recovery guide where an operator stopping a server will read it, but it is a
+// different failure from the one this case is about: a server that goes away.
+// A reboot takes the machine, and the address, with it.
 func (r *labRun) failover() {
 	r.t.Helper()
 
@@ -980,13 +988,12 @@ func (r *labRun) failover() {
 			survivors = append(survivors, h)
 		}
 	}
-	r.t.Logf("%s holds the VIP; taking its control plane away", holder)
+	r.t.Logf("%s holds the VIP; rebooting it", holder)
 
-	// Stopped and then killed: stopping the unit alone leaves the containers
-	// it started running, kube-vip and etcd among them, which would make this
-	// a test of a restart rather than of a loss.
-	r.rootOn(holder, `systemctl stop rke2-server >/dev/null 2>&1; `+
-		`/usr/local/bin/rke2-killall.sh >/dev/null 2>&1; echo stopped`)
+	// The error is ignored for the reason wipe ignores it: the connection is
+	// going down with the machine, and the boot id is what says it rebooted.
+	before := r.bootID(holder)
+	_, _ = r.rootRun(holder, `nohup sh -c 'sleep 1; reboot' >/dev/null 2>&1 & echo rebooting`, 30*time.Second)
 
 	moved := ""
 	for deadline := time.Now().Add(2 * time.Minute); moved == "" && time.Now().Before(deadline); {
@@ -1001,6 +1008,15 @@ func (r *labRun) failover() {
 		r.t.Fatalf("the VIP %s did not move off %s within 2m:\n%s", vip, holder, out)
 	}
 	r.t.Logf("the VIP moved to %s", moved)
+
+	// The loss has to be real when the write lands. A server already back on
+	// a new boot proves nothing about the others working without it. Still on
+	// the old boot is a machine mid-shutdown, whose control plane has already
+	// stopped, and counts.
+	if id := r.bootID(holder); id != "" && id != before {
+		r.t.Fatalf("%s was back (boot %s) before the cluster had to work without it, "+
+			"so the check would prove nothing", holder, id)
+	}
 
 	// A write, through the address, from a server that was not lost. The
 	// kubeconfig on every server points at its own API server; --server sends
@@ -1025,10 +1041,19 @@ exit 1`, vip, probe, probe, holder), 4*time.Minute)
 	}
 	r.t.Log(out)
 
-	// And the lost server rejoins. --no-block, because the unit reports
-	// started only once RKE2 is ready, and that wait belongs to the loop
-	// below, which can say what it saw.
-	r.rootOn(holder, `systemctl start --no-block rke2-server && echo starting`)
+	// And the lost server comes back by itself. Nothing here starts it: a
+	// server that needs somebody to log in after a power cut is not highly
+	// available, and until this case nothing had checked that RKE2 starts on
+	// boot rather than on install.
+	for deadline := time.Now().Add(5 * time.Minute); ; {
+		if id := r.bootID(holder); id != "" && id != before {
+			break
+		}
+		if time.Now().After(deadline) {
+			r.t.Fatalf("%s did not come back from the reboot within 5m", holder)
+		}
+		time.Sleep(5 * time.Second)
+	}
 	out, err = r.rootRun(moved, kubeRoot+fmt.Sprintf(`k="kubectl --server https://%s:6443 --request-timeout=10s"
 for i in $(seq 1 60); do
   n=$($k get nodes --no-headers 2>/dev/null | awk '$2=="Ready"' | wc -l)

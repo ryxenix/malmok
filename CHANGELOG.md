@@ -4,10 +4,18 @@
 
 ### Added
 - A three-server case that loses a server. `ha-failover` builds three servers
-  under a VIP, then takes the control plane away from the one answering for
-  the address -- chosen, not assumed, because losing a node nobody was routed
-  to proves nothing. It passes only if the address moves, a write lands
-  through it with two of three etcd members, and the lost server rejoins.
+  under a VIP, then reboots the one answering for the address -- chosen, not
+  assumed, because losing a node nobody was routed to proves nothing. It
+  passes only if the address moves, a write lands through it with two of three
+  etcd members while that server is down, and the server rejoins by itself.
+  That last part had never been checked: nothing before this confirmed that
+  RKE2 comes back on boot rather than only on install.
+- The recovery guide says what stopping a server with `rke2-killall.sh` does
+  to the VIP. It kills kube-vip outright, so the address stays on that server's
+  interface after another server has taken it over: both answer for it until
+  the stopped one's kube-vip starts again. Measured at thirty seconds in the
+  failover case, and indefinite for a server left stopped for maintenance. The
+  guide gives the command that takes the address off.
   `MALMOK_LAB_THIRD` names the third machine; without it the case skips.
 
 ### Fixed

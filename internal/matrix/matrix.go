@@ -58,10 +58,10 @@ const (
 	// node by node. It is the operation with the most to lose: every node
 	// restarts, and a cluster that was working is the thing at risk.
 	OpUpgrade = "upgrade"
-	// OpFailover builds three servers and takes the control plane away from
-	// the one answering for the VIP. The address has to move, the cluster has
-	// to keep accepting writes on two of its three etcd members, and the lost
-	// server has to rejoin. It is what "high availability" means, measured
+	// OpFailover builds three servers and reboots the one answering for the
+	// VIP. The address has to move, the cluster has to keep accepting writes
+	// on two of its three etcd members, and the lost server has to rejoin by
+	// itself. It is what "high availability" means, measured
 	// rather than claimed.
 	OpFailover = "failover"
 )

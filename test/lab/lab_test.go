@@ -46,8 +46,15 @@ import (
 // The account name is a different matter: naming the wrong user fails to
 // connect, which costs a message rather than a machine.
 var (
-	server   = os.Getenv("MALMOK_LAB_SERVER")
-	agent    = os.Getenv("MALMOK_LAB_AGENT")
+	server = os.Getenv("MALMOK_LAB_SERVER")
+	agent  = os.Getenv("MALMOK_LAB_AGENT")
+
+	// third is the machine a three-server case adds. Optional: only the HA
+	// case needs it, and that case skips without one. When it is set it is
+	// wiped with the other two before every case -- a server left over from
+	// the HA case keeps announcing the VIP and would fight the next case's
+	// kube-vip for it.
+	third    = os.Getenv("MALMOK_LAB_THIRD")
 	user     = env("MALMOK_LAB_USER", "k8s")
 	password = os.Getenv("NODE_PASSWORD")
 	binary   = env("MALMOK_BIN", "../../bin/malmok")
@@ -156,10 +163,13 @@ func TestMatrix(t *testing.T) {
 	t.Logf("matrix on %s: %d cases, RKE2 stable %s, latest %s, upgrades from %s",
 		server, len(matrix.Cases()), ch.Stable, ch.Latest, orNone(older))
 
-	// Sequential by necessity: every case owns the same two machines.
+	// Sequential by necessity: every case owns the same machines.
 	for _, c := range matrix.Cases() {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Logf("%s -- %s", c, c.Why)
+			if why := notRunnable(c); why != "" {
+				t.Skip(why)
+			}
 			// Not t.TempDir(): a failed case's run directory is the one
 			// thing worth keeping, and t.TempDir() deletes exactly that --
 			// twice in a row a failure was diagnosed by guesswork because the
@@ -201,18 +211,6 @@ type labRun struct {
 
 // execute builds the case and then does to it whatever its operation says.
 func (r *labRun) execute(c matrix.Case) {
-	// A case that pins an address needs one that exists on the segment. The
-	// matrix defaults to the documentation ranges, which is right for a public
-	// repository and cannot be installed against: kube-vip claims the VIP on
-	// an interface and nothing is on 192.0.2.0/24.
-	if c.VIP && vip == "" {
-		r.t.Skip("set MALMOK_LAB_VIP to a free address on the nodes' segment; " +
-			"kube-vip claims it on an interface, so it cannot be a documentation range")
-	}
-	if c.Exposure == "lb-pool" && lbPool == "" {
-		r.t.Skip("set MALMOK_LAB_LB_POOL to a free CIDR on the nodes' segment")
-	}
-
 	if c.Network == "airgap" {
 		defer r.prepareAirgap(c)()
 	}
@@ -263,6 +261,14 @@ func (r *labRun) execute(c matrix.Case) {
 		if applied := countApplied(out); applied > 0 {
 			r.t.Errorf("a re-apply changed %d step(s); it should have observed and skipped every one", applied)
 		}
+
+	case matrix.OpFailover:
+		r.apply(doc, 30*time.Minute)
+		// Three etcd members before anything is taken away: a cluster that
+		// was never a quorum cannot show that it survives losing part of one.
+		r.onNode(fmt.Sprintf(`n=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers | awk '$2=="Ready"' | wc -l); `+
+			`[ "$n" = %d ] || { kubectl get nodes; exit 1; }`, c.Nodes))
+		r.failover()
 	}
 
 	r.expectHealthy(c)
@@ -285,7 +291,7 @@ func (r *labRun) write(c matrix.Case, grown bool) string {
 		version = airgapVersion
 	}
 	doc := c.Document(version, matrix.Hosts{
-		Server: server, Agent: agent, User: user, PasswordRef: "env://NODE_PASSWORD",
+		Server: server, Agent: agent, Third: third, User: user, PasswordRef: "env://NODE_PASSWORD",
 		VIP: vip, LBPool: lbPool, LBAddress: lbAddress(),
 	}, m, grown)
 
@@ -426,7 +432,11 @@ func (r *labRun) expectNodes(want int) {
 // because "can the person who built it use it" is part of the answer.
 func (r *labRun) onNode(script string) {
 	r.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	// Longer than the longest wait any caller runs. At two minutes the
+	// connection cut the pod-settle loop off at two while it said it waited
+	// five -- harmless while pods came up quickly, not after a server has
+	// been taken away and every pod on it has to come back.
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
 
 	runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
@@ -453,11 +463,13 @@ func (r *labRun) wipe() {
 
 	// Read before rebooting: after, there is nothing to compare against.
 	before := map[string]string{}
-	for _, host := range []string{server, agent} {
+	for _, host := range machines() {
 		before[host] = r.bootID(host)
 	}
 
-	for _, host := range []string{agent, server} {
+	all := machines()
+	for i := len(all) - 1; i >= 0; i-- {
+		host := all[i]
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
 			Host: host, User: user, Password: password, InsecureSkipHostKeyCheck: true,
@@ -499,7 +511,7 @@ echo wiped`
 func (r *labRun) waitForNodes(before map[string]string) {
 	r.t.Helper()
 	deadline := time.Now().Add(5 * time.Minute)
-	for _, host := range []string{server, agent} {
+	for _, host := range machines() {
 		for {
 			if time.Now().After(deadline) {
 				r.t.Fatalf("%s did not come back after the wipe", host)
@@ -773,24 +785,39 @@ func (r *labRun) onHost(host, script string) {
 // rootOn runs a script as root, for the things only root can do to a node.
 func (r *labRun) rootOn(host, script string) {
 	r.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	if out, err := r.rootRun(host, script, 2*time.Minute); err != nil {
+		r.t.Fatalf("%v\n%s", err, out)
+	}
+}
+
+// rootRun runs a script as root and reports what happened instead of failing
+// the test. The failover asks questions whose "no" is an answer -- which
+// server holds the address -- and rootOn cannot ask those.
+func (r *labRun) rootRun(host, script string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	runner, err := sshexec.Connect(ctx, sshexec.SSHConfig{
 		Host: host, User: user, Password: password, InsecureSkipHostKeyCheck: true,
 	})
 	if err != nil {
-		r.t.Fatalf("connect %s: %v", host, err)
+		return "", fmt.Errorf("connect %s: %w", host, err)
 	}
 	defer runner.Close()
 
 	root, err := sshexec.Elevate(ctx, runner, password)
 	if err != nil {
-		r.t.Fatalf("elevate on %s: %v", host, err)
+		return "", fmt.Errorf("elevate on %s: %w", host, err)
 	}
-	if res, err := root.Run(ctx, script); err != nil || !res.OK() {
-		r.t.Fatalf("%s (exit %d): %s\n%s", host, res.ExitCode, res.Out(), res.Err())
+	res, err := root.Run(ctx, script)
+	out := strings.TrimSpace(res.Out() + "\n" + res.Err())
+	if err != nil {
+		return out, fmt.Errorf("%s: %w", host, err)
 	}
+	if !res.OK() {
+		return out, fmt.Errorf("%s: exit %d", host, res.ExitCode)
+	}
+	return out, nil
 }
 
 // readFile is os.ReadFile for a log that may not exist yet.
@@ -884,4 +911,145 @@ func orNone(s string) string {
 		return "nothing"
 	}
 	return s
+}
+
+// machines are every node the suite owns: the two it always has, and the third
+// when one was named.
+func machines() []string {
+	m := []string{server, agent}
+	if third != "" {
+		m = append(m, third)
+	}
+	return m
+}
+
+// notRunnable says why a case cannot run on the machines this suite was given,
+// or "" when it can. Asked before the wipe: finding out after it costs a round
+// of reboots for a case that was never going to run.
+func notRunnable(c matrix.Case) string {
+	switch {
+	case c.Nodes == 3 && third == "":
+		return "set MALMOK_LAB_THIRD to a third machine you are willing to lose: " +
+			"high availability is three servers, and the suite has been given two"
+	// A case that pins an address needs one that exists on the segment. The
+	// matrix defaults to the documentation ranges, which is right for a public
+	// repository and cannot be installed against: kube-vip claims the VIP on
+	// an interface and nothing is on 192.0.2.0/24.
+	case c.VIP && vip == "":
+		return "set MALMOK_LAB_VIP to a free address on the nodes' segment; " +
+			"kube-vip claims it on an interface, so it cannot be a documentation range"
+	case c.Exposure == "lb-pool" && lbPool == "":
+		return "set MALMOK_LAB_LB_POOL to a free CIDR on the nodes' segment"
+	}
+	return ""
+}
+
+// kubeRoot points kubectl at a server's own kubeconfig. Every server has one;
+// only the first is given the operator's.
+const kubeRoot = "export PATH=$PATH:/var/lib/rancher/rke2/bin KUBECONFIG=/etc/rancher/rke2/rke2.yaml\n"
+
+// failover takes the control plane away from the server answering for the VIP
+// and requires the cluster to carry on without it.
+//
+// Three things have to hold for "high availability" to mean anything, and each
+// is measured on the machines rather than inferred:
+//
+//   - The address moves. kube-vip runs on every server and elects one to
+//     answer for the VIP; with that one gone another has to claim it, or every
+//     kubelet and every client is talking to an address nobody holds.
+//   - Writes still land. A read can be served from the API server's cache with
+//     etcd in pieces; a write needs two of three members to agree, so a write
+//     through the VIP is the observable.
+//   - The server comes back. A cluster that survives losing a node and cannot
+//     readmit it has only postponed the failure.
+//
+// The server taken away is the one holding the address, not any server.
+// Losing a node nobody was routed to proves only that the cluster can lose a
+// node nobody was using.
+func (r *labRun) failover() {
+	r.t.Helper()
+
+	servers := machines()
+	holder := r.vipHolder(servers)
+	if holder == "" {
+		r.t.Fatalf("no server answers for the VIP %s, so there is nothing to fail over from", vip)
+	}
+	var survivors []string
+	for _, h := range servers {
+		if h != holder {
+			survivors = append(survivors, h)
+		}
+	}
+	r.t.Logf("%s holds the VIP; taking its control plane away", holder)
+
+	// Stopped and then killed: stopping the unit alone leaves the containers
+	// it started running, kube-vip and etcd among them, which would make this
+	// a test of a restart rather than of a loss.
+	r.rootOn(holder, `systemctl stop rke2-server >/dev/null 2>&1; `+
+		`/usr/local/bin/rke2-killall.sh >/dev/null 2>&1; echo stopped`)
+
+	moved := ""
+	for deadline := time.Now().Add(2 * time.Minute); moved == "" && time.Now().Before(deadline); {
+		if moved = r.vipHolder(survivors); moved == "" {
+			time.Sleep(3 * time.Second)
+		}
+	}
+	if moved == "" {
+		out, _ := r.rootRun(survivors[0], kubeRoot+
+			`kubectl -n kube-system get pods -l app.kubernetes.io/name=kube-vip -o wide 2>&1; `+
+			`kubectl -n kube-system logs -l app.kubernetes.io/name=kube-vip --tail=20 2>&1`, time.Minute)
+		r.t.Fatalf("the VIP %s did not move off %s within 2m:\n%s", vip, holder, out)
+	}
+	r.t.Logf("the VIP moved to %s", moved)
+
+	// A write, through the address, from a server that was not lost. The
+	// kubeconfig on every server points at its own API server; --server sends
+	// the request to the VIP instead, which is the address kubelets and
+	// clients are given -- and whose certificate has to name it.
+	probe := fmt.Sprintf("malmok-failover-%d", time.Now().Unix())
+	out, err := r.rootRun(moved, kubeRoot+fmt.Sprintf(`k="kubectl --server https://%s:6443 --request-timeout=10s"
+out=""
+for i in $(seq 1 24); do
+  if out=$(printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: default\ndata:\n  at: "%%s"\n' "$(date +%%s)" | $k apply -f - 2>&1); then
+    $k -n default delete configmap %s --ignore-not-found >/dev/null 2>&1
+    echo "a write through the VIP landed with %s down"
+    exit 0
+  fi
+  sleep 5
+done
+echo "no write through the VIP landed within 2m. The last answer was:"
+echo "$out"
+exit 1`, vip, probe, probe, holder), 4*time.Minute)
+	if err != nil {
+		r.t.Fatalf("%v\n%s", err, out)
+	}
+	r.t.Log(out)
+
+	// And the lost server rejoins. --no-block, because the unit reports
+	// started only once RKE2 is ready, and that wait belongs to the loop
+	// below, which can say what it saw.
+	r.rootOn(holder, `systemctl start --no-block rke2-server && echo starting`)
+	out, err = r.rootRun(moved, kubeRoot+fmt.Sprintf(`k="kubectl --server https://%s:6443 --request-timeout=10s"
+for i in $(seq 1 60); do
+  n=$($k get nodes --no-headers 2>/dev/null | awk '$2=="Ready"' | wc -l)
+  [ "$n" -ge %d ] && { echo "all %d servers are Ready again"; exit 0; }
+  sleep 10
+done
+$k get nodes 2>&1
+exit 1`, vip, len(servers), len(servers)), 12*time.Minute)
+	if err != nil {
+		r.t.Fatalf("%s did not rejoin within 10m: %v\n%s", holder, err, out)
+	}
+	r.t.Log(out)
+}
+
+// vipHolder is the server whose interface carries the VIP, or "" when none of
+// them does.
+func (r *labRun) vipHolder(hosts []string) string {
+	for _, h := range hosts {
+		if _, err := r.rootRun(h, fmt.Sprintf(`ip -4 -o addr show | grep -qwF %s`, vip), 20*time.Second); err == nil {
+			return h
+		}
+	}
+	return ""
 }

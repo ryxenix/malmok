@@ -33,13 +33,18 @@ cd "$(dirname "$0")/.."
 # The addresses the VIP and load-balancer cases pin. Not fatal: without them
 # those two cases skip and say so, which is better than refusing to run the
 # other eight on a segment whose spare addresses nobody has picked yet.
+# A third machine turns the matrix's HA case on. Without one it skips; with
+# one, that machine is wiped before every case alongside the other two.
+if [ -z "${MALMOK_LAB_THIRD:-}" ]; then
+  echo "MALMOK_LAB_THIRD is unset, so the three-server case will skip." >&2
+fi
 if [ -z "${MALMOK_LAB_VIP:-}" ] || [ -z "${MALMOK_LAB_LB_POOL:-}" ]; then
   echo "MALMOK_LAB_VIP / MALMOK_LAB_LB_POOL are unset, so the cases that pin an" >&2
   echo "address will skip. Both must be free on the nodes' segment and outside" >&2
   echo "whatever hands out leases." >&2
 fi
 export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_MIRROR
-export MALMOK_LAB_VIP MALMOK_LAB_LB_POOL
+export MALMOK_LAB_VIP MALMOK_LAB_LB_POOL MALMOK_LAB_THIRD
 
 # The binary the operator runs, not a fresh build of maybe-different code.
 [ -x bin/malmok ] || { echo "no bin/malmok -- run scripts/build.sh first" >&2; exit 1; }
@@ -61,6 +66,7 @@ docker run --rm \
   -e MALMOK_LAB_MIRROR \
   -e MALMOK_LAB_VIP \
   -e MALMOK_LAB_LB_POOL \
+  -e MALMOK_LAB_THIRD \
   -e MALMOK_BIN=/app-local/bin/malmok \
   -w /app-local \
   golang:alpine \

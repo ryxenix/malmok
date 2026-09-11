@@ -23,14 +23,14 @@
 
 | 차원 | 값 |
 |---|---|
-| `nodes` | 1, 2 |
+| `nodes` | 1, 2, 3 |
 | `dataplane` | cilium-gw, cilium-traefik, canal-traefik |
 | `pki` | none, private-ca, byo-cert |
 | `exposure` | node-ips, lb-pool, none |
 | `registry` | embedded, upstream |
 | `gitops` | true, false |
 | `network` | online, airgap |
-| `operation` | build, grow, resume, reapply, upgrade |
+| `operation` | build, grow, resume, reapply, upgrade, failover |
 
 `operation` 이 차원인 이유: 이번에 나온 결함 대부분은 첫 구축이 아니라 **그 다음에
 한 일**에서 나왔다. 노드 증설, 중단 후 재개, 같은 문서 재적용은 각각 다른 코드
@@ -75,6 +75,7 @@ kube-vip 이 붙을 인터페이스가 없어 VIP 케이스가 `vip-interface` �
 | `MALMOK_LAB_LB_POOL` | 로드밸런서 풀 CIDR |
 | `MALMOK_LAB_AIRGAP_VERSION` | 노드에 반입해 둔 RKE2 릴리스. 없으면 에어갭 케이스는 무엇을 놓아야 하는지 말하고 skip 한다 |
 | `MALMOK_LAB_MIRROR` | pull-through 캐시 주소. 기본 꺼짐 — 캐시를 통과한 초록은 캐시 없는 고객의 설치를 증명하지 않는다 |
+| `MALMOK_LAB_THIRD` | 세 번째 머신. 서버 3대 케이스만 쓰고, 지정되면 매 케이스마다 같이 와이프한다 — HA 케이스가 남긴 서버가 VIP 를 계속 주장하면 다음 케이스의 kube-vip 과 싸운다. 없으면 그 케이스는 skip |
 
 에어갭 케이스는 두 가지를 노드에 미리 놓아야 한다. RKE2 릴리스 아티팩트와,
 플랫폼 이미지 번들이다. 번들은 `MALMOK_IMAGE_ARCHES=amd64 scripts/airgap-images.sh <tag>`
@@ -105,6 +106,7 @@ kube-vip 이 붙을 인터페이스가 없어 VIP 케이스가 `vip-interface` �
 | `resume` | `l1-bootstrap/service` 시작 시점에 SIGKILL, 같은 명령으로 재실행 |
 | `reapply` | 구축 후 같은 문서를 다시 적용 — **바뀐 스텝이 0이어야 통과** |
 | `upgrade` | **이전 마이너**로 구축한 뒤 현재 릴리스로 이동 — **전 노드의 kubelet 이 새 버전을 보고해야 통과**. stable 에서 출발하면 stable 과 latest 가 같은 릴리스를 가리키는 동안 매번 skip 했고, 실제로 매트릭스 전 실행에서 한 번도 돌지 않았다 |
+| `failover` | 서버 3대로 구축한 뒤 **VIP 를 들고 있는 서버**의 컨트롤플레인을 멈춘다 — VIP 가 남은 서버로 넘어가야 하고, 그 VIP 로 쓰기 요청이 들어가야 하고(etcd 3개 중 2개의 합의), 멈춘 서버를 다시 켜면 셋 다 Ready 로 돌아와야 통과. 아무 서버나 멈추면 아무도 쓰지 않던 노드를 잃어도 버틴다는 것밖에 증명하지 못한다 |
 
 그 뒤 공통 확인 (전부 **운영자 계정에서 sudo 없이**):
 
@@ -128,7 +130,6 @@ kube-vip 이 붙을 인터페이스가 없어 VIP 케이스가 `vip-interface` �
 
 정직하게 적는다. 이것들은 하드웨어나 외부 서비스가 없어서 빠졌다.
 
-- **3서버 HA 조인** (`l1-join-server`) — 세 번째 VM 필요
 - **프록시 망 모드** — 프록시 필요. 폐쇄망은 `network` 축으로 들어왔다
 - **acme-dns01** — 공인 DNS 와 ACME 계정 필요
 - **external / internal 레지스트리** — Harbor · Hauler 필요

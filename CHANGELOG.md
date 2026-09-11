@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- A three-server case that loses a server. `ha-failover` builds three servers
+  under a VIP, then takes the control plane away from the one answering for
+  the address -- chosen, not assumed, because losing a node nobody was routed
+  to proves nothing. It passes only if the address moves, a write lands
+  through it with two of three etcd members, and the lost server rejoins.
+  `MALMOK_LAB_THIRD` names the third machine; without it the case skips.
+
+### Fixed
+- The lab's node checks were cut off at two minutes by the connection that ran
+  them, so the pod-settle loop that says it waits five minutes waited two.
+  Harmless while pods settled quickly; not after a server has been taken away
+  and every pod on it has to come back.
+
 ## [0.96.1] - 2026-09-10
 
 ### Fixed

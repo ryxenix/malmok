@@ -31,7 +31,7 @@ func TestEveryRequiredPairIsExercised(t *testing.T) {
 // checked here, before anything is built.
 func TestEveryCaseProducesAValidDocument(t *testing.T) {
 	hosts := Hosts{
-		Server: "192.168.88.241", Agent: "192.168.88.244",
+		Server: "192.168.88.241", Agent: "192.168.88.244", Third: "192.168.88.242",
 		User: "k8s", PasswordRef: "env://NODE_PASSWORD",
 	}
 	material := Material{
@@ -65,16 +65,22 @@ func TestEveryCaseProducesAValidDocument(t *testing.T) {
 
 // The shapes each case promises, read back off the document it produces.
 func TestDocumentsMatchTheirCase(t *testing.T) {
-	hosts := Hosts{Server: "10.0.0.11", Agent: "10.0.0.12", User: "k8s", PasswordRef: "env://P"}
+	hosts := Hosts{Server: "10.0.0.11", Agent: "10.0.0.12", Third: "10.0.0.13", User: "k8s", PasswordRef: "env://P"}
 	for _, c := range Cases() {
 		doc := c.Document("v1.36.3+rke2r1", hosts, Material{
 			RootCert: "r", IntermediateCert: "i", IntermediateKey: "k", LeafCert: "l", LeafKey: "lk",
 		}, c.Op == OpGrow)
 		_ = doc
 
-		agents := len(doc.Topology.Agents)
-		if want := c.Nodes - 1; c.Op != OpGrow && agents != want {
-			t.Errorf("%s: %d agents, want %d", c.Name, agents, want)
+		servers, agents := len(doc.Topology.Servers), len(doc.Topology.Agents)
+		wantServers, wantAgents := 1, c.Nodes-1
+		if c.Nodes == 3 {
+			// Three nodes are three servers: the quorum is the point.
+			wantServers, wantAgents = 3, 0
+		}
+		if c.Op != OpGrow && (servers != wantServers || agents != wantAgents) {
+			t.Errorf("%s: %d servers and %d agents, want %d and %d",
+				c.Name, servers, agents, wantServers, wantAgents)
 		}
 		// A document without a VIP has to accept registration on the server's
 		// own address, or the node cannot join at all (ADR-008).

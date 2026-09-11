@@ -58,6 +58,12 @@ const (
 	// node by node. It is the operation with the most to lose: every node
 	// restarts, and a cluster that was working is the thing at risk.
 	OpUpgrade = "upgrade"
+	// OpFailover builds three servers and takes the control plane away from
+	// the one answering for the VIP. The address has to move, the cluster has
+	// to keep accepting writes on two of its three etcd members, and the lost
+	// server has to rejoin. It is what "high availability" means, measured
+	// rather than claimed.
+	OpFailover = "failover"
 )
 
 // DefaultArtifactPath is where the lab stages RKE2's release artifacts. It is
@@ -74,7 +80,7 @@ const DefaultChartDir = "./charts"
 type Case struct {
 	Name string
 
-	Nodes     int    // 1 or 2
+	Nodes     int    // 1, 2 or 3 -- three are three servers
 	Dataplane string // cilium-gw | cilium-traefik | canal-traefik
 	PKI       string // none | private-ca | byo-cert
 	Exposure  string // node-ips | lb-pool | none (no gateway)
@@ -109,7 +115,7 @@ type Case struct {
 	Why string
 }
 
-// Cases is the matrix. Ten rows, chosen for coverage rather than for
+// Cases is the matrix. Eleven rows, chosen for coverage rather than for
 // symmetry: see RequiredPairs for the combinations that are not optional.
 func Cases() []Case {
 	return []Case{
@@ -169,6 +175,14 @@ func Cases() []Case {
 				"passed a set the installer ignores. None of them would be caught again by " +
 				"anything that runs on its own",
 		},
+		{
+			Name: "ha-failover", Nodes: 3, Dataplane: "cilium-gw", PKI: "none",
+			Exposure: "node-ips", Registry: "embedded", VIP: true, Op: OpFailover,
+			Why: "three servers under a VIP, and the one answering for it lost. Every " +
+				"customer who asks for production asks for this, and until this row it had " +
+				"been built on paper only: the join of a second server had never run on a " +
+				"machine, and nothing had ever checked that the address outlives its holder",
+		},
 	}
 }
 
@@ -211,20 +225,23 @@ func RequiredPairs() [][2]string {
 		// images from its peer rather than from a registry, which is the
 		// whole point of the embedded mirror.
 		{DimNetwork + "=airgap", DimNodes + "=2"},
+		// A failover needs three servers. With two, losing one loses the
+		// quorum, so a two-node failover could pass only by testing nothing.
+		{DimOp + "=" + OpFailover, DimNodes + "=3"},
 	}
 }
 
 // Values lists every value the matrix must cover, by dimension.
 func Values() map[string][]string {
 	return map[string][]string{
-		DimNodes:     {"1", "2"},
+		DimNodes:     {"1", "2", "3"},
 		DimDataplane: {"cilium-gw", "cilium-traefik", "canal-traefik"},
 		DimPKI:       {"none", "private-ca", "byo-cert"},
 		DimExposure:  {"node-ips", "lb-pool", "none"},
 		DimRegistry:  {"embedded", "upstream"},
 		DimGitOps:    {"true", "false"},
 		DimNetwork:   {"online", "airgap"},
-		DimOp:        {OpBuild, OpGrow, OpResume, OpReapply, OpUpgrade},
+		DimOp:        {OpBuild, OpGrow, OpResume, OpReapply, OpUpgrade, OpFailover},
 	}
 }
 
@@ -299,7 +316,10 @@ func UncoveredPairs(cases []Case) []string {
 type Hosts struct {
 	Server string
 	Agent  string
-	User   string
+	// Third is the machine only a three-server case uses. In that case the
+	// machine that is an agent everywhere else is a server too.
+	Third string
+	User  string
 	// PasswordRef is a SourceRef, never a password: cluster.yaml carries no
 	// plaintext secret, and the matrix produces real documents.
 	PasswordRef v1alpha1.SourceRef
@@ -389,9 +409,14 @@ func (c Case) Document(version string, h Hosts, m Material, grown bool) v1alpha1
 		spec.Registry.ChartDir = c.ChartDir
 	}
 
-	// A grown case starts with one node and gains the agent on the second
-	// apply; every other two-node case has both from the start.
-	if c.Nodes > 1 || (c.Op == OpGrow && grown) {
+	// Two nodes are a server and an agent. Three are three servers: high
+	// availability is three etcd members and the lab has three machines, so
+	// the one that is an agent everywhere else is a server here. A grown case
+	// starts with one node and gains the agent on the second apply.
+	switch {
+	case c.Nodes == 3:
+		spec.Topology.Servers = append(spec.Topology.Servers, node(h.Agent), node(h.Third))
+	case c.Nodes == 2 || (c.Op == OpGrow && grown):
 		spec.Topology.Agents = []v1alpha1.NodeSpec{node(h.Agent)}
 	}
 

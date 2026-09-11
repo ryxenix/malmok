@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- Every page of the documentation site says which release it describes,
+  and how many unreleased commits main has on top of it. The site is built
+  from main, so it can run ahead of the latest release or lag behind it, and a
+  reader had no way to tell which.
+
 ### Changed
 - The install examples pin v0.96.3. They named v0.83.0, whose tag and release
   no longer exist, so the command they showed failed.

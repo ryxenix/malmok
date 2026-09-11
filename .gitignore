@@ -9,3 +9,6 @@ docs/img/*
 dist/
 site/
 internal/tools/payload/
+
+# Bytecode left by the MkDocs hook in scripts/ on every local build.
+__pycache__/

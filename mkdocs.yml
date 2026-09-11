@@ -10,6 +10,7 @@ copyright: Copyright &copy; 2026 Malmok contributors
 
 theme:
   name: material
+  custom_dir: overrides
   language: en
   font: false
   icon:
@@ -59,6 +60,10 @@ nav:
       - FAQ and comparisons: about/comparison.md
       - Changelog: https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md
       - Security: https://github.com/ryxenix/malmok/blob/main/SECURITY.md
+
+# Puts the release these docs describe on every page; see the file.
+hooks:
+  - scripts/docs_version.py
 
 plugins:
   - i18n:

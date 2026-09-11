@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{#- Which release these docs describe. The site is built from main, so it can
+    run ahead of the latest release; saying so is the point. Filled in by
+    scripts/docs_version.py, and absent when git could not answer. -#}
+{% block announce %}
+  {%- set v = config.extra.docs_version -%}
+  {%- if v and v.release -%}
+    {%- if config.theme.language == "ko" -%}
+      이 문서의 기준: <strong>{{ v.release }}</strong>
+      {%- if v.ahead %} 이후 미릴리스 변경 {{ v.ahead }}건 포함{% endif %}
+      (main <code>{{ v.commit }}</code>)
+    {%- else -%}
+      These docs describe <strong>{{ v.release }}</strong>
+      {%- if v.ahead %} plus {{ v.ahead }} unreleased {{ "change" if v.ahead == 1 else "changes" }}{% endif %}
+      (main <code>{{ v.commit }}</code>)
+    {%- endif -%}
+  {%- endif -%}
+{% endblock %}

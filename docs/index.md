@@ -67,7 +67,11 @@ deliver software to customer-provided servers, as well as internal infrastructur
 - Resume interrupted builds and keep execution records for review and handoff.
 - Prepare for a restricted network after checking the supported air-gap conditions.
 
-[Air-gap requirements →](guides/air-gap.md) · [Upgrade and recovery →](guides/upgrade-and-recovery.md)
+Prepared servers still need site-specific checks, artifacts and handoff records.
+The developer used an early Malmok version on real data-centre servers; that
+experience informs these workflows, not a guarantee for every business environment.
+
+[On-premises checklist →](guides/on-premises.md) · [Air-gap requirements →](guides/air-gap.md) · [Upgrade and recovery →](guides/upgrade-and-recovery.md)
 
 This can include public-sector and state-owned enterprise delivery projects with
 the same starting conditions. It is a deployment use case, not a claim of procurement

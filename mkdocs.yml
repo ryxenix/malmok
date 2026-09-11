@@ -48,6 +48,7 @@ nav:
       - Installation: getting-started/installation.md
       - Quick start: getting-started/quick-start.md
   - Guides:
+      - On-premises deployment: guides/on-premises.md
       - Air-gapped installation: guides/air-gap.md
       - Upgrade and recovery: guides/upgrade-and-recovery.md
   - Reference:
@@ -93,6 +94,7 @@ plugins:
             Installation: 설치
             Quick start: 빠른 시작
             Guides: 사용 가이드
+            On-premises deployment: 온프레미스 구축
             Air-gapped installation: 에어갭 설치
             Upgrade and recovery: 업그레이드와 복구
             Reference: 레퍼런스

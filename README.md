@@ -78,6 +78,19 @@ Malmok does not provision VMs or replace general configuration management or
 application deployment tools. It builds and operates the cluster foundation;
 you remain responsible for the machines and applications.
 
+### From prepared servers to cluster handoff
+
+Servers being available in your company's infrastructure or a customer's data
+centre still leaves network checks, host configuration, artifact preparation
+and result verification. Malmok uses configuration files and execution records
+to make that repeated work consistent across sites.
+
+The developer used an early version to build a cluster on real data-centre
+servers. That experience informs its preflight, resume and handoff workflows;
+it does not guarantee reliability in every business environment.
+
+[On-premises guide: preparation, verification and handoff →](docs/guides/on-premises.md)
+
 ## Requirements
 
 - Run Malmok from Linux or macOS on amd64 or arm64.

@@ -1,8 +1,24 @@
 name: docs
 
-# Publishing remains manual while the repository and documentation are private.
-# Add a push trigger only when the project is explicitly approved for release.
+# Published on every push to main that changes what the site is built from,
+# and by hand. It was manual-only while the repository was private; once it
+# went public that left malmok.dev behind the repository -- telling readers
+# three-server HA was unverified after it had been verified, and showing an
+# install example for a release that no longer exists.
+#
+# The paths are everything the built site is made of: the pages, the site
+# configuration, the theme override that prints the version banner, and the
+# hook that works the version out.
 on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - overrides/**
+      - scripts/docs_version.py
+      - mkdocs.yml
+      - requirements-docs.txt
+      - .github/workflows/docs.yml
   workflow_dispatch:
 
 permissions:

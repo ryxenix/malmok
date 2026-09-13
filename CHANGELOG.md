@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- The documentation site publishes itself on every push to main that changes
+  what it is built from: the pages, the site configuration, the theme override
+  and the version hook. Manual runs still work. Publishing by hand alone is
+  what left malmok.dev behind the repository twice.
 - Every page of the documentation site says which release it describes,
   and how many unreleased commits main has on top of it. The site is built
   from main, so it can run ahead of the latest release or lag behind it, and a

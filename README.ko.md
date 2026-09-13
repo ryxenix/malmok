@@ -363,6 +363,13 @@ k0sctl은 k0s를, 말목은 RKE2를 대상으로 합니다. 관리 클러스터�
 - 릴리스 tarball로 RKE2를 설치하고 systemd 유닛을 관리합니다.
 - 클러스터 매니페스트를 `/var/lib/rancher/rke2/server/manifests`에 씁니다.
 - 최초 서버에 한해 `kubectl`·`helm`·`k9s`를 운영 계정 PATH에 놓습니다.
+- 서버마다 클러스터 kubeconfig를 운영 계정의 `~/.kube/config`로 복사합니다
+  (그 계정 소유, 권한 600. root는 RKE2 원본을 읽음). VIP가 있는 클러스터에서는
+  사본이 그 서버 자신의 API 서버가 아니라 VIP를 가리켜서, 그 서버가 재시작하는
+  동안에도 kubectl이 동작합니다.
+- `storage.driver: local-path`이면 Rancher local-path 프로비저너를 띄우고, 파드가
+  뜬 노드의 `/opt/local-path-provisioner` 아래에 볼륨을 만듭니다. 현장이 그
+  경로에 따로 마운트하지 않았다면 루트 파일시스템입니다.
 - 문서가 요구할 때만: 사설 CA를 노드 신뢰 저장소에 설치하고, containerd
   레지스트리 설정을 씁니다(레지스트리 비밀번호를 담을 수 있어 0600).
 

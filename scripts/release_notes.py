@@ -121,6 +121,11 @@ def main() -> int:
     # fix, and somebody reading a table of pinned versions will look for it.
     print("\nRKE2 itself is not pinned. The version comes from the channel "
           "server, or from `kubernetes.version` in the document.\n")
+    # Where this release's image bundle is: built here, or an earlier
+    # release's identical one. Written by bundle_base.py during the build.
+    bundle = ROOT / "dist" / "bundle.md"
+    if bundle.exists():
+        print(bundle.read_text(encoding="utf-8").strip() + "\n")
     print("Full detail, with the reasoning, is in "
           "[CHANGELOG.md](CHANGELOG.md).")
     return 0

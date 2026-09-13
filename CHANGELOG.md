@@ -13,6 +13,19 @@
   reader had no way to tell which.
 
 ### Changed
+- The image bundle is built only when the image list changes. Images move only
+  with a chart version, and every tag was pulling twenty-five of them twice
+  over from public registries -- twenty minutes a release, for releases that
+  changed a line of documentation, and the step a registry rate limit broke in
+  0.96.2. A release now compares its list with the last release that carried
+  a bundle. When they match, its notes say so and link that bundle with its
+  checksums; when they differ, it builds and lists what was added and
+  removed; when it cannot tell, it builds.
+- README's list of what Malmok changes on a node includes two things it does
+  and the list did not mention: the operator kubeconfig copied to every server,
+  which names the VIP on a cluster that has one, and the local-path provisioner
+  carving volumes out of `/opt/local-path-provisioner`. The list says it is the
+  whole list.
 - The install examples pin v0.96.3. They named v0.83.0, whose tag and release
   no longer exist, so the command they showed failed.
 

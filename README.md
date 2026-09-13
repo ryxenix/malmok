@@ -377,6 +377,15 @@ means before granting it, so the whole list is here rather than in the source:
 - Writes cluster manifests under `/var/lib/rancher/rke2/server/manifests`.
 - On the first server, places `kubectl`, `helm` and `k9s` on the operating
   account's PATH.
+- On every server, copies the cluster kubeconfig to the operating account's
+  `~/.kube/config`, owned by that account with mode 600 (root reads RKE2's
+  own). On a cluster with a VIP the copy names the VIP rather than the
+  server's own API server, so kubectl keeps working while that server
+  restarts.
+- With `storage.driver: local-path`, runs Rancher's local-path provisioner and
+  carves volumes out of `/opt/local-path-provisioner` on whichever node a pod
+  lands on. That path is on the root filesystem unless the site mounts
+  something there.
 - Only when the document asks for them: installs a private CA into the node
   trust store, and writes containerd's registry configuration (mode 0600,
   because it can hold a registry password).

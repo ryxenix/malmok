@@ -127,22 +127,35 @@ go run ./cmd/malmok images > dist/images.txt
 # artifacts and this -- instead of reading chart values and pulling twenty
 # images by hand.
 #
+# Built only when the list changed. The images move only with a chart version,
+# and rebuilding them on every tag meant twenty minutes of pulls from public
+# registries for releases that changed a line of documentation -- the step that
+# broke 0.96.2 on a rate limit. bundle_base.py compares this list with the last
+# release that carried a bundle and writes the notes' section saying which.
+# When it cannot tell, it builds.
+#
 # Skippable, because it downloads over a gigabyte and a maintainer checking
 # what a release will contain usually does not need it. CI never skips.
 if [ "${MALMOK_SKIP_IMAGES:-}" = "1" ]; then
   echo "skipping the image bundle (MALMOK_SKIP_IMAGES=1)"
 else
-  ./scripts/airgap-images.sh "$tag"
+  decision=$(python3 scripts/bundle_base.py dist/images.txt "$tag" dist/bundle.md) || decision=build
+  case "$decision" in
+    build) ./scripts/airgap-images.sh "$tag" ;;
+    reuse) echo "the image list is unchanged; the release names the last bundle instead of rebuilding it" ;;
+    *) echo "bundle_base.py answered '$decision'" >&2; exit 1 ;;
+  esac
 fi
 
-# The bundle is in the sums only when it was built. Listing it unconditionally
-# made MALMOK_SKIP_IMAGES=1 fail here instead of skipping: an unmatched glob is
-# passed through literally, and sha256sum then exits non-zero on a file named
-# `malmok-images_*`.
+# Every file that exists is in the sums, and only those. Listing the bundle
+# unconditionally made MALMOK_SKIP_IMAGES=1 fail here -- an unmatched glob is
+# passed through literally, and sha256sum exits non-zero on a file named
+# `malmok-images_*` -- and a release that reuses an earlier bundle has none of
+# its own to list.
 (
   cd dist
-  files=(malmok_* malmok-airgap_* images.txt)
-  [ "${MALMOK_SKIP_IMAGES:-}" = "1" ] || files+=(malmok-images_*)
+  shopt -s nullglob
+  files=(malmok_* malmok-airgap_* malmok-images_* images.txt)
   sha256sum "${files[@]}" > SHA256SUMS
 )
 

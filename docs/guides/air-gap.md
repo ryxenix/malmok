@@ -17,9 +17,13 @@ Prepare these on a connected staging machine:
 - the RKE2 image archives required by the selected dataplane;
 - the Gateway API bundle when Gateway API CRDs are enabled;
 - every application image the cluster will run;
-- the images the platform pulls. The release carries them already:
+- the images the platform pulls, as one file per architecture:
   `malmok-images_<tag>_linux_<arch>.tar.zst` holds every one, built from the
-  same list the binary prints. Put it on each node in
+  same list the binary prints. The bundle is rebuilt only when that list
+  changes. A release whose images are the same as an earlier one's says so in
+  its notes and links that release's bundle with its checksums, so the `<tag>`
+  in the name can be older than the release you are installing. Put it on each
+  node in
   `/var/lib/rancher/rke2/agent/images/` before RKE2 starts, and containerd
   imports it the way it imports RKE2's own archives. To check the list rather
   than carry the bundle, `malmok images -f cluster.yaml` prints it and answers

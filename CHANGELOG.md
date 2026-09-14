@@ -11,6 +11,20 @@
   and how many unreleased commits main has on top of it. The site is built
   from main, so it can run ahead of the latest release or lag behind it, and a
   reader had no way to tell which.
+- The certificates RKE2 writes on a node can be measured. `internal/expiry`
+  reads every `*.crt` under `/var/lib/rancher/rke2/server/tls` in one command
+  and records the moment each stops being valid. Nothing looked at these
+  before: preflight gates the material an operator supplies and the wire checks
+  read what a listener serves, both of which happen around an install, so the
+  files that take the API server down a year later were measured by nobody.
+  What could not be measured is kept apart from what was -- a node that did not
+  answer, a directory absent because the machine runs no server, a file that
+  exists and could not be read, and a `.crt` holding no certificate are four
+  different answers and none of them is "fine". Expiry is stored as the
+  absolute moment rather than as days left, because a report is read weeks
+  after it is written. The glob names `*.crt` and nothing else, since the
+  cluster's CA private keys sit in that same directory, and a test fails if it
+  ever widens.
 
 ### Changed
 - The image bundle is built only when the image list changes. Images move only

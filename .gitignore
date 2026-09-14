@@ -6,6 +6,7 @@ out/
 docs/img/*
 !docs/img/tui-*.gif
 !docs/img/malmok-wordmark.png
+!docs/img/malmok-mascot-wordmark.png
 dist/
 site/
 internal/tools/payload/

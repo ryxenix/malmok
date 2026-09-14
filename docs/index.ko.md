@@ -5,7 +5,7 @@ hide:
 
 <div class="malmok-hero" markdown>
 
-![말목](img/malmok-wordmark.png){ .malmok-hero__wordmark }
+![말목 — 미소 짓는 파란 말뚝 마스코트](img/malmok-mascot-wordmark.png){ .malmok-hero__wordmark }
 
 # 반복 가능한 구축, 중단 후 재개, 기록으로 남는 RKE2
 

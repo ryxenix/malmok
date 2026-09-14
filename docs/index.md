@@ -5,7 +5,7 @@ hide:
 
 <div class="malmok-hero" markdown>
 
-![Malmok](img/malmok-wordmark.png){ .malmok-hero__wordmark }
+![Malmok — a friendly blue stake mascot](img/malmok-mascot-wordmark.png){ .malmok-hero__wordmark }
 
 # Build RKE2 clusters you can repeat, resume and account for
 

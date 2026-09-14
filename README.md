@@ -1,6 +1,6 @@
 <h1 align="center">Malmok</h1>
 
-<p align="center"><img src="docs/img/malmok-wordmark.png" alt="Malmok — an anchored cluster" width="620"></p>
+<p align="center"><img src="docs/img/malmok-mascot-wordmark.png" alt="Malmok — a friendly blue stake mascot" width="620"></p>
 
 <p align="center">
   <a href="https://github.com/ryxenix/malmok/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&amp;logoColor=white" alt="CI: GitHub Actions"></a>

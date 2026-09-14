@@ -46,6 +46,7 @@ document can do without it.`,
 	root.AddCommand(newAttachCmd())
 	root.AddCommand(newUpgradeCmd())
 	root.AddCommand(newReportCmd())
+	root.AddCommand(newCertsCmd())
 	root.AddCommand(newImagesCmd())
 	return root
 }

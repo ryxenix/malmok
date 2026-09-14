@@ -124,6 +124,54 @@ func TestRenewalWindowIsItsOwnItem(t *testing.T) {
 	}
 }
 
+// One authority is one item however many files carry a copy of it.
+//
+// Measured on a live server: thirteen files held twenty-one certificates and
+// four distinct CAs, and every bundle carried its issuer, so the first version
+// of this reported thirteen authorities. An operator reading that has to work
+// out for themselves that most of the lines are the same certificate.
+func TestOneCertificateAuthorityIsReportedOnce(t *testing.T) {
+	ca := row(cert.KindRoot, "rke2-server-ca", 3650)
+	first, second := ca, ca
+	first.Path = Dir + "/client-admin.crt"
+	second.Path = Dir + "/client-scheduler.crt"
+
+	got := Assess(Inventory{Rows: []Row{first, second}}, base)
+
+	if len(got) != 1 {
+		t.Fatalf("got %d findings for one CA carried in two files: %+v", len(got), got)
+	}
+	if got[0].Code != "MC-121" {
+		t.Errorf("code is %q, want MC-121", got[0].Code)
+	}
+}
+
+// Two different authorities stay two items. Deduplication that collapsed them
+// would hide one expiry entirely, which is worse than repeating a line.
+func TestDistinctAuthoritiesAreNotCollapsed(t *testing.T) {
+	server := row(cert.KindRoot, "rke2-server-ca", 3650)
+	client := row(cert.KindRoot, "rke2-client-ca", 3650)
+
+	got := Assess(Inventory{Rows: []Row{server, client}}, base)
+
+	if len(got) != 2 {
+		t.Fatalf("got %d findings for two distinct CAs: %+v", len(got), got)
+	}
+}
+
+// Leaves are per service. Two services can share neither subject nor purpose,
+// and collapsing them would drop a certificate nobody then renews.
+func TestLeavesAreNotDeduplicated(t *testing.T) {
+	a := row(cert.KindLeaf, "kube-apiserver", 300)
+	b := row(cert.KindLeaf, "kube-etcd", 300)
+
+	got := Assess(Inventory{Rows: []Row{a, b}}, base)
+
+	if len(got) != 2 {
+		t.Fatalf("got %d findings for two leaves: %+v", len(got), got)
+	}
+}
+
 // A CA never enters a renewal window: there is no restart that rotates it.
 func TestCertificateAuthorityHasNoRenewalWindowItem(t *testing.T) {
 	got := Assess(Inventory{Rows: []Row{row(cert.KindRoot, "server-ca", 30)}}, base)

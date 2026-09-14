@@ -267,6 +267,46 @@ func TestUnverifiedTLSIsNotReportedAsNothingToDo(t *testing.T) {
 
 // The records have to be requested before the install: a customer's DNS change
 // takes days, which is why PF-612 asks for a pinned gateway address.
+// The audit report is built from events.jsonl and reads nothing from a
+// cluster. A scan that reached the event file has to reach the report, or the
+// measurement exists and the handover still does not state when the cluster's
+// certificates end -- which was true of every report this tool produced until
+// the expiry items were rendered.
+func TestExpiryMeasurementReachesTheReport(t *testing.T) {
+	dir := writeRun(t, testSpec(), []event.Event{
+		probe("MC-111", "10.10.0.11", event.StatusOK,
+			"CN=kube-apiserver expires on 2027-09-13, in 364 days"),
+		probe("MC-121", "10.10.0.11", event.StatusOK,
+			"the RKE2 CA CN=rke2-server-ca expires on 2036-09-10, in 3649 days"),
+		probe("MC-111", "10.10.0.12", event.StatusFailed,
+			"nothing was measured on this node: the directory is not readable"),
+	}, nil)
+
+	got := section(Audit(load(t, dir)), "## Certificates")
+	for _, want := range []string{
+		"MC-111", "MC-121", "kube-apiserver", "rke2-server-ca",
+		"2036-09-10", "nothing was measured",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the certificates section is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// A run that measured no expiry says so. Printing nothing there reads as
+// certificates that were looked at and found fine, which is the same mistake
+// as reporting an unreadable directory as an empty one.
+func TestUnmeasuredExpiryIsSaidOutLoud(t *testing.T) {
+	dir := writeRun(t, testSpec(), []event.Event{
+		probe("PF-101", "10.10.0.11", event.StatusOK, "Ubuntu 24.04.3 LTS"),
+	}, nil)
+
+	got := section(Audit(load(t, dir)), "## Certificates")
+	if !strings.Contains(got, "No certificate expiry was measured") {
+		t.Errorf("a run with no expiry scan does not say so:\n%s", got)
+	}
+}
+
 func TestDNSRecordSheet(t *testing.T) {
 	s := testSpec()
 	s.Gateway.DNS.ExtraRecords = []v1alpha1.DNSRecord{

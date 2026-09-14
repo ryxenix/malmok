@@ -69,24 +69,24 @@ var (
 // report ends up asserting something the customer never agreed to.
 type Finding struct {
 	// Code is the registry identifier: MC-111, MC-112 or MC-121.
-	Code string
+	Code string `json:"code"`
 	// Node, Path and Subject identify the certificate this is about.
-	Node    string
-	Path    string
-	Subject string
+	Node    string `json:"node"`
+	Path    string `json:"path"`
+	Subject string `json:"subject"`
 	// NotAfter is the measurement. Days is derived from it.
-	NotAfter time.Time
+	NotAfter time.Time `json:"notAfter"`
 	// Series is which family the certificate belongs to.
-	Series Series
+	Series Series `json:"series"`
 	// Days is whole days remaining, floored, and negative once expired:
 	// -11 reads as "expired eleven days ago", which is what the operator has
 	// to act on.
-	Days int
+	Days int `json:"days"`
 	// Step is the alert threshold crossed, in days, or zero when none has
 	// been. Zero is not "fine" on its own -- an item is still reported, because
 	// a handover has to state when the cluster's own CA expires whether or not
 	// that date is near.
-	Step int
+	Step int `json:"step"`
 }
 
 // Assess turns one node's inventory into maintenance findings.
@@ -102,6 +102,14 @@ type Finding struct {
 func Assess(inv Inventory, now time.Time) []Finding {
 	var out []Finding
 
+	// A CA is carried inside every bundle it signed, so one directory holds
+	// the same four CA certificates a dozen times over. Measured on a live
+	// server: thirteen files, twenty-one certificates, four distinct CAs
+	// reported thirteen times. Each copy is the same fact, and printing it
+	// once per file invites an operator to believe there are thirteen
+	// authorities to rotate.
+	seenCA := map[string]bool{}
+
 	for _, r := range inv.Rows {
 		days := wholeDays(r.Remaining(now))
 
@@ -113,6 +121,13 @@ func Assess(inv Inventory, now time.Time) []Finding {
 		// procedure and both need rotate-ca.
 		if r.Kind != cert.KindLeaf {
 			series, code, steps = SeriesCA, "MC-121", caSteps
+
+			// Identity is the certificate, not the file it was found in.
+			key := r.Node + "\x00" + r.Subject + "\x00" + r.NotAfter.UTC().String()
+			if seenCA[key] {
+				continue
+			}
+			seenCA[key] = true
 		}
 
 		out = append(out, Finding{

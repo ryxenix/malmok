@@ -72,6 +72,22 @@ func fakeNode(stdout string) *exec.Fake {
 // holds the cluster CA keys beside the certificates, and this is the assertion
 // that keeps a later convenience -- "read everything, filter afterwards" --
 // from quietly removing the only thing preventing it.
+// A top-level glob misses whole certificate families. Measured on a live
+// server: thirteen certificates at the top of server/tls and twenty in the
+// tree, the difference being etcd's five plus the controller-manager's and the
+// scheduler's. etcd's expiry is the one that stops a cluster hardest, and a
+// scan that reported "none near expiry" had never looked at it.
+func TestScriptReachesCertificatesInSubdirectories(t *testing.T) {
+	if !strings.Contains(script, `"$d"/*/*.crt`) {
+		t.Errorf("the script no longer descends into subdirectories:\n%s", script)
+	}
+	// The scratch directory holds half-written copies during a rotation, and
+	// reporting one beside the real certificate shows the same expiry twice.
+	if !strings.Contains(script, "temporary-certs") {
+		t.Errorf("the script no longer skips the rotation scratch directory:\n%s", script)
+	}
+}
+
 func TestScriptReadsCertificatesOnly(t *testing.T) {
 	if !strings.Contains(script, `"$d"/*.crt`) {
 		t.Errorf("the script no longer globs *.crt:\n%s", script)
@@ -148,6 +164,96 @@ func TestScanReportsMissingDirectoryAsItsOwnReason(t *testing.T) {
 	}
 	if inv.Problems[0].Path != "" {
 		t.Errorf("a missing directory was blamed on file %q", inv.Problems[0].Path)
+	}
+}
+
+// The one that matters most, and the one this package got wrong.
+//
+// RKE2 keeps the server directory mode 0700 and owned by root. An unprivileged
+// shell asking `test -d` gets exactly the answer it gets on a machine that runs
+// no server, so reporting absence there turns "I was not allowed to look" into
+// "this node correctly holds no certificates" -- a clean bill of health for a
+// node nothing was read from. Measured against the live lab it printed
+// "0 item(s) measured, none near expiry" and exited 0.
+func TestUnprivilegedScanIsNotAnEmptyCluster(t *testing.T) {
+	inv := Scan(context.Background(), fakeNode(markerNoAccess+"\n"))
+
+	if len(inv.Rows) != 0 {
+		t.Fatalf("got rows from a scan that saw nothing: %+v", inv.Rows)
+	}
+	if len(inv.Problems) != 1 {
+		t.Fatalf("got %d problems, want one: %+v", len(inv.Problems), inv.Problems)
+	}
+	p := inv.Problems[0]
+	if p.Reason != ReasonNoPrivilege {
+		t.Errorf("reason is %q, want %q", p.Reason, ReasonNoPrivilege)
+	}
+	// The whole point: this must count against the scan, where a missing
+	// directory does not.
+	if !p.Applicable() {
+		t.Error("an unreadable directory was reported as not applicable, " +
+			"which is how it becomes a clean result")
+	}
+}
+
+// An agent really has no server directory, and saying so is still correct --
+// the privileged case must not be collapsed into the unprivileged one.
+func TestRootSeeingNoDirectoryIsStillAnAnswer(t *testing.T) {
+	inv := Scan(context.Background(), fakeNode(markerNoDir+"\n"))
+
+	if len(inv.Problems) != 1 || inv.Problems[0].Reason != ReasonDirMissing {
+		t.Fatalf("got %+v, want one %s problem", inv.Problems, ReasonDirMissing)
+	}
+	if inv.Problems[0].Applicable() {
+		t.Error("a node that runs no server was counted as a failed measurement")
+	}
+}
+
+// The script has to ask, not assume. A later simplification that drops one of
+// these tests would restore the defect silently, so it fails the build.
+//
+// Existence is not readability and readability is not content: measured on a
+// live node, the TLS directory is 0700 inside 0755 parents, so `test -d`
+// succeeds, `test -r` fails, and the glob inside it expands to nothing while
+// exiting zero -- identical to an empty directory.
+func TestScriptDistinguishesAbsenceFromNoAccess(t *testing.T) {
+	for _, probe := range []string{`id -u`, `! -r "$d"`, `! -x "$d"`} {
+		if !strings.Contains(script, probe) {
+			t.Errorf("the script no longer tests %s:\n%s", probe, script)
+		}
+	}
+	for _, m := range []string{markerNoDir, markerNoAccess, markerEmpty} {
+		if !strings.Contains(script, m) {
+			t.Errorf("the script no longer emits %s:\n%s", m, script)
+		}
+	}
+}
+
+// A readable directory with nothing in it is a measurement, and still not a
+// pass: a running server always has these files.
+func TestEmptyDirectoryIsReportedRatherThanPassed(t *testing.T) {
+	inv := Scan(context.Background(), fakeNode(markerEmpty+"\n"))
+
+	if len(inv.Rows) != 0 {
+		t.Fatalf("got rows from an empty directory: %+v", inv.Rows)
+	}
+	if len(inv.Problems) != 1 || inv.Problems[0].Reason != ReasonEmpty {
+		t.Fatalf("got %+v, want one %s problem", inv.Problems, ReasonEmpty)
+	}
+	if !inv.Problems[0].Applicable() {
+		t.Error("an empty server TLS directory was reported as not applicable")
+	}
+}
+
+// Whatever the node says, the answer is never nothing. This is the invariant
+// the live defect broke: zero rows and zero problems rendered as "0 item(s)
+// measured, none near expiry" and exited 0.
+func TestScanIsNeverSilent(t *testing.T) {
+	for _, stdout := range []string{"", "\n", "unexpected chatter\n"} {
+		inv := Scan(context.Background(), fakeNode(stdout))
+		if len(inv.Rows) == 0 && len(inv.Problems) == 0 {
+			t.Errorf("a scan of %q produced neither a certificate nor a reason", stdout)
+		}
 	}
 }
 

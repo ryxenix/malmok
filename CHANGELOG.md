@@ -41,6 +41,31 @@
   disruptive procedure. `expiryWarningDays` is deliberately not reused: it
   belongs to a supplied bundle and encodes one customer's purchasing lead time,
   which has nothing to say about a cluster's own PKI.
+- `malmok certs` measures when a cluster's certificates expire and records the
+  result in the run, so the audit report states it. Nothing is changed and only
+  `*.crt` is opened; the private keys in the same directory are never touched.
+  The measurement becomes events, which is how it reaches the report without
+  the report reading a cluster -- a report generated from live state says
+  something different every time it runs, and what a customer receives has to
+  be the record of what was measured. Exit status is 0 when everything was
+  measured and nothing has crossed an alert step, 2 when something is expiring,
+  and 3 when something could not be measured; not-measured outranks expiring,
+  because a scan that did not see everything cannot assert that what it saw is
+  all that is wrong.
+- Running it against a live server found three things nothing else would have.
+  An unprivileged scan reported a clean cluster: RKE2 keeps `server/tls` at
+  mode 0700 inside 0755 parents, so `test -d` succeeds, the glob inside it
+  expands to nothing, and the command exits zero having printed nothing --
+  which read as "this server holds no certificates". The scan now asks whether
+  it can read the directory instead of inferring it from an empty result, an
+  empty directory is reported rather than passed, and a scan can no longer
+  return neither a certificate nor a reason. A top-level glob missed every
+  certificate RKE2 keeps in a subdirectory: twenty in the tree against thirteen
+  at the top, the difference being etcd's five -- whose expiry stops a cluster
+  hardest -- plus the controller-manager's and the scheduler's. And a
+  certificate authority is carried inside every bundle it signed, so four
+  authorities were reported thirteen times; identity is now the certificate,
+  not the file it was found in.
 
 ### Changed
 - The image bundle is built only when the image list changes. Images move only

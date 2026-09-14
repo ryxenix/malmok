@@ -40,17 +40,17 @@ const Dir = rke2.DataDir + "/server/tls"
 // and not a file; Path says which file it came out of.
 type Row struct {
 	// Node is the address the runner talked to.
-	Node string
+	Node string `json:"node"`
 	// Path is the file the certificate was read from.
-	Path string
+	Path string `json:"path"`
 	// Subject is the certificate's subject DN, as the one thing that
 	// distinguishes two certificates in the same file.
-	Subject string
+	Subject string `json:"subject"`
 	// NotAfter is the moment it stops being valid. This is the measurement;
 	// everything else about time is derived from it.
-	NotAfter time.Time
+	NotAfter time.Time `json:"notAfter"`
 	// Kind is leaf, intermediate or root, as classified by internal/cert.
-	Kind cert.Kind
+	Kind cert.Kind `json:"kind"`
 }
 
 // Remaining is how long this certificate has left at the given moment.
@@ -66,6 +66,24 @@ const (
 	// ReasonDirMissing is no TLS directory, which on an agent is the correct
 	// and expected answer rather than a fault.
 	ReasonDirMissing Reason = "dir-missing"
+	// ReasonNoPrivilege is the directory being there and unreadable, which
+	// says nothing about what is in it.
+	//
+	// Measured on a live node: /var/lib/rancher/rke2/server/tls is mode 0700
+	// and owned by root, while every directory above it is 0755. So an
+	// unprivileged shell gets TRUE from `test -d` -- stat only needs the
+	// parents -- and then FALSE from `test -r`. The glob inside it expands to
+	// nothing, every iteration is skipped, and the command exits zero having
+	// printed not one line. Read as an answer, that is "this server holds no
+	// certificates": a clean bill of health for a node nothing was read from.
+	ReasonNoPrivilege Reason = "no-privilege"
+	// ReasonEmpty is a readable server TLS directory holding no certificate.
+	//
+	// A real measurement rather than a failed one, and still not a healthy
+	// answer: a running server always has these files, so finding none means
+	// something is wrong with the node rather than with the scan. It is kept
+	// separate from silence for the same reason everything else here is.
+	ReasonEmpty Reason = "empty"
 	// ReasonUnreadable is a file that exists and could not be read, which is
 	// nearly always the command not running with enough privilege.
 	ReasonUnreadable Reason = "unreadable"
@@ -79,12 +97,12 @@ const (
 // never render as a measurement that came back fine, which is the single way
 // an inventory of expiry dates misleads the person relying on it.
 type Problem struct {
-	Node string
+	Node string `json:"node"`
 	// Path is empty when what failed was the node or the directory rather
 	// than one file.
-	Path   string
-	Reason Reason
-	Detail string
+	Path   string `json:"path,omitempty"`
+	Reason Reason `json:"reason"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // Inventory is one node's answer.
@@ -102,6 +120,8 @@ type Inventory struct {
 // certificate and cannot be forged by one.
 const (
 	markerNoDir      = "===NODIR"
+	markerNoAccess   = "===NOACCESS"
+	markerEmpty      = "===EMPTY"
 	markerFile       = "===FILE "
 	markerUnreadable = "===UNREADABLE"
 )
@@ -115,13 +135,43 @@ const (
 // The glob names *.crt and nothing else. That narrowness is the whole
 // protection against reading a CA private key that sits in the same directory,
 // so it is not a detail to relax for convenience later.
+//
+// One level down as well as the top, because RKE2 keeps whole certificate
+// families in subdirectories and a top-level glob misses them silently.
+// Measured on a live server: thirteen certificates at the top, twenty in the
+// tree -- the seven missing were etcd's five, the controller-manager's and the
+// scheduler's. etcd's are the ones whose expiry stops a cluster hardest, and
+// nothing was looking at them. Two levels is what the tree actually has; the
+// globs are written out rather than replaced with find so that a path
+// containing a space cannot be split into two.
+//
+// temporary-certs is skipped. It is RKE2's scratch area during rotation --
+// empty on a settled node -- and a half-written copy reported beside the real
+// certificate is one expiry date shown twice.
+// An absent directory and a directory that cannot be traversed answer `test
+// -d` identically, so the shell is asked which one it is rather than left to
+// imply it. Root and no directory is a real absence; not root and no
+// directory is not an answer at all.
+// Each question is asked of the shell rather than inferred from the answer to
+// a different one. Existence, readability and emptiness are three facts, and
+// every pair of them is indistinguishable from the outside if only one is
+// asked: a glob in an unreadable directory expands to nothing and exits zero,
+// which is byte for byte what an empty directory produces.
 const script = `d=` + Dir + `
-if [ ! -d "$d" ]; then echo '` + markerNoDir + `'; exit 0; fi
-for f in "$d"/*.crt; do
+if [ ! -d "$d" ]; then
+  if [ "$(id -u)" = 0 ]; then echo '` + markerNoDir + `'; else echo '` + markerNoAccess + `'; fi
+  exit 0
+fi
+if [ ! -r "$d" ] || [ ! -x "$d" ]; then echo '` + markerNoAccess + `'; exit 0; fi
+n=0
+for f in "$d"/*.crt "$d"/*/*.crt; do
   [ -e "$f" ] || continue
+  case "$f" in */temporary-certs/*) continue ;; esac
+  n=$((n+1))
   echo "` + markerFile + `$f"
   cat "$f" 2>/dev/null || echo '` + markerUnreadable + `'
-done`
+done
+[ "$n" -gt 0 ] || echo '` + markerEmpty + `'`
 
 // Scan measures one node.
 //
@@ -155,6 +205,19 @@ func Scan(ctx context.Context, r exec.Runner) Inventory {
 	}
 
 	inv.Rows, inv.Problems = parse(inv.Node, res.Stdout)
+
+	// A scan that produced neither a certificate nor a reason is the failure
+	// this package exists to prevent, and it has happened: an unprivileged
+	// glob returned nothing and the empty result read as a healthy cluster.
+	// The markers above now cover every route the script can take, so this
+	// says only that something unforeseen did -- without claiming to know
+	// what, and without letting the answer be silence.
+	if len(inv.Rows) == 0 && len(inv.Problems) == 0 {
+		inv.Problems = append(inv.Problems, Problem{
+			Node: inv.Node, Reason: ReasonUnreadable,
+			Detail: "the scan returned no output and no reason, so nothing was established",
+		})
+	}
 	sort.Slice(inv.Rows, func(i, j int) bool {
 		if !inv.Rows[i].NotAfter.Equal(inv.Rows[j].NotAfter) {
 			return inv.Rows[i].NotAfter.Before(inv.Rows[j].NotAfter)
@@ -176,10 +239,25 @@ func parse(node, out string) ([]Row, []Problem) {
 	var rows []Row
 	var problems []Problem
 
+	// Checked before the absence marker, because only one of the two is an
+	// answer: an unprivileged shell that cannot see the directory has not
+	// established that there is nothing there.
+	if strings.HasPrefix(strings.TrimSpace(out), markerNoAccess) {
+		return nil, []Problem{{
+			Node: node, Reason: ReasonNoPrivilege,
+			Detail: Dir + " is not visible to this account, which runs unprivileged",
+		}}
+	}
 	if strings.HasPrefix(strings.TrimSpace(out), markerNoDir) {
 		return nil, []Problem{{
 			Node: node, Reason: ReasonDirMissing,
 			Detail: Dir + " does not exist, so this node runs no RKE2 server",
+		}}
+	}
+	if strings.HasPrefix(strings.TrimSpace(out), markerEmpty) {
+		return nil, []Problem{{
+			Node: node, Reason: ReasonEmpty,
+			Detail: Dir + " is readable and holds no certificate",
 		}}
 	}
 

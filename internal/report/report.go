@@ -295,10 +295,50 @@ func preflightSection(b *strings.Builder, r *Run) {
 	b.WriteString("\nThe full result of every check, with raw evidence, is in `events.jsonl` beside this file.\n\n")
 }
 
-// certificates covers what PF-9xx and the PV wire checks found.
+// certificates covers what the wire checks saw and when the certificates the
+// cluster runs on stop working.
+//
+// Two different questions about the same subject. The wire checks say whether
+// a client accepts what a listener serves today; the expiry items say how long
+// the cluster has. A handover needs both, and until the second was recorded
+// nothing in this report said when the cluster's own PKI ends.
 func certificates(b *strings.Builder, r *Run) {
 	b.WriteString("## Certificates\n\n")
+	wireVerification(b, r)
+	expirySection(b, r)
+}
 
+// expirySection renders the MC-1xx items an expiry scan recorded.
+//
+// Read out of the event file like everything else here. The report reads
+// nothing from a cluster on purpose -- a report generated from live state says
+// something different every time it runs -- so a measurement reaches this page
+// by having been written down when it was taken, not by being taken again now.
+func expirySection(b *strings.Builder, r *Run) {
+	mc := probeEvents(r, "MC-1")
+	if len(mc) == 0 {
+		// Said rather than omitted. A missing subsection reads as a subject
+		// that was checked and found fine, which is the exact confusion this
+		// whole section exists to remove.
+		b.WriteString("_No certificate expiry was measured in this run._ " +
+			"`malmok certs` records one; without it nothing here states when the " +
+			"cluster's own certificates stop working.\n\n")
+		return
+	}
+
+	b.WriteString("### Expiry\n\n")
+	b.WriteString("Measured on the nodes at the time of the scan. " +
+		"Dates are absolute because this document is read long after it is written.\n\n")
+	b.WriteString("| Item | Node | Result | Detail |\n|---|---|---|---|\n")
+	for _, e := range mc {
+		fmt.Fprintf(b, "| %s | %s | %s | %s |\n",
+			e.Code, dash(e.Node), severityWord(e), oneLine(e.Detail))
+	}
+	b.WriteString("\n")
+}
+
+// wireVerification is what a client actually saw.
+func wireVerification(b *strings.Builder, r *Run) {
 	pv := probeEvents(r, "PV-")
 	if len(pv) == 0 {
 		b.WriteString("_No wire verification was recorded._ ")

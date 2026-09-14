@@ -25,6 +25,22 @@
   after it is written. The glob names `*.crt` and nothing else, since the
   cluster's CA private keys sit in that same directory, and a test fails if it
   ever widens.
+- The maintenance-check family has its first producer. `MC-111` (days left on
+  an RKE2 internal certificate), `MC-112` (it is inside the renewal window, so
+  a restart now rotates it) and `MC-121` (days left on RKE2's own CA) have been
+  defined in `internal/codes` and published in `docs/99-codes.md` since the
+  family was written, and nothing had ever emitted one; the whole `MC` family
+  had no producer at all. No new numbers were minted, and the generated
+  registry does not move. `PF-9xx` would have been the wrong block despite
+  being the certificate one: its own header reserves it for material an
+  operator supplies, and these are certificates RKE2 issued to itself.
+  Thresholds come from the series the certificate belongs to -- 150, 100 and 30
+  days for internal leaves, whose first step sits outside the 120-day renewal
+  window so a maintenance slot can be agreed before a restart would rotate
+  anything, and 180 days for the CA, where the answer is always a planned
+  disruptive procedure. `expiryWarningDays` is deliberately not reused: it
+  belongs to a supplied bundle and encodes one customer's purchasing lead time,
+  which has nothing to say about a cluster's own PKI.
 
 ### Changed
 - The image bundle is built only when the image list changes. Images move only

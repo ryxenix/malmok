@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.4] - 2026-09-14
 
 ### Added
 - The documentation site publishes itself on every push to main that changes
@@ -98,8 +98,8 @@
   which names the VIP on a cluster that has one, and the local-path provisioner
   carving volumes out of `/opt/local-path-provisioner`. The list says it is the
   whole list.
-- The install examples pin v0.96.3. They named v0.83.0, whose tag and release
-  no longer exist, so the command they showed failed.
+- The install examples pin the release being cut. They named v0.83.0, whose tag
+  and release no longer exist, so the command they showed failed.
 
 ### Fixed
 - Comments across the source cite design documents by paths that look like

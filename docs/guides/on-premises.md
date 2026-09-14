@@ -99,7 +99,7 @@ delete the state directory.
 
 ## 6. Hand over the result
 
-On current `main` (after v0.96.3), run a
+From v0.96.4, run a
 [certificate expiry scan](certificates.md) and generate the report for its
 printed run ID. Preserve it alongside the installation run: the scan does not
 update the earlier build's records or schedule certificate renewal.

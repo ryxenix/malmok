@@ -174,8 +174,8 @@ malmok report
 ## 구축 이후
 
 계획된 변경과 중단된 실행은 [업그레이드와 복구 가이드](guides/upgrade-and-recovery.md)를
-따릅니다. 현재 `main`에서는 읽기 전용 [인증서 만료 점검](guides/certificates.md)과
-감사 보고서·`handoff.json` 기록도 지원합니다. 아직 v0.96.3에는 포함되지 않았습니다.
+따릅니다. v0.96.4부터는 읽기 전용 [인증서 만료 점검](guides/certificates.md)과
+감사 보고서·`handoff.json` 기록도 지원합니다.
 인증서를 점검해도 갱신이나 유지보수 예약이 자동으로 실행되지는 않습니다.
 
 ## 어디까지 담당하는가

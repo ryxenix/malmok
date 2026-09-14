@@ -133,7 +133,7 @@ sh install-malmok.sh
 뒤에 `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, `--airgap`을 전달합니다.
 
 ```bash
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.3
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.4
 ```
 
 릴리스 페이지에서 바이너리를 직접 내려받을 수도 있습니다. Linux·macOS,
@@ -315,8 +315,7 @@ RKE2는 kubectl을 아무도 찾지 않는 곳에 묻어 두고 helm CLI는 아�
 
 ## 인증서 만료 점검
 
-현재 `main`에는 서버 노드에 저장된 RKE2 인증서를 변경 없이 점검하는 기능이
-있습니다. 아직 v0.96.3 릴리스에는 포함되지 않았습니다.
+v0.96.4부터 서버 노드에 저장된 RKE2 인증서를 변경 없이 점검할 수 있습니다.
 
 ```bash
 # 경고뿐 아니라 측정한 인증서 전체 표시

@@ -137,7 +137,7 @@ Pass `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, or `--airgap` after
 binary. For example:
 
 ```bash
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.3
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.4
 ```
 
 You can also download a binary directly from the releases page -- Linux and
@@ -323,8 +323,8 @@ Three properties shape the design:
 
 ## Check certificate expiry
 
-On current `main` (not yet in v0.96.3), inspect the certificates RKE2 stores on
-server nodes without changing the cluster:
+From v0.96.4, inspect the certificates RKE2 stores on server nodes without
+changing the cluster:
 
 ```bash
 # Show every measured certificate, not only alerts

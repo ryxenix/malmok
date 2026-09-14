@@ -182,9 +182,9 @@ real build with `malmok apply -f cluster.yaml`.
 ## After installation
 
 Use the [upgrade and recovery guide](guides/upgrade-and-recovery.md) for planned
-changes and interrupted runs. Current `main` also provides read-only
+changes and interrupted runs. From v0.96.4, Malmok also provides read-only
 [certificate expiry scans](guides/certificates.md), with results available in
-the audit report and `handoff.json`; this feature is not yet in v0.96.3.
+the audit report and `handoff.json`.
 Scanning does not renew certificates or schedule maintenance.
 
 ## One tool, a clear boundary

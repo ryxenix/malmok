@@ -4,12 +4,13 @@
 their expiry dates. Use it when handing over a cluster or planning maintenance.
 It does not change the cluster, renew certificates or restart services.
 
-!!! info "Available on main"
+!!! info "Available from v0.96.4"
 
-    This command and the certificate handoff fields are on current `main`,
-    after v0.96.3. They are not in that release's installer download.
-    See the [changelog](https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md)
-    and [source installation](../getting-started/installation.md) before using them.
+    This command and the certificate handoff fields arrived in v0.96.4. They
+    are absent from v0.96.3 and earlier, so upgrade before following this
+    guide. See the
+    [changelog](https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md) and
+    [installation](../getting-started/installation.md).
 
 ## Run a scan
 

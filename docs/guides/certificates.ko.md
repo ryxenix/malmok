@@ -4,12 +4,12 @@
 클러스터 인수인계나 유지보수 일정 검토에 사용할 수 있습니다.
 클러스터 변경·인증서 갱신·서비스 재시작은 수행하지 않습니다.
 
-!!! info "현재 main에서 제공"
+!!! info "v0.96.4부터 제공"
 
-    명령과 인증서 인수인계 필드는 v0.96.3 이후 현재 `main`에 추가됐습니다.
-    v0.96.3 설치 스크립트 다운로드에는 포함되지 않습니다.
-    사용 전 [변경 이력](https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md)과
-    [소스 설치 안내](../getting-started/installation.md)를 확인하십시오.
+    명령과 인증서 인수인계 필드는 v0.96.4에 추가됐습니다. v0.96.3 이하에는
+    없으므로 이 문서를 따르기 전에 업그레이드해야 합니다.
+    [변경 이력](https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md)과
+    [설치 안내](../getting-started/installation.md)를 참고하십시오.
 
 ## 점검 실행
 

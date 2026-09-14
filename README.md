@@ -453,7 +453,8 @@ malmok report
 ## What is verified
 
 Single-node and two-node builds, upgrades, resume and re-apply have been tested
-on real hardware. Three-server builds and one-server loss have also been tested.
+on real hardware. Three-server builds, one-server loss and a three-server
+upgrade have also been tested.
 The air-gapped path uses carried RKE2 artifacts, charts and images with egress
 dropped. Proxy networks and external registry mirrors remain unverified; the
 table below records the exact scope and release evidence.
@@ -466,10 +467,11 @@ An infrastructure tool that overstates its coverage breaks somebody else's
 cluster. So the untested rows are in the same table as the tested ones.
 
 Every row below is what the verification matrix did on the release it names,
-on the machines and with the network it says. Ten of its eleven cases pass on
+on the machines and with the network it says. Ten of its twelve cases pass on
 0.95.0 -- the air-gapped one last, and only after it had found five more
 defects in getting there. The eleventh, three servers losing one, was added
-after it and passes on 0.96.3.
+after it and passes on 0.96.3; the twelfth, upgrading three servers, on
+0.96.4.
 
 | Configuration | Status | Evidence |
 |---|---|---|

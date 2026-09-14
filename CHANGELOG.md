@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- The verification matrix has a three-server upgrade. `upgrade-two` restarts
+  one server and one agent, so the etcd cluster it carries through an upgrade
+  has a single member: nothing in it can show that two of three members keep
+  answering while the third is down, or that the VIP survives its holder
+  restarting as a voting member rather than as the only one. Three servers
+  upgraded one at a time is what a production cluster does, and every release
+  so far has said in the same table that it is not verified. The row sits in
+  the matrix unverified until the case has run on hardware, which is where
+  every other row started.
+
 ## [0.96.4] - 2026-09-14
 
 ### Added

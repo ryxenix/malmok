@@ -183,6 +183,17 @@ func Cases() []Case {
 				"been built on paper only: the join of a second server had never run on a " +
 				"machine, and nothing had ever checked that the address outlives its holder",
 		},
+		{
+			Name: "upgrade-three", Nodes: 3, Dataplane: "cilium-gw", PKI: "none",
+			Exposure: "node-ips", Registry: "embedded", VIP: true, Op: OpUpgrade,
+			Why: "a quorum moving through its own upgrade. upgrade-two restarts one " +
+				"server and one agent, so the etcd cluster it exercises is a single " +
+				"member: nothing there can show that two of three members keep answering " +
+				"while the third is down, or that the VIP survives its holder restarting " +
+				"as a voting member rather than as the only one. Three servers upgraded " +
+				"one at a time is what a production cluster actually does, and the README " +
+				"has said in every release that it is not verified",
+		},
 	}
 }
 
@@ -228,6 +239,11 @@ func RequiredPairs() [][2]string {
 		// A failover needs three servers. With two, losing one loses the
 		// quorum, so a two-node failover could pass only by testing nothing.
 		{DimOp + "=" + OpFailover, DimNodes + "=3"},
+		// An upgrade of three servers. Two nodes upgrade one etcd member, so
+		// the quorum is never asked to hold while one of its own members is
+		// restarting -- which is the thing a production upgrade does and the
+		// thing that stops a cluster when it goes wrong.
+		{DimOp + "=" + OpUpgrade, DimNodes + "=3"},
 	}
 }
 

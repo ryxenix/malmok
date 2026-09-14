@@ -9,9 +9,10 @@
   answering while the third is down, or that the VIP survives its holder
   restarting as a voting member rather than as the only one. Three servers
   upgraded one at a time is what a production cluster does, and every release
-  so far has said in the same table that it is not verified. The row sits in
-  the matrix unverified until the case has run on hardware, which is where
-  every other row started.
+  so far has said in the same table that it is not verified. It has now run on
+  hardware: three servers built at v1.35.8+rke2r1 and moved to v1.36.4+rke2r1
+  one at a time, every kubelet reporting the new version afterwards, with no
+  check blocked and nothing skipped.
 
 ## [0.96.4] - 2026-09-14
 

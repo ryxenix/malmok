@@ -465,7 +465,7 @@ malmok report
 | 반입(BYO) 인증서 | **실측 검증** | 매트릭스 `byocert-lb`, 0.95.0 |
 | ACME HTTP-01 인증서 | **실측 검증** | 프로덕션 클러스터에서 Let's Encrypt 발급, TLS 1.3·체인·호스트명 확인 |
 | ACME DNS-01 인증서(와일드카드) | 미검증 | DNS 존 자격증명 필요 |
-| 3서버 HA (etcd 쿼럼) | **실측 검증** | 매트릭스 `ha-failover`, 0.96.3: VIP 아래 서버 3대, VIP를 쥔 서버를 재부팅 — VIP 이전, etcd 3개 중 2개로 쓰기 성공, 재부팅한 서버가 스스로 복귀. 서버 3대 업그레이드는 미검증. `rke2-killall.sh`로 서버를 멈추면 VIP가 그 서버에 남음 — [복구 가이드](docs/guides/upgrade-and-recovery.ko.md) |
+| 3서버 HA (etcd 쿼럼) | **실측 검증** | 매트릭스 `ha-failover`, 0.96.3: VIP 아래 서버 3대, VIP를 쥔 서버를 재부팅 — VIP 이전, etcd 3개 중 2개로 쓰기 성공, 재부팅한 서버가 스스로 복귀. 서버 3대 업그레이드도 실측 검증: 매트릭스 `upgrade-three`, 0.96.4 — v1.35.8+rke2r1로 구축해 v1.36.4+rke2r1로 한 대씩 올렸고, 이후 모든 kubelet이 새 버전을 보고. `rke2-killall.sh`로 서버를 멈추면 VIP가 그 서버에 남음 — [복구 가이드](docs/guides/upgrade-and-recovery.ko.md) |
 | 에어갭 설치 (외부 통신 차단) | **실측 검증** | 매트릭스 `airgap-pair`, 0.95.0: egress를 현장 방화벽처럼 DROP. 반입 아티팩트로 RKE2·Cilium, 파일로 반입한 플랫폼 차트(`registry.chartDir`), 반입 번들에서 전 이미지, local-path 볼륨 바인딩, 메트릭 DB 구동까지 — 밖에서 받아온 것 없음. 10개 케이스는 수정이 들어갈 때마다 세 번에 나눠 실행했고 한 번에 쓸어담은 것이 아님 |
 | local-path 스토리지 | **실측 검증** | 매트릭스, 0.95.0 — 관측 스택을 설치하는 모든 케이스에서 볼륨 바인딩 |
 | Longhorn / NFS 스토리지 | **미구현** | StorageClass 없는 클러스터를 만드는 대신 문서를 거부 |

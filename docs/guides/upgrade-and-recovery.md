@@ -22,12 +22,14 @@ set TARGET_RKE2 v1.36.3+rke2r1
 malmok upgrade --to "$TARGET_RKE2"
 ```
 
-!!! warning
+!!! info "Verification scope"
 
-    Three servers are verified for building and for losing one of them, but
-    an upgrade across three servers is not yet hardware-verified by this
-    project. Check the [verification matrix](../40-verification-matrix.md)
-    before upgrading one.
+    Three servers are verified for building, for losing one of them, and for
+    an upgrade: matrix `upgrade-three` builds at one minor and moves to the
+    next a server at a time, with every kubelet reporting the new version
+    afterwards. Check the
+    [verification matrix](../40-verification-matrix.md) for what each row
+    covers.
 
 ## Resume an interrupted run
 

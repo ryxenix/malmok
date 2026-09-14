@@ -51,6 +51,18 @@ the operator. `malmok plan` reports both the resolved value and its source.
 | `platform` | GitOps and observability components |
 | `output` | Audit report, run bundle and event-log locations |
 
+## Declared settings and applied settings
+
+Schema validation checks the document, not whether every declared feature is
+implemented or active on a node. On current `main`, `os.hardening.cisProfile`
+and `prepareCISPrerequisites` have preflight/report handling but are not wired
+to apply the CIS profile and its full prerequisites. Likewise,
+`kubernetes.etcd.snapshotSchedule`, `snapshotRetention` and `snapshotTarget`
+are declared but are not written into the RKE2 configuration by Malmok.
+Do not rely on these fields to change a running cluster. Check its effective
+configuration separately; RKE2 defaults or externally managed settings may
+still be active.
+
 ## Secret references
 
 Do not put plaintext credentials in `cluster.yaml`. Secret-bearing fields use
@@ -81,4 +93,3 @@ The Go types under
 [`api/v1alpha1`](https://github.com/ryxenix/malmok/tree/main/api/v1alpha1) are
 the schema source of truth while the full generated field reference is being
 prepared.
-

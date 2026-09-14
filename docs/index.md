@@ -21,26 +21,16 @@ runs and leaves evidence an operator can hand over.
   <a href="https://github.com/ryxenix/malmok" class="md-button">View on GitHub</a>
 </div>
 
-<p class="malmok-kicker">Bare metal · VMs · On-premises · DMZ · Air-gapped (partly verified)</p>
+<p class="malmok-kicker">Bare metal · VMs · On-premises · DMZ · Air-gapped</p>
 
 </div>
 
 !!! warning "Alpha software"
 
-    Try Malmok in a homelab or an evaluation environment and send feedback.
-    Before using it for work, read the verification scope and its limits.
-
-    Single-node and two-node clusters are verified repeatedly on real
-    hardware, upgrade, resume and re-apply included, and three servers are
-    verified for building and for losing one. Proxy networks and external
-    registry mirrors are not. The air-gapped path is
-    verified: RKE2, the charts and every image from carried files, with egress
-    dropped. The document schema is `v1alpha1` and can change between minor
-    releases.
-
-    The version is a compatibility promise, not a maturity score. **1.0 is
-    when the schema becomes `v1` and the rows marked *not verified* say
-    otherwise.**
+    Start in a homelab or evaluation environment. Before using Malmok for work,
+    read the [verification matrix](40-verification-matrix.md) and
+    [air-gap requirements](guides/air-gap.md). The `v1alpha1` schema may change
+    between minor releases.
 
 ## Is Malmok for you?
 
@@ -188,6 +178,14 @@ real build with `malmok apply -f cluster.yaml`.
 <div class="malmok-demo" markdown>
   ![Malmok TUI from configuration through preflight, installation and result](img/tui-wizard.gif)
 </div>
+
+## After installation
+
+Use the [upgrade and recovery guide](guides/upgrade-and-recovery.md) for planned
+changes and interrupted runs. Current `main` also provides read-only
+[certificate expiry scans](guides/certificates.md), with results available in
+the audit report and `handoff.json`; this feature is not yet in v0.96.3.
+Scanning does not renew certificates or schedule maintenance.
 
 ## One tool, a clear boundary
 

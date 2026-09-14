@@ -99,6 +99,11 @@ delete the state directory.
 
 ## 6. Hand over the result
 
+On current `main` (after v0.96.3), run a
+[certificate expiry scan](certificates.md) and generate the report for its
+printed run ID. Preserve it alongside the installation run: the scan does not
+update the earlier build's records or schedule certificate renewal.
+
 - Installed versions, nodes and roles, registration address and configuration
 - Run IDs, reports, unresolved warnings and excluded verification items
 - Image and chart sources without credentials, and the artifact inventory

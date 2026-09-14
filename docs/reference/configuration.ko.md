@@ -48,6 +48,16 @@ kind: ClusterSpec
 | `platform` | GitOps와 관측 구성 요소 |
 | `output` | 감사 리포트, 실행 번들과 이벤트 경로 |
 
+## 선언된 설정과 실제 적용
+
+스키마 검증은 문서 형식을 검사하며, 모든 선언 기능의 구현이나 노드 적용까지 확인하지는
+않습니다. 현재 `main`의 `os.hardening.cisProfile`과 `prepareCISPrerequisites`는
+사전 점검·보고서에서 처리하지만 CIS 프로파일과 전체 전제조건을 적용하는 경로에는
+연결되지 않았습니다. `kubernetes.etcd.snapshotSchedule`, `snapshotRetention`,
+`snapshotTarget`도 선언돼 있으나 말목이 RKE2 설정에 쓰지 않습니다.
+이 필드만으로 실행 중인 클러스터 설정이 바뀐다고 가정하지 마십시오. RKE2 기본값이나
+외부에서 관리한 설정은 활성 상태일 수 있으므로 실제 적용 설정을 별도로 확인하십시오.
+
 ## 시크릿 참조
 
 자격증명을 평문으로 넣지 않고 환경변수나 파일을 참조합니다.

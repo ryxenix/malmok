@@ -32,22 +32,17 @@
 |:---:|:---:|:---:|
 | Probe the real nodes and network before changing them | Continue an interrupted run instead of starting over | Keep stable diagnostic codes, JSONL events and handoff reports |
 
-> **Status: alpha.** Malmok builds RKE2 clusters on Linux servers you already
-> have, repeatably. Try it in a homelab or an evaluation environment and send
-> feedback. Before using it for work, read [what is verified](#what-is-verified)
-> and its limits: single-node and two-node clusters are verified repeatedly on
-> real hardware, including upgrade, resume and re-apply; three servers are
-> verified for building and for losing one; **proxies and external registries
-> are not**. The air-gapped path is verified:
-> RKE2, the charts and every image from carried files, with egress dropped.
-> The document schema is `v1alpha1` and may change between minor releases.
->
-> The version is a compatibility promise, not a maturity score: `0.x` says the
-> schema can still move, and 0.95 says nothing about how close 1.0 is. **1.0 is
-> when the schema becomes `v1` and the rows in
-> [what is verified](#what-is-verified) that say *not verified* say otherwise.**
-> The number was 0.1.0 in August; the changelog is what it has been doing
-> since.
+## What it does
+
+Give Malmok SSH access to your Linux servers and a `cluster.yaml` describing
+the cluster you want. It prepares the hosts, builds RKE2 and installs the
+dataplane, gateway and platform components you select. Interrupted builds can
+resume, and execution records stay with the run for troubleshooting and handoff.
+Prefer guided setup? The wizard creates the configuration with you.
+
+> **Status: alpha.** Start in a homelab or evaluation environment. Before using
+> it for work, read [what is verified](#what-is-verified). The `v1alpha1` schema
+> may change between minor releases.
 
 ## Who it is for
 
@@ -305,12 +300,12 @@ malmok images -f cluster.yaml
 
 </details>
 
-## What it does
+## How it works
 
 Give it SSH access to some machines and a `cluster.yaml` describing what you
-want. It produces a working RKE2 cluster: kernel parameters, swap, data
-directories and other host preparation, then RKE2 itself, the Cilium dataplane, Gateway
-API, cert-manager, ArgoCD and a VictoriaMetrics stack scraping the cluster.
+want. It prepares kernel parameters, swap and data directories, then installs
+RKE2 and the selected components: a Cilium or Canal dataplane, Gateway API,
+cert-manager, ArgoCD and a VictoriaMetrics stack as configured.
 On the first server, it also places `kubectl`, `helm` and `k9s` on the PATH of
 the account used to operate the cluster. RKE2 buries kubectl where nothing
 finds it and ships no helm CLI at all, so a finished install used to hand you
@@ -325,6 +320,25 @@ Three properties shape the design:
   does not start over.
 - **The engine does not know about the screen.** It emits JSONL events and the
   TUI draws them. A code path that needs a terminal is a defect.
+
+## Check certificate expiry
+
+On current `main` (not yet in v0.96.3), inspect the certificates RKE2 stores on
+server nodes without changing the cluster:
+
+```bash
+# Show every measured certificate, not only alerts
+malmok certs -f cluster.yaml -v
+
+# Export the scan as JSON
+malmok certs -f cluster.yaml -o json
+
+# Use the run ID printed by certs to generate its audit report and handoff.json
+malmok report --run RUN_ID
+```
+
+This is a point-in-time scan, not automatic renewal or continuous monitoring.
+[Scope, exit codes and handoff fields →](docs/guides/certificates.md)
 
 ## FAQ
 
@@ -438,6 +452,16 @@ malmok report
 
 ## What is verified
 
+Single-node and two-node builds, upgrades, resume and re-apply have been tested
+on real hardware. Three-server builds and one-server loss have also been tested.
+The air-gapped path uses carried RKE2 artifacts, charts and images with egress
+dropped. Proxy networks and external registry mirrors remain unverified; the
+table below records the exact scope and release evidence.
+
+The version describes compatibility, not a maturity score. `0.x` allows schema
+changes. The 1.0 milestone is a `v1` schema and verification of the remaining
+unverified rows. See the [changelog](CHANGELOG.md) for progress.
+
 An infrastructure tool that overstates its coverage breaks somebody else's
 cluster. So the untested rows are in the same table as the tested ones.
 
@@ -487,7 +511,7 @@ case, and an offline test fails. See
 | Provision machines | Malmok starts from hosts that already answer SSH; VMs, networks and DNS records belong to OpenTofu, Proxmox or the site's own tooling |
 | Deploy applications | ArgoCD is installed and pointed at your repository; what it syncs is yours |
 | Modify the node firewall | preflight reports an active firewall and the ports it needs; the policy belongs to whoever owns it |
-| Operate the cluster afterwards | it installs a metrics stack and hands over a kubeconfig; alerting, dashboards and day-2 are not this tool |
+| Run your operations for you | it supports upgrades and, on current main, certificate expiry scans; continuous monitoring, alert response and maintenance scheduling remain yours |
 
 ## Documentation
 
@@ -498,6 +522,7 @@ remains the shorter evaluation path.
 - [Installation](docs/getting-started/installation.md)
 - [Quick start](docs/getting-started/quick-start.md)
 - [Air-gapped installation](docs/guides/air-gap.md)
+- [Certificate expiry and handoff](docs/guides/certificates.md)
 - [Configuration reference](docs/reference/configuration.md)
 - [Verification matrix](docs/40-verification-matrix.md)
 - [Diagnostic code registry](docs/99-codes.md)

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ryxenix/malmok/api/v1alpha1"
 	"github.com/ryxenix/malmok/internal/event"
@@ -185,6 +186,81 @@ func TestHandoffDescribesTheCluster(t *testing.T) {
 // SourceRefs and, under --allow-literal-secrets, may carry literal values;
 // none of it belongs to an inventory, and this pins the whole document --
 // every field, present and future -- to that rule.
+// A handover has to state when the cluster's certificates end, and it has to
+// state it in a form the next tool can read. The sentence is for a person; an
+// inventory that had to recover the date from it with a regular expression is
+// the parsing this document exists to prevent.
+func TestHandoffCarriesCertificateExpiry(t *testing.T) {
+	leaf := `{"subject":"CN=kube-apiserver","notAfter":"2027-09-13T16:40:18Z","days":364,"series":"B","path":"/var/lib/rancher/rke2/server/tls/serving-kube-apiserver.crt"}`
+	ca := `{"subject":"CN=rke2-server-ca","notAfter":"2036-09-10T16:40:18Z","days":3649,"series":"C","path":"/var/lib/rancher/rke2/server/tls/server-ca.crt"}`
+
+	withEvidence := func(code, node, evidence string) event.Event {
+		e := probe(code, node, event.StatusOK, "measured")
+		e.Evidence = evidence
+		return e
+	}
+
+	dir := writeRun(t, testSpec(), []event.Event{
+		// Out of order on purpose: the document is read by date, so the
+		// soonest has to lead whatever order the scan happened to emit in.
+		withEvidence("MC-121", "10.10.0.11", ca),
+		withEvidence("MC-111", "10.10.0.11", leaf),
+		runEnded(event.StatusOK),
+	}, nil)
+
+	h := BuildHandoff(load(t, dir))
+	if !h.Certificates.Measured {
+		t.Fatal("a run that recorded a scan says nothing was measured")
+	}
+	if len(h.Certificates.Items) != 2 {
+		t.Fatalf("items = %+v", h.Certificates.Items)
+	}
+	first := h.Certificates.Items[0]
+	if first.Subject != "CN=kube-apiserver" || first.Item != "MC-111" {
+		t.Errorf("the soonest expiry does not lead: %+v", h.Certificates.Items)
+	}
+	if !first.NotAfter.Equal(time.Date(2027, 9, 13, 16, 40, 18, 0, time.UTC)) {
+		t.Errorf("notAfter = %s, want the recorded moment", first.NotAfter)
+	}
+	if first.Days != 364 || first.Series != "B" {
+		t.Errorf("the structured copy was lost: %+v", first)
+	}
+	if h.Certificates.Items[1].Series != "C" {
+		t.Errorf("the CA lost its series: %+v", h.Certificates.Items[1])
+	}
+}
+
+// Nobody looked and there are none are different answers, and an inventory
+// that cannot tell them apart records the second when the first is true.
+func TestHandoffSeparatesUnmeasuredFromNone(t *testing.T) {
+	noScan := writeRun(t, testSpec(), []event.Event{runEnded(event.StatusOK)}, nil)
+	if h := BuildHandoff(load(t, noScan)); h.Certificates.Measured {
+		t.Error("a run with no scan claims certificates were measured")
+	}
+
+	// A scan that ran and could not read the node still counts as a scan, and
+	// the node it could not read has to appear.
+	failed := writeRun(t, testSpec(), []event.Event{
+		probe("MC-111", "10.10.0.11", event.StatusFailed,
+			"nothing was measured on this node: the directory is not readable"),
+		runEnded(event.StatusOK),
+	}, nil)
+
+	h := BuildHandoff(load(t, failed))
+	if !h.Certificates.Measured {
+		t.Error("a scan that ran and failed is reported as no scan at all")
+	}
+	if len(h.Certificates.Items) != 0 {
+		t.Errorf("a failed measurement became an item: %+v", h.Certificates.Items)
+	}
+	if len(h.Certificates.Unmeasured) != 1 || h.Certificates.Unmeasured[0].Node != "10.10.0.11" {
+		t.Fatalf("unmeasured = %+v", h.Certificates.Unmeasured)
+	}
+	if !strings.Contains(h.Certificates.Unmeasured[0].Reason, "not readable") {
+		t.Errorf("the reason was lost: %+v", h.Certificates.Unmeasured[0])
+	}
+}
+
 func TestHandoffCarriesNoSecrets(t *testing.T) {
 	s := testSpec()
 	s.Topology.Servers[0].SSH = v1alpha1.SSHSpec{

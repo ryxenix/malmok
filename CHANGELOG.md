@@ -66,6 +66,23 @@
   certificate authority is carried inside every bundle it signed, so four
   authorities were reported thirteen times; identity is now the certificate,
   not the file it was found in.
+- `handoff.json` states when the cluster's certificates expire. It is the
+  document written for the next tool rather than for a person, so the dates
+  arrive as dates: the scan records the subject, the absolute expiry, the days
+  it came to and which series the certificate belongs to alongside the English
+  sentence, and the handoff reads those rather than recovering a date from
+  prose with a regular expression. `measured` is separate from an empty list,
+  because a consumer that cannot tell "nobody looked" from "there are none"
+  binds its inventory to a lie, and nodes the scan could not answer for are
+  listed rather than dropped. Measured end to end against a live server:
+  eighteen certificates, soonest first, no secret in the document.
+- Every verification case now measures the cluster's certificates before it
+  passes. Not a row of its own -- a scan is not an operation on a cluster, and
+  running it against all eleven shapes covers more than one more row would.
+  It requires a non-zero count, because the defect that shipped was a scan
+  that read nothing and exited zero, and it requires etcd's certificates by
+  name, because a count cannot see a glob that never descended into the
+  subdirectory they live in.
 
 ### Changed
 - The image bundle is built only when the image list changes. Images move only

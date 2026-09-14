@@ -184,6 +184,11 @@ func recordCerts(cmd *cobra.Command, bundle string, doc *spec.Document, scans []
 			}
 			emitter.Emit(preflight.ProbeResult{
 				ID: f.Code, Status: status, Detail: f.Line(), Node: f.Node,
+				// The sentence is for a person; this is for the next tool.
+				// handoff.json exists so an inventory does not have to parse
+				// prose, and a date it had to recover with a regular
+				// expression would be exactly that.
+				Evidence: certEvidence(f),
 			})
 		}
 		for _, p := range s.Problems {
@@ -200,6 +205,29 @@ func recordCerts(cmd *cobra.Command, bundle string, doc *spec.Document, scans []
 
 	fmt.Fprintf(cmd.ErrOrStderr(), "run %s\n  %s\n\n", st.Run, runDir)
 	return nil
+}
+
+// certEvidence carries the measurement itself alongside the sentence.
+//
+// Evidence rather than detail: the schema holds detail to printable ASCII on
+// one line, and a certificate subject is written by whoever issued it. A
+// private CA with a Korean organisation name in its DN is ordinary, and the
+// audit trail should keep what it actually said.
+func certEvidence(f expiry.Finding) string {
+	b, err := json.Marshal(struct {
+		Subject  string    `json:"subject"`
+		NotAfter time.Time `json:"notAfter"`
+		Days     int       `json:"days"`
+		Series   string    `json:"series"`
+		Path     string    `json:"path"`
+	}{f.Subject, f.NotAfter, f.Days, string(f.Series), f.Path})
+	if err != nil {
+		// Nothing here can fail to marshal, and an error would be a
+		// programming fault rather than a measurement. Losing the structured
+		// copy must not cost the finding.
+		return ""
+	}
+	return string(b)
 }
 
 // nodeOf keeps a problem attributed to a machine even when the problem is

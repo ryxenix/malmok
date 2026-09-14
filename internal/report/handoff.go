@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/ryxenix/malmok/api/v1alpha1"
@@ -59,6 +61,10 @@ type Handoff struct {
 	Nodes      []HandoffNode      `json:"nodes"`
 	Components []HandoffComponent `json:"components,omitempty"`
 	Dataplane  *HandoffDataplane  `json:"dataplane,omitempty"`
+	// Certificates is when the cluster's own PKI ends. Always present, so a
+	// consumer can tell a run that measured nothing from one that found
+	// nothing.
+	Certificates HandoffCertificates `json:"certificates"`
 }
 
 // HandoffRun identifies the run that produced this cluster.
@@ -111,6 +117,48 @@ type HandoffComponent struct {
 	Version      string `json:"version,omitempty"`
 	ChartVersion string `json:"chartVersion,omitempty"`
 	Role         string `json:"role,omitempty"`
+}
+
+// HandoffCertificates is when the cluster's own certificates stop working.
+//
+// A handover has to state it and until now nothing did. Measured is separate
+// from an empty list on purpose: a consumer that cannot tell "nobody looked"
+// from "there are none" binds its inventory to a lie, which is the rule this
+// file opens with.
+type HandoffCertificates struct {
+	// Measured is whether an expiry scan was recorded in this run at all.
+	Measured bool `json:"measured"`
+	// Items are the certificates that were read, soonest first.
+	Items []HandoffCertificate `json:"items,omitempty"`
+	// Unmeasured are the nodes or files the scan could not answer for. Kept
+	// beside the items rather than dropped: a list that silently omits what it
+	// could not read is indistinguishable from a clean one.
+	Unmeasured []HandoffUnmeasured `json:"unmeasured,omitempty"`
+}
+
+// HandoffCertificate is one measured certificate.
+type HandoffCertificate struct {
+	// Item is the maintenance code: MC-111 an internal leaf, MC-121 a CA,
+	// MC-112 an internal leaf inside its renewal window.
+	Item string `json:"item"`
+	Node string `json:"node"`
+	// Subject is the certificate's own subject, as the issuer wrote it.
+	Subject string `json:"subject"`
+	// NotAfter is the measurement. Days is what it came to at scan time and
+	// stops being true the next day; NotAfter does not.
+	NotAfter time.Time `json:"notAfter"`
+	Days     int       `json:"days"`
+	// Series is B for the leaves RKE2 issues itself and C for its own CAs.
+	// They differ in lifetime, renewal procedure and what breaks during it.
+	Series string `json:"series,omitempty"`
+	Path   string `json:"path,omitempty"`
+}
+
+// HandoffUnmeasured is something the scan could not answer for.
+type HandoffUnmeasured struct {
+	Item   string `json:"item"`
+	Node   string `json:"node,omitempty"`
+	Reason string `json:"reason"`
 }
 
 // HandoffDataplane is what actually carries traffic, after any downgrade.
@@ -174,7 +222,64 @@ func BuildHandoff(r *Run) Handoff {
 
 	h.Components = components(r)
 	h.Dataplane = handoffDataplane(r)
+	h.Certificates = certificateExpiry(r)
 	return h
+}
+
+// certificateExpiry reads the MC-1xx items an expiry scan recorded.
+//
+// The structured values come from each event's evidence, which the scan writes
+// as JSON beside the sentence. Recovering a date from the sentence with a
+// regular expression would be the parsing this document exists to spare a
+// consumer.
+func certificateExpiry(r *Run) HandoffCertificates {
+	var out HandoffCertificates
+
+	for _, e := range r.Events {
+		if e.Kind != event.KindProbe || !strings.HasPrefix(e.Code, "MC-1") {
+			continue
+		}
+		out.Measured = true
+
+		if e.Evidence == "" {
+			// No structured copy means this event is a problem rather than a
+			// certificate: the scan says which node and why in its detail.
+			out.Unmeasured = append(out.Unmeasured, HandoffUnmeasured{
+				Item: e.Code, Node: e.Node, Reason: e.Detail,
+			})
+			continue
+		}
+
+		var ev struct {
+			Subject  string    `json:"subject"`
+			NotAfter time.Time `json:"notAfter"`
+			Days     int       `json:"days"`
+			Series   string    `json:"series"`
+			Path     string    `json:"path"`
+		}
+		if err := json.Unmarshal([]byte(e.Evidence), &ev); err != nil {
+			// Unreadable evidence is not a measurement. Saying so keeps the
+			// count honest rather than quietly shrinking the list.
+			out.Unmeasured = append(out.Unmeasured, HandoffUnmeasured{
+				Item: e.Code, Node: e.Node,
+				Reason: "the recorded measurement could not be read back",
+			})
+			continue
+		}
+
+		out.Items = append(out.Items, HandoffCertificate{
+			Item: e.Code, Node: e.Node, Subject: ev.Subject,
+			NotAfter: ev.NotAfter, Days: ev.Days, Series: ev.Series, Path: ev.Path,
+		})
+	}
+
+	sort.SliceStable(out.Items, func(i, j int) bool {
+		if !out.Items[i].NotAfter.Equal(out.Items[j].NotAfter) {
+			return out.Items[i].NotAfter.Before(out.Items[j].NotAfter)
+		}
+		return out.Items[i].Subject < out.Items[j].Subject
+	})
+	return out
 }
 
 // WriteHandoff serialises the handoff beside the other artifacts and returns

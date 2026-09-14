@@ -420,6 +420,44 @@ func (r *labRun) expectHealthy(c matrix.Case) {
   sleep 10
 done
 echo "$bad"; exit 1`)
+
+	r.expectCertificates()
+}
+
+// expectCertificates measures the cluster's own certificates and requires an
+// answer.
+//
+// Hung off every case rather than given a row of its own: a certificate scan
+// is not an operation on a cluster, and the dimension it would have added
+// covers less than running it against all eleven shapes does.
+//
+// Three things are checked, and each one shipped broken. A scan that could
+// not read the directory exited zero saying "none near expiry", so the count
+// has to be non-zero. A top-level glob missed everything RKE2 keeps in a
+// subdirectory -- etcd's five above all, whose expiry stops a cluster hardest
+// -- and a count alone cannot see that, so etcd has to appear by name.
+func (r *labRun) expectCertificates() {
+	r.t.Helper()
+
+	out, err := r.malmok(3*time.Minute, "certs",
+		"-f", filepath.Join(r.dir, "cluster.yaml"),
+		"--insecure-host-key", "--timeout", "3m",
+		"--bundle", filepath.Join(r.dir, "out"), "-v")
+	if err != nil {
+		// Non-zero is 2 (expiring) or 3 (not measured). On a cluster built
+		// minutes ago neither is an acceptable answer.
+		r.t.Errorf("certs: %v\n%s", err, tail(out, 25))
+		return
+	}
+	if strings.Count(out, "MC-1") == 0 {
+		r.t.Errorf("certs measured nothing on a cluster that was just built:\n%s", tail(out, 25))
+	}
+	for _, want := range []string{"CN=etcd-server", "CN=etcd-peer-ca"} {
+		if !strings.Contains(out, want) {
+			r.t.Errorf("certs never reached %s, so it is not descending into "+
+				"server/tls subdirectories:\n%s", want, tail(out, 30))
+		}
+	}
 }
 
 func (r *labRun) expectNodes(want int) {

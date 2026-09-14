@@ -29,6 +29,17 @@
 - The install examples pin v0.96.3. They named v0.83.0, whose tag and release
   no longer exist, so the command they showed failed.
 
+### Fixed
+- Comments across the source cite design documents by paths that look like
+  files in this repository -- `docs/11-execute.md §3.1`, `docs/20-cert.md §4`,
+  `docs/00-architecture.md` ADR-002 -- and those files are not here and never
+  were: they are private design notes. A reader following one found nothing,
+  with no way to tell whether a file was missing, a path was stale, or the
+  directory had been reorganised. CONTRIBUTING.md now says what the citations
+  are and that nothing needed in order to change the code lives only in them.
+  The citations themselves are left alone; each records where a rule came
+  from, and the rule is stated where it is enforced.
+
 ## [0.96.3] - 2026-09-11
 
 ### Changed

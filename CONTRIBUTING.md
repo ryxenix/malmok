@@ -56,6 +56,21 @@ So: check the listener, not the error code. Read the node's own answer, not a
 proxy for it. If the tool must wait, it must also be able to conclude that
 waiting is pointless.
 
+## Design documents cited in comments
+
+Comments cite design documents by path -- `docs/11-execute.md §3.1`,
+`docs/20-cert.md §4`, `docs/00-architecture.md` ADR-002. **Those files are not
+in this repository.** They are the maintainer's design notes, kept in a private
+repository, and a citation records where a rule came from rather than sending
+you somewhere you can go.
+
+Nothing you need in order to change the code lives only there. Every rule they
+fix is stated where it is enforced: in the code itself, in `api/v1alpha1`
+(whose comments are the schema specification), in `docs/99-codes.md`, or in the
+non-negotiable list above. A comment that cites one of those documents and does
+not say enough to act on is a defect worth reporting -- the source has to stand
+on its own.
+
 ## Diagnostic codes
 
 New failure modes get a code. Define it in `internal/codes/` first, then use

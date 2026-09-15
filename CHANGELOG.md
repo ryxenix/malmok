@@ -14,6 +14,15 @@
   one at a time, every kubelet reporting the new version afterwards, with no
   check blocked and nothing skipped.
 
+### Changed
+- The air-gapped row cites this release rather than 0.95.0, and says how the
+  cases were actually run. It had carried a caveat that they went over three
+  sessions as fixes landed rather than as one sweep; nine of the twelve now
+  run as one uninterrupted sweep, and the air-gapped case, `canal-pair` and
+  `upgrade-three` as single-case runs on the same build. That is better than
+  the caveat described and still not twelve in a single pass, which is what
+  the row now says.
+
 ## [0.96.4] - 2026-09-14
 
 ### Added

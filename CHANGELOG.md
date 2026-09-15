@@ -23,6 +23,26 @@
   the caveat described and still not twelve in a single pass, which is what
   the row now says.
 
+### Fixed
+- Preflight findings that could not be written to the event file vanished
+  without trace. The emitter discarded the writer's error, and the comment
+  justifying that said the loss would surface as a gap in the sequence, which
+  the reader reports. Each half of that is true on its own and the conclusion
+  drawn from them was not: the writer consumes a sequence number only after
+  the write succeeds -- deliberately, so that a failed write leaves the
+  numbering intact -- so the next event takes the number the lost one would
+  have had, and the file reads as though nothing was ever missing. The emitter
+  now counts what it could not write and keeps the first reason, and `apply`,
+  `upgrade` and `certs` say so on the way out, by whichever path they leave.
+  A report assembled from a file that is missing findings is not a report with
+  fewer findings in it.
+- Two more writes discarded the same error, both in `internal/build`: the
+  record that a node could not be reached at all, and the record of a
+  downgrade decision. The second sits under a comment saying that deciding
+  silently would be the tool choosing on the operator's behalf, which is what
+  a dropped record amounts to once nobody can see it. Both are counted now,
+  and the session answers for them.
+
 ## [0.96.4] - 2026-09-14
 
 ### Added

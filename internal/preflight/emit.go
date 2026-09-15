@@ -2,6 +2,7 @@ package preflight
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/ryxenix/malmok/internal/codes"
 	"github.com/ryxenix/malmok/internal/event"
@@ -16,22 +17,45 @@ import (
 // the event file exists to prevent.
 
 // Emitter turns probe results into events on a writer.
+//
+// Methods take a pointer because the emitter counts what it could not write.
+// Every call site holds it in a local variable, so `emitter.Emit` and
+// `emitter.ForNode(host)` bind the address without any of them changing.
 type Emitter struct {
 	Writer *event.Writer
 	// Phase is the phase name the results are attributed to. Empty means
 	// "preflight", which is what the catalogue calls it.
 	Phase string
+
+	// Probes run concurrently and ForNode hands the same emitter to each
+	// node's goroutine, so the counters below are shared and need the lock.
+	// The writer has its own; this one is for the record of what it refused.
+	mu      sync.Mutex
+	lost    int
+	lostErr error
 }
 
 // PhasePreflight is where probe events are filed.
 const PhasePreflight = "preflight"
 
-// Emit writes one probe result.
+// Emit writes one probe result, and counts it when the write fails.
 //
-// Errors are dropped deliberately. A preflight that stops because its log could
-// not be written has traded a report for nothing; the run continues and the
-// missing lines show up as a sequence gap, which the reader already reports.
-func (e Emitter) Emit(p ProbeResult) {
+// A failed write does not stop the run. A preflight that gave up because its
+// log could not be written would have traded a report for nothing, and that
+// part of the original reasoning holds.
+//
+// What did not hold was the sentence after it: that a lost line shows up as a
+// gap in the sequence, which the reader reports. The reader does check
+// continuity and does raise ErrGap -- but the writer consumes the sequence
+// number only after the write succeeds, deliberately, so that a failed Emit
+// leaves the numbering intact. Both halves are correct on their own and the
+// conclusion drawn from them was not: a dropped event leaves no gap, so
+// nothing downstream can tell it ever existed.
+//
+// So the loss is counted here, because here is the only place that knows. Ask
+// with Lost, and say so: an audit report assembled from a file that is missing
+// findings is not an audit report with fewer findings in it.
+func (e *Emitter) Emit(p ProbeResult) {
 	if e.Writer == nil {
 		return
 	}
@@ -39,7 +63,7 @@ func (e Emitter) Emit(p ProbeResult) {
 	if phase == "" {
 		phase = PhasePreflight
 	}
-	_, _ = e.Writer.Emit(event.Event{
+	_, err := e.Writer.Emit(event.Event{
 		Kind:     event.KindProbe,
 		Phase:    phase,
 		Step:     p.ID,
@@ -49,6 +73,28 @@ func (e Emitter) Emit(p ProbeResult) {
 		Detail:   oneLine(p.Detail),
 		Evidence: p.Evidence,
 	})
+	if err == nil {
+		return
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.lost++
+	if e.lostErr == nil {
+		// The first one, because it is the one that says why. The rest are
+		// usually the same disk saying the same thing.
+		e.lostErr = err
+	}
+}
+
+// Lost reports how many results never reached the event file, and why the
+// first of them did not.
+//
+// Zero and nil is the only answer that means the evidence is complete.
+func (e *Emitter) Lost() (int, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lost, e.lostErr
 }
 
 // ForNode returns an emitter that stamps every result with a node.
@@ -56,7 +102,7 @@ func (e Emitter) Emit(p ProbeResult) {
 // The node is on the result rather than passed alongside, because results
 // arrive from concurrent probes and a shared field would attribute one node's
 // finding to another.
-func (e Emitter) ForNode(host string) func(ProbeResult) {
+func (e *Emitter) ForNode(host string) func(ProbeResult) {
 	return func(p ProbeResult) {
 		p.Node = host
 		e.Emit(p)

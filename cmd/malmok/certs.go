@@ -172,6 +172,16 @@ func recordCerts(cmd *cobra.Command, bundle string, doc *spec.Document, scans []
 	defer events.Close()
 
 	emitter := preflight.Emitter{Writer: events.Writer, Phase: "certs"}
+	// A scan whose findings did not reach the file is not a scan with fewer
+	// findings, which is the same distinction the scan itself draws between a
+	// certificate that is fine and one nobody could read.
+	defer func() {
+		if n, err := emitter.Lost(); n > 0 {
+			fmt.Fprintf(cmd.ErrOrStderr(),
+				"\n%d item(s) never reached the run's event file, so its audit report is incomplete: %v\n",
+				n, err)
+		}
+	}()
 	for _, s := range scans {
 		for _, f := range s.Findings {
 			// No severity is set. MC codes are registered without one on

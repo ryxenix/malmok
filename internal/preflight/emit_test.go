@@ -2,7 +2,10 @@ package preflight
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ryxenix/malmok/internal/codes"
@@ -42,6 +45,69 @@ func TestEmittedProbesSatisfyTheEventSchema(t *testing.T) {
 	}
 	if seen != 2 {
 		t.Fatalf("read %d events, wrote 2", seen)
+	}
+}
+
+// failingWriter refuses every write, the way a full disk does.
+type failingWriter struct{ err error }
+
+func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
+
+// The defect this guards: a dropped event left no trace at all.
+//
+// The emitter discarded the writer's error, and the comment justifying that
+// said the loss would show up as a gap in the sequence. It does not. The
+// writer consumes the sequence number only after a successful write -- on
+// purpose, so a failed Emit leaves the numbering intact -- so the next event
+// takes the same number and the file reads as though nothing was ever missing.
+func TestLostEventsAreCounted(t *testing.T) {
+	boom := errors.New("no space left on device")
+	e := Emitter{Writer: event.NewWriter(failingWriter{boom}, "01JBQ8F2K3M5N7P9R1S3T5V7W9")}
+
+	e.Emit(ProbeResult{ID: "PF-101", Status: StatusPass, Detail: "ubuntu"})
+	e.ForNode("10.10.0.11")(ProbeResult{ID: "PF-102", Status: StatusPass, Detail: "amd64"})
+
+	n, err := e.Lost()
+	if n != 2 {
+		t.Errorf("lost %d events, want 2", n)
+	}
+	if !errors.Is(err, boom) {
+		t.Errorf("the reason was lost: %v", err)
+	}
+}
+
+// Nothing lost is the only answer that means the evidence is complete, so a
+// healthy run has to be able to say it.
+func TestNothingLostOnAHealthyWriter(t *testing.T) {
+	var buf bytes.Buffer
+	e := Emitter{Writer: event.NewWriter(&buf, "01JBQ8F2K3M5N7P9R1S3T5V7W9")}
+
+	e.Emit(ProbeResult{ID: "PF-101", Status: StatusPass, Detail: "ubuntu"})
+
+	if n, err := e.Lost(); n != 0 || err != nil {
+		t.Errorf("a successful write reported %d lost, %v", n, err)
+	}
+}
+
+// ForNode hands the same emitter to every node's goroutine, and the counters
+// are shared. Without the lock this is where the fix would have introduced a
+// race of its own.
+func TestConcurrentNodesShareTheCount(t *testing.T) {
+	e := Emitter{Writer: event.NewWriter(failingWriter{errors.New("closed")}, "01JBQ8F2K3M5N7P9R1S3T5V7W9")}
+
+	var wg sync.WaitGroup
+	for i := range 8 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			e.ForNode(fmt.Sprintf("10.10.0.%d", 11+i))(
+				ProbeResult{ID: "PF-101", Status: StatusPass, Detail: "ubuntu"})
+		}(i)
+	}
+	wg.Wait()
+
+	if n, _ := e.Lost(); n != 8 {
+		t.Errorf("counted %d of 8 losses", n)
 	}
 }
 

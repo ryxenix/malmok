@@ -158,6 +158,16 @@ func runBuild(cmd *cobra.Command, f buildFlags) error {
 	// the terminal: the audit report is built from the file, and a finding that
 	// scrolled past is a finding nobody can produce six months later.
 	emitter := preflight.Emitter{Writer: events.Writer}
+	// Said once, on the way out, whichever path the run leaves by. A finding
+	// that never reached the file is missing from the audit report, and the
+	// report cannot know that about itself.
+	defer func() {
+		if n, err := emitter.Lost(); n > 0 {
+			fmt.Fprintf(cmd.ErrOrStderr(),
+				"\n%d finding(s) never reached %s, so its audit report is incomplete: %v\n",
+				n, eventPath, err)
+		}
+	}()
 	for _, r := range rep.Document {
 		emitter.Emit(r)
 	}

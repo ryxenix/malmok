@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ryxenix/malmok/api/v1alpha1"
@@ -45,6 +46,37 @@ type Session struct {
 
 	// caps is what preflight found, which the plan is a function of.
 	caps []preflight.NodeCapability
+
+	// lost counts the events this session could not write, and keeps the
+	// first reason. Losing a line does not stop a build -- that trade was
+	// made deliberately and still holds -- but it has to be answerable
+	// afterwards, because a failed write leaves no gap in the sequence for
+	// anything downstream to notice. See preflight.Emitter.Emit.
+	mu      sync.Mutex
+	lost    int
+	lostErr error
+}
+
+// Lost reports how many events never reached the file, and why the first of
+// them did not. Zero and nil is the only answer that means the record is
+// complete.
+func (s *Session) Lost() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lost, s.lostErr
+}
+
+// recordLoss remembers an event that was not written.
+func (s *Session) recordLoss(err error) {
+	if err == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lost++
+	if s.lostErr == nil {
+		s.lostErr = err
+	}
 }
 
 // Close releases every connection the session opened.
@@ -135,11 +167,14 @@ func (s *Session) Preflight(ctx context.Context, spec v1alpha1.ClusterSpec,
 	s.caps = rep.Nodes
 
 	for host, why := range rep.Unreachable {
-		_, _ = w.Emit(event.Event{
+		// "This node was never reached" is the one finding whose absence is
+		// indistinguishable from the node being fine.
+		_, err := w.Emit(event.Event{
 			Kind: event.KindProbe, Phase: preflight.PhasePreflight,
 			Step: "connect", Node: host, Status: event.StatusBlocked,
 			Code: "PF-603", Detail: "could not be reached: " + why,
 		})
+		s.recordLoss(err)
 	}
 
 	if n := len(rep.Blocking()) + len(rep.Unreachable); n > 0 {
@@ -175,11 +210,15 @@ func (s *Session) Install(ctx context.Context, spec v1alpha1.ClusterSpec,
 	// Deciding silently here would be the tool choosing on the operator's
 	// behalf at the one moment they are watching.
 	for _, d := range p.Downgrades {
-		_, _ = w.Emit(event.Event{
+		// The comment above says deciding silently would be the tool choosing
+		// on the operator's behalf. A decision whose record was dropped is
+		// that same thing, discovered later.
+		_, err := w.Emit(event.Event{
 			Kind: event.KindDecision, Code: d.Code,
 			Detail: fmt.Sprintf("%s -> %s, triggered by %s on %s",
 				d.From, d.To, strings.Join(d.TriggeredBy, ", "), strings.Join(d.Nodes, ", ")),
 		})
+		s.recordLoss(err)
 	}
 	if err := downgradeAllowed(spec, p); err != nil {
 		return err

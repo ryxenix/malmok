@@ -3,7 +3,9 @@ package build
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ryxenix/malmok/api/v1alpha1"
@@ -121,6 +123,79 @@ func TestDowngradesAreEmittedAsDecisions(t *testing.T) {
 	}
 	if seen != 1 {
 		t.Fatalf("read %d events", seen)
+	}
+}
+
+// failingWriter refuses every write, the way a full disk does.
+type failingWriter struct{ err error }
+
+func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
+
+// The defect these guard: an event that could not be written left no trace.
+//
+// A failed write does not consume a sequence number -- deliberately, so the
+// numbering stays gapless -- so the next event takes the number the lost one
+// would have had and nothing downstream can tell it ever existed. Two writes
+// here discarded that error: the record that a node was never reached, and
+// the record of a downgrade decision.
+func TestSessionCountsLostEvents(t *testing.T) {
+	s := &Session{}
+	if n, err := s.Lost(); n != 0 || err != nil {
+		t.Fatalf("a fresh session already claims %d lost, %v", n, err)
+	}
+
+	first := errors.New("no space left on device")
+	s.recordLoss(first)
+	s.recordLoss(errors.New("and again"))
+	// A write that succeeded must not count, or the answer stops meaning
+	// anything.
+	s.recordLoss(nil)
+
+	n, err := s.Lost()
+	if n != 2 {
+		t.Errorf("counted %d losses, want 2", n)
+	}
+	if !errors.Is(err, first) {
+		t.Errorf("kept %v, want the first reason", err)
+	}
+}
+
+// What the writer actually returns when it cannot write is what has to reach
+// the count -- not a sentinel invented here.
+func TestWriterRefusalReachesTheCount(t *testing.T) {
+	s := &Session{}
+	w := event.NewWriter(failingWriter{errors.New("closed")}, "01JBQ8F2K3M5N7P9R1S3T5V7W9")
+
+	_, err := w.Emit(event.Event{
+		Kind: event.KindDecision, Code: "DG-001", Detail: "cilium-gw -> canal-traefik",
+	})
+	if err == nil {
+		t.Fatal("the writer accepted a write it should have refused")
+	}
+	s.recordLoss(err)
+
+	if n, got := s.Lost(); n != 1 || got == nil {
+		t.Errorf("lost %d with reason %v, want 1 and a reason", n, got)
+	}
+}
+
+// The counters are shared state, so the lock is load-bearing rather than
+// decorative: without it this is where the fix would introduce a race.
+func TestLossCountIsSafeUnderConcurrency(t *testing.T) {
+	s := &Session{}
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.recordLoss(errors.New("closed"))
+		}()
+	}
+	wg.Wait()
+
+	if n, _ := s.Lost(); n != 8 {
+		t.Errorf("counted %d of 8 losses", n)
 	}
 }
 

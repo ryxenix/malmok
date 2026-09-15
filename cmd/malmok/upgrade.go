@@ -172,6 +172,13 @@ func runUpgrade(cmd *cobra.Command, f upgradeFlags) error {
 	// built from the file, and a finding that scrolled past is one nobody can
 	// produce six months later.
 	emitter := preflight.Emitter{Writer: events.Writer}
+	defer func() {
+		if n, err := emitter.Lost(); n > 0 {
+			fmt.Fprintf(cmd.ErrOrStderr(),
+				"\n%d precondition(s) never reached %s, so its audit report is incomplete: %v\n",
+				n, eventPath, err)
+		}
+	}()
 	for _, r := range results {
 		emitter.Emit(r)
 	}

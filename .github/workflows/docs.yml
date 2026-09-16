@@ -19,6 +19,18 @@ on:
       - mkdocs.yml
       - requirements-docs.txt
       - .github/workflows/docs.yml
+  # A release changes what the banner should say without changing any file the
+  # paths above name, so no push trigger can catch it. The version is read from
+  # the tags present when the site is built, and a tag pushed after that build
+  # leaves the site describing the release before it: v0.96.5 shipped and
+  # malmok.dev went on saying "v0.96.4 plus 6 unreleased changes".
+  #
+  # published rather than created, because it fires once the release exists, by
+  # which time the tag is there to be read. Not a tag filter on the push above:
+  # combined with paths, a tag push satisfies neither cleanly, and a fix for a
+  # stale banner that silently never runs is worse than the banner.
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:

@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Every page says which release it describes, and a release left it naming the
+  one before. The line is read from the tags present when the site is built,
+  and nothing rebuilt it when a tag appeared: v0.96.5 shipped while malmok.dev
+  went on saying "v0.96.4 plus 6 unreleased changes". The documentation
+  workflow now also runs when a release is published, by which time the tag
+  exists to be read. Not a tag filter on the push trigger it already has:
+  beside a paths filter, a tag push satisfies neither cleanly, and a fix for a
+  stale line that silently never runs is worse than the line.
+
 ## [0.96.5] - 2026-09-16
 
 ### Added

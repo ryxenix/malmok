@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.5] - 2026-09-16
 
 ### Added
 - The verification matrix has a three-server upgrade. `upgrade-two` restarts

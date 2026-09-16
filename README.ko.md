@@ -133,7 +133,7 @@ sh install-malmok.sh
 뒤에 `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, `--airgap`을 전달합니다.
 
 ```bash
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.4
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.5
 ```
 
 릴리스 페이지에서 바이너리를 직접 내려받을 수도 있습니다. Linux·macOS,

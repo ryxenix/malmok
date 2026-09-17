@@ -331,6 +331,22 @@ malmok report --run RUN_ID
 일회성 실측이며 자동 갱신이나 상시 감시는 아닙니다.
 [점검 범위·종료 코드·인수인계 필드 →](docs/guides/certificates.ko.md)
 
+## 계획을 정책으로 검사하기
+
+현재 `main`에서는(v0.96.5에는 아직 없습니다) 계획을 문서로 출력해 노드에서
+무엇이든 바뀌기 전에 판정할 수 있습니다.
+
+```bash
+malmok plan -f cluster.yaml -o json | conftest test -
+```
+
+stdout에는 계획만 나가고 사람이 읽는 출력은 전부 stderr로 가므로 파이프가
+깨끗합니다. `policy/`의 규칙은 계획이 스스로 모순인 경우 — 데이터플레인이
+바뀌었는데 이를 기록한 강등이 없거나, 강등이 자신을 촉발한 프로브를 대지 못하는
+경우 — 를 거절하고, 계약 주인이 판단할 사안은 경고로 알립니다.
+
+[규칙·종료 코드·직접 추가하기 →](docs/guides/policy.ko.md)
+
 ## 자주 묻는 질문
 
 ### 고객사가 서버를 이미 준비했다면 무엇을 해주나요?
@@ -504,6 +520,7 @@ malmok report
 - [빠른 시작](docs/getting-started/quick-start.md)
 - [에어갭 설치](docs/guides/air-gap.md)
 - [인증서 만료 점검과 인수인계](docs/guides/certificates.ko.md)
+- [계획을 정책으로 검사하기](docs/guides/policy.ko.md)
 - [설정 레퍼런스](docs/reference/configuration.md)
 - [검증 매트릭스](docs/40-verification-matrix.md)
 - [진단 코드 레지스트리](docs/99-codes.md)

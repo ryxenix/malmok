@@ -53,6 +53,7 @@ nav:
       - Air-gapped installation: guides/air-gap.md
       - Upgrade and recovery: guides/upgrade-and-recovery.md
       - Certificate expiry: guides/certificates.md
+      - Plan policy: guides/policy.md
   - Reference:
       - Configuration: reference/configuration.md
       - Verification matrix: 40-verification-matrix.md
@@ -104,6 +105,7 @@ plugins:
             Air-gapped installation: 에어갭 설치
             Upgrade and recovery: 업그레이드와 복구
             Certificate expiry: 인증서 만료 점검
+            Plan policy: 계획 정책 검사
             Reference: 레퍼런스
             Configuration: 설정
             Verification matrix: 검증 매트릭스

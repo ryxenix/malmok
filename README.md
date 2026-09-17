@@ -340,6 +340,23 @@ malmok report --run RUN_ID
 This is a point-in-time scan, not automatic renewal or continuous monitoring.
 [Scope, exit codes and handoff fields →](docs/guides/certificates.md)
 
+## Check the plan against policy
+
+On current `main` (not yet in v0.96.5), the plan can be written as a document
+and judged before anything on a node changes:
+
+```bash
+malmok plan -f cluster.yaml -o json | conftest test -
+```
+
+Stdout carries the plan alone; everything written for a person goes to stderr,
+so the pipe stays clean. The rules in `policy/` deny a plan that contradicts
+itself -- a dataplane changed with no downgrade recording it, a downgrade
+naming no probe that caused it -- and warn about the decisions that belong to
+whoever owns the contract.
+
+[Rules, exit status and writing your own →](docs/guides/policy.md)
+
 ## FAQ
 
 ### What if the customer has already prepared the servers?
@@ -525,6 +542,7 @@ remains the shorter evaluation path.
 - [Quick start](docs/getting-started/quick-start.md)
 - [Air-gapped installation](docs/guides/air-gap.md)
 - [Certificate expiry and handoff](docs/guides/certificates.md)
+- [Checking the plan against policy](docs/guides/policy.md)
 - [Configuration reference](docs/reference/configuration.md)
 - [Verification matrix](docs/40-verification-matrix.md)
 - [Diagnostic code registry](docs/99-codes.md)

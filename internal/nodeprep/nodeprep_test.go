@@ -300,6 +300,56 @@ func TestRegistriesYAML(t *testing.T) {
 	// most common private-CA misinstall. A mirror endpoint on https was
 	// exactly that: described nowhere, so every pull through it failed with an
 	// opaque x509 error.
+	// Harbor mirrors by project, so the endpoint carries a path. containerd
+	// keys configs by host, so writing the path into the key produces an entry
+	// that never matches the host a pull connects to. With a publicly trusted
+	// certificate and no credentials the pull still succeeds and the block is
+	// merely inert -- which is how this would have been missed -- and it is
+	// wrong the moment a private CA or a credential is involved.
+	//
+	// preflight already derives the host correctly for the same field, with
+	// url.Parse. Two readings of one value is the defect; the endpoint keeps
+	// its project and the config key does not.
+	t.Run("a path-bearing mirror is configured under its host", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode: v1alpha1.RegistryUpstream,
+			Mirrors: map[string][]string{
+				"docker.io":       {"https://harbor.acme.internal/dockerhub-proxy"},
+				"registry.k8s.io": {"https://harbor.acme.internal/k8s-proxy"},
+			},
+		}
+		got := registriesYAML(spec, TrustMaterial{CABundle: []byte("pem")})
+
+		// The project is the address of the mirror, so the endpoint keeps it.
+		if !strings.Contains(got, "https://harbor.acme.internal/dockerhub-proxy") {
+			t.Errorf("the mirror endpoint lost its project path:\n%s", got)
+		}
+		if !strings.Contains(got, `"harbor.acme.internal":`) {
+			t.Errorf("the mirror's host is not configured:\n%s", got)
+		}
+		if strings.Contains(got, `"harbor.acme.internal/`) {
+			t.Errorf("a config key carries a path, which containerd does not match on:\n%s", got)
+		}
+		// Two projects on one host are one host to configure.
+		if n := strings.Count(got, `"harbor.acme.internal":`); n != 1 {
+			t.Errorf("the host is configured %d times, want once:\n%s", n, got)
+		}
+	})
+
+	// A port is part of the host and must survive; a path is not.
+	t.Run("a mirror port is kept in the config key", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode:    v1alpha1.RegistryUpstream,
+			Mirrors: map[string][]string{"docker.io": {"https://cache.acme.internal:5000/proxy"}},
+		}
+		got := registriesYAML(spec, TrustMaterial{CABundle: []byte("pem")})
+		if !strings.Contains(got, `"cache.acme.internal:5000":`) {
+			t.Errorf("the port was dropped from the config key:\n%s", got)
+		}
+	})
+
 	t.Run("an https mirror is given the CA the private registry gets", func(t *testing.T) {
 		spec := embeddedSpec()
 		spec.Registry = v1alpha1.RegistrySpec{

@@ -526,6 +526,11 @@ func (p *Prober) checkRegistryAuth(ctx context.Context, client *http.Client, end
 }
 
 // registryHost is the host:port the document points image pulls at.
+//
+// A mirror endpoint's path is dropped on purpose: a project path is part of
+// the address a pull uses, not part of the host it connects to.
+// internal/nodeprep.endpointHost derives the same value for the file written
+// to the node. If one of these changes, the other has to.
 func registryHost(spec v1alpha1.ClusterSpec) string {
 	if h := strings.TrimSpace(spec.Registry.SystemDefaultRegistry); h != "" {
 		return h

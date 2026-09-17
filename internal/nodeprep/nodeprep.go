@@ -14,6 +14,7 @@ package nodeprep
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -351,7 +352,17 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 			if !strings.HasPrefix(u, "https://") {
 				continue
 			}
-			if h := strings.TrimPrefix(u, "https://"); !contains(configured, h) {
+			// The host, not the URL with its scheme cut off. A registry that
+			// addresses its upstreams by project -- which is how Harbor does
+			// it -- gives an endpoint with a path, and containerd keys configs
+			// by host: a key carrying a path never matches the host the pull
+			// connects to. With a publicly trusted certificate and no
+			// credentials that entry is merely inert, which is how it survived;
+			// it is wrong as soon as a private CA or a credential is involved.
+			//
+			// internal/preflight.registryHost reads this same field the same
+			// way. Two readings of one value is what this was.
+			if h := endpointHost(u); h != "" && !contains(configured, h) {
 				configured = append(configured, h)
 			}
 		}
@@ -400,6 +411,24 @@ func endpointURL(e string) string {
 		return e
 	}
 	return "https://" + e
+}
+
+// endpointHost is the host:port a mirror endpoint is reached at, without the
+// path.
+//
+// The path belongs in the endpoint and nowhere else: containerd keys configs
+// by host, and a registry that addresses its upstreams by project -- Harbor
+// does -- would otherwise be described under a key no pull ever matches. The
+// port is part of the host and stays.
+//
+// internal/preflight.registryHost derives the same value from the same field.
+// If one of these changes, the other has to.
+func endpointHost(e string) string {
+	u, err := url.Parse(endpointURL(e))
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 // contains reports whether the slice holds the string.

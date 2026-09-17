@@ -40,6 +40,16 @@
   at validation, the way `tls.byo.pfx` already is. It stays in the schema for
   the reason longhorn stays in the storage enum: removing it would delete the
   record of what is missing.
+- A mirror endpoint carrying a path was configured under a key that carried the
+  path too. containerd keys `configs` by host, so the entry never matched the
+  host a pull connects to: inert with a publicly trusted certificate and no
+  credentials, which is why nothing noticed it, and wrong the moment a private
+  CA or a credential is involved. The same field was already read correctly in
+  preflight, with `url.Parse`; the renderer cut the scheme off with a string
+  prefix instead, and kept everything after it. Two readings of one value, now
+  one, with each pointing at the other. Found while working out whether Malmok
+  could mirror through a Harbor, which addresses its upstreams by project and
+  is therefore exactly the shape nothing had rendered.
 
 ## [0.96.5] - 2026-09-16
 

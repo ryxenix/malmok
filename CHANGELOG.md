@@ -30,6 +30,16 @@
   exists to be read. Not a tag filter on the push trigger it already has:
   beside a paths filter, a tag push satisfies neither cleanly, and a fix for a
   stale line that silently never runs is worse than the line.
+- `topology[].gpu` promised what nothing delivered. Its own comment said the
+  field marked a node for device-plugin and RuntimeClass installation. The only
+  code that read it checked that the vendor string was amd or nvidia; nothing
+  installed a device plugin, a RuntimeClass or a GPU container runtime. So a
+  document asking for GPU support built a cluster whose pods could not see the
+  hardware it named, and the first sign of it was a workload failing hours
+  after the install that could have said so. Setting the field is now refused
+  at validation, the way `tls.byo.pfx` already is. It stays in the schema for
+  the reason longhorn stays in the storage enum: removing it would delete the
+  record of what is missing.
 
 ## [0.96.5] - 2026-09-16
 

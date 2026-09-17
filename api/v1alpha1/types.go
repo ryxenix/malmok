@@ -230,7 +230,14 @@ type NodeSpec struct {
 	// Leaving this empty on a DMZ node with two NICs is a classic silent failure.
 	NodeIP string `yaml:"nodeIP,omitempty" json:"nodeIP,omitempty"`
 
-	// GPU marks the node for device-plugin / RuntimeClass installation.
+	// GPU is reserved and not implemented. Malmok installs no device plugin,
+	// no RuntimeClass and no container runtime for a GPU, so a document that
+	// sets this is refused rather than building a cluster whose pods cannot
+	// see the hardware the document named.
+	//
+	// The field stays for the same reason longhorn stays in the storage enum:
+	// removing it would delete the record of what is missing. Install the
+	// vendor's operator yourself in the meantime.
 	GPU *GPUSpec `yaml:"gpu,omitempty" json:"gpu,omitempty"`
 
 	// Annotations are opaque, like Metadata.Annotations: a caller that knows

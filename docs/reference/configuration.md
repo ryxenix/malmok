@@ -63,6 +63,13 @@ Do not rely on these fields to change a running cluster. Check its effective
 configuration separately; RKE2 defaults or externally managed settings may
 still be active.
 
+`topology[].gpu` is different: it is refused rather than ignored. Malmok
+installs no device plugin, no RuntimeClass and no GPU container runtime, so a
+document setting it is rejected at validation instead of producing a cluster
+whose pods cannot see the hardware the document named. Install the vendor's
+operator yourself -- NVIDIA's GPU Operator or AMD's equivalent -- after the
+cluster is up.
+
 ## Secret references
 
 Do not put plaintext credentials in `cluster.yaml`. Secret-bearing fields use

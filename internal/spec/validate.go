@@ -129,8 +129,16 @@ func validateTopology(s *v1alpha1.ClusterSpec) []error {
 		if n.NodeIP != "" && net.ParseIP(n.NodeIP) == nil {
 			errs = append(errs, fmt.Errorf("topology: node %s has nodeIP %q, which is not an IP", n.Host, n.NodeIP))
 		}
-		if n.GPU != nil && n.GPU.Vendor != "amd" && n.GPU.Vendor != "nvidia" {
-			errs = append(errs, fmt.Errorf("topology: node %s gpu.vendor %q is not amd or nvidia", n.Host, n.GPU.Vendor))
+		// Refused, not ignored. The field's own comment used to promise
+		// device-plugin and RuntimeClass installation and nothing installed
+		// either, so a document that asked for GPU support got a cluster whose
+		// pods cannot see a GPU -- discovered when the first workload fails,
+		// hours after the install that could have said so here.
+		if n.GPU != nil {
+			errs = append(errs, fmt.Errorf(
+				"topology: node %s sets gpu, which is reserved and not implemented: Malmok installs "+
+					"no device plugin, RuntimeClass or GPU runtime. Remove the field and install the "+
+					"vendor's operator yourself", n.Host))
 		}
 	}
 

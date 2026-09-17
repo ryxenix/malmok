@@ -141,6 +141,19 @@ func TestValidate(t *testing.T) {
 			wantErr: "PF-604",
 		},
 		{
+			// The field's comment promised device-plugin and RuntimeClass
+			// installation and nothing installed either, so a document asking
+			// for GPU support built a cluster whose pods could not see the
+			// hardware it named. A well-formed vendor is used deliberately:
+			// the point is that the block is refused even when it is correct,
+			// rather than discovered by the first workload that fails.
+			name: "gpu is refused rather than ignored",
+			mutate: func(s *v1alpha1.ClusterSpec) {
+				s.Topology.Servers[0].GPU = &v1alpha1.GPUSpec{Vendor: "nvidia"}
+			},
+			wantErr: "not implemented",
+		},
+		{
 			name: "kube-vip needs an address",
 			mutate: func(s *v1alpha1.ClusterSpec) {
 				s.Topology.VIP = &v1alpha1.VIPSpec{Provider: v1alpha1.VIPKubeVIP}

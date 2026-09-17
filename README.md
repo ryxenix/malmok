@@ -528,6 +528,7 @@ case, and an offline test fails. See
 | Restart all nodes at once | one at a time, each back to Ready first |
 | Store plaintext secrets in `cluster.yaml` | references only (`file://`, `env://`) |
 | Provision machines | Malmok starts from hosts that already answer SSH; VMs, networks and DNS records belong to OpenTofu, Proxmox or the site's own tooling |
+| Set up GPUs | no device plugin, RuntimeClass or GPU container runtime; a document that sets `topology[].gpu` is refused rather than building a cluster whose pods cannot see the hardware. Install the vendor's operator after the cluster is up |
 | Deploy applications | ArgoCD is installed and pointed at your repository; what it syncs is yours |
 | Modify the node firewall | preflight reports an active firewall and the ports it needs; the policy belongs to whoever owns it |
 | Run your operations for you | it supports upgrades and, on current main, certificate expiry scans; continuous monitoring, alert response and maintenance scheduling remain yours |

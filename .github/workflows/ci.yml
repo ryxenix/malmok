@@ -79,3 +79,19 @@ jobs:
             git diff -- docs/99-codes.md
             exit 1
           fi
+
+      # The rules in policy/ are what a site holds `malmok plan -o json`
+      # against, so they are code and they are tested as code. verify runs the
+      # rego unit tests beside them; it does not read a plan, because a plan is
+      # a function of real nodes and CI has none. The version is pinned: a
+      # policy language that changed under the rules would fail here as a
+      # syntax error nobody wrote.
+      - name: policy
+        env:
+          CONFTEST_VERSION: 0.70.0
+        run: |
+          curl -sfL -o /tmp/conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf /tmp/conftest.tar.gz -C /tmp conftest
+          /tmp/conftest --version
+          /tmp/conftest verify

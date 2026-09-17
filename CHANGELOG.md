@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+- `malmok plan -o json` writes the plan as a document a policy engine can read,
+  and `policy/` holds the first rules for it. The plan is the last artefact
+  before anything on a node changes and a pure function of the document and the
+  measured nodes, which makes it the right thing to hold a site's rules
+  against: refusing there costs a re-run, and refusing later costs a
+  half-built cluster. Until now the plan existed as JSON only inside a run
+  directory, so the only way to obtain one was to perform the install it would
+  have gated. In json mode stdout carries the plan alone and everything written
+  for a person goes to stderr, so it pipes: `malmok plan -f cluster.yaml -o
+  json | conftest test -`.
+- The policy separates two kinds of rule, because they are not the same kind of
+  thing. A plan that changed the dataplane with no downgrade recording it, or a
+  downgrade naming no probe that triggered it, is contradicting itself whatever
+  a site has agreed, and is denied. A downgrade that is properly recorded is
+  not a defect -- making those visible and approvable is what the tool is for --
+  so it warns and leaves the decision where it belongs. The rules are tested as
+  rego rather than by feeding fixtures through and inverting exit codes.
+
 ### Fixed
 - Every page says which release it describes, and a release left it naming the
   one before. The line is read from the tags present when the site is built,

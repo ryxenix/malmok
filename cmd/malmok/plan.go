@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ func newPlanCmd() *cobra.Command {
 		o            preflightOptions
 		approve      bool
 		validateOnly bool
+		output       string
 	)
 
 	cmd := &cobra.Command{
@@ -34,15 +36,32 @@ trail can distinguish what the operator chose from what the tool did.`,
   malmok plan -f cluster.yaml --validate-only`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if output != "text" && output != "json" {
+				return fmt.Errorf("unknown output format %q; use text or json", output)
+			}
+			// There is no plan to write, and an empty document would fail in
+			// whatever was reading the pipe rather than here.
+			if output == "json" && validateOnly {
+				return errors.New("--validate-only produces no plan, so there is nothing to write as json")
+			}
+
 			doc, applied, err := o.load()
 			if err != nil {
 				return err
 			}
 
+			// In json mode stdout carries the plan and nothing else, so it can
+			// be piped straight into a policy engine. Everything written for a
+			// person goes to stderr, where the pipe does not swallow it.
 			out := cmd.OutOrStdout()
-			printResolved(out, doc, applied)
+			human := out
+			if output == "json" {
+				human = cmd.ErrOrStderr()
+			}
+
+			printResolved(human, doc, applied)
 			if validateOnly {
-				fmt.Fprintf(out, "\n%s is valid.\n", o.specFile)
+				fmt.Fprintf(human, "\n%s is valid.\n", o.specFile)
 				return nil
 			}
 
@@ -54,7 +73,7 @@ trail can distinguish what the operator chose from what the tool did.`,
 			defer cancel()
 
 			rep := o.session(doc).Run(ctx)
-			printReport(out, rep, o.verbose)
+			printReport(human, rep, o.verbose)
 
 			if blocking := rep.Blocking(); len(blocking) > 0 {
 				return fmt.Errorf("%d checks block the install, so there is nothing to plan", len(blocking))
@@ -67,7 +86,18 @@ trail can distinguish what the operator chose from what the tool did.`,
 			if err != nil {
 				return err
 			}
-			printPlan(out, p)
+			printPlan(human, p)
+
+			// Written before the downgrade check below, so a plan that stops
+			// for want of approval still hands the policy engine the document
+			// it was asked to judge.
+			if output == "json" {
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				if err := enc.Encode(p); err != nil {
+					return err
+				}
+			}
 
 			if p.Downgraded() && !approve {
 				return errors.New(
@@ -82,6 +112,7 @@ trail can distinguish what the operator chose from what the tool did.`,
 	fl := cmd.Flags()
 	fl.BoolVar(&approve, "approve", false, "accept any downgrade the plan requires")
 	fl.BoolVar(&validateOnly, "validate-only", false, "check the document and stop")
+	fl.StringVarP(&output, "output", "o", "text", "output format: text | json")
 
 	return cmd
 }

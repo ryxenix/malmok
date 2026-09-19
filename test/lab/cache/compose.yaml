@@ -87,8 +87,48 @@ services:
     ports: ["5103:5000"]
     volumes: ["ghcr-io:/var/lib/registry"]
 
+  # docker.io again, over TLS and behind a credential.
+  #
+  # The four above are http with no login, which is what a LAN cache of public
+  # images should be, and they exercise registry.mirrors. They cannot exercise
+  # registry.mode external: that mode hands containerd a CA to trust and a
+  # credential to present, and the code that writes registries.yaml configures
+  # https endpoints only. An http cache never reaches that path at all.
+  #
+  # So this one exists to be the registry a customer actually has -- a Harbor,
+  # reached by address, presenting a certificate signed by something private,
+  # refusing anonymous pulls. It is the same pull-through cache underneath,
+  # because what is being verified is how Malmok configures a node to use a
+  # registry, not what the registry does with the bytes.
+  #
+  # Material comes from ./mkmaterial.sh and is not in the repository.
+  # Start this one alone -- the four above have been up for days and are not
+  # this session's to recreate:
+  #
+  #   sudo docker compose -f test/lab/cache/compose.yaml up -d docker-io-secure
+  docker-io-secure:
+    <<: *cache
+    container_name: malmok-cache-docker-io-secure
+    environment:
+      REGISTRY_PROXY_REMOTEURL: https://registry-1.docker.io
+      REGISTRY_PROXY_TTL: 168h
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+      REGISTRY_HTTP_TLS_CERTIFICATE: /tls/registry.crt
+      REGISTRY_HTTP_TLS_KEY: /tls/registry.key
+      REGISTRY_AUTH: htpasswd
+      # The realm is echoed in the challenge, so it is worth it naming itself.
+      REGISTRY_AUTH_HTPASSWD_REALM: malmok-lab
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+    ports: ["5200:5000"]
+    volumes:
+      - "docker-io-secure:/var/lib/registry"
+      - "./tls:/tls:ro"
+      - "./auth:/auth:ro"
+
 volumes:
   docker-io:
   registry-k8s-io:
   quay-io:
   ghcr-io:
+  docker-io-secure:

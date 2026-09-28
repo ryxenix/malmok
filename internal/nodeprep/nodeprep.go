@@ -310,7 +310,11 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 
 	var b strings.Builder
 	b.WriteString(managedFileHeader + "\n")
-	b.WriteString("mirrors:\n")
+
+	// Entries go here first: a mirrors: heading with nothing under it is not
+	// what a registry-only document means, and it is not what was measured
+	// to work.
+	var m strings.Builder
 
 	// A name under mirrors: with nothing under it is how RKE2 is told that a
 	// registry takes part in the embedded mirror, and "*" is every registry --
@@ -328,23 +332,35 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 	// embedded mirror first and the listed endpoints after it, so a cluster
 	// can share what it already has and reach a cache for what it does not.
 	if embedded && !contains(upstreams, "*") {
-		b.WriteString("  \"*\":\n")
+		m.WriteString("  \"*\":\n")
 	}
-	if host != "" && len(upstreams) == 0 {
-		b.WriteString("  \"*\":\n    endpoint:\n      - \"https://" + host + "\"\n")
+	// Every registry through the private one, but only when it is a bare host.
+	// With a project -- harbor.acme.internal/rke2 -- the image references
+	// already carry it, and a mirror at host/project asks for
+	// host/project/v2/project/... . Harbor answers a path it does not serve
+	// with its web page and a 200, so the pull does not fail: RKE2 took the
+	// page for the runtime image, extracted nothing and stopped with a chmod
+	// error that names no registry. Measured on the lab against a private
+	// Harbor project.
+	if host != "" && len(upstreams) == 0 && !hasPath(host) {
+		m.WriteString("  \"*\":\n    endpoint:\n      - \"https://" + host + "\"\n")
 	}
 	for _, upstream := range upstreams {
-		b.WriteString("  \"" + upstream + "\":\n")
+		m.WriteString("  \"" + upstream + "\":\n")
 		endpoints := spec.Registry.Mirrors[upstream]
 		if len(endpoints) == 0 {
 			// Deliberate: a bare name is how a document adds one registry to
 			// the embedded mirror without redirecting it anywhere.
 			continue
 		}
-		b.WriteString("    endpoint:\n")
+		m.WriteString("    endpoint:\n")
 		for _, e := range endpoints {
-			b.WriteString("      - \"" + endpointURL(e) + "\"\n")
+			m.WriteString("      - \"" + endpointURL(e) + "\"\n")
 		}
+	}
+	if m.Len() > 0 {
+		b.WriteString("mirrors:\n")
+		b.WriteString(m.String())
 	}
 
 	// configs describes the hosts a pull actually connects to, which is the
@@ -443,6 +459,16 @@ func endpointHost(e string) string {
 		return ""
 	}
 	return u.Host
+}
+
+// hasPath reports whether a registry address names something below its host,
+// as harbor.acme.internal/rke2 names a project.
+func hasPath(e string) bool {
+	u, err := url.Parse(endpointURL(e))
+	if err != nil {
+		return false
+	}
+	return strings.Trim(u.Path, "/") != ""
 }
 
 // contains reports whether the slice holds the string.

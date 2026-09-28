@@ -59,9 +59,23 @@
   case the mode exists for. The network preflight read the same value the same
   way, dialling a host named after the project and asking `/v2/` of a path no
   registry serves. Both now take the host alone; the project stays in the image
-  references and the endpoint, where it is part of the address. Found while
+  references, where it is part of the address. Found while
   preparing to verify external mode against a real Harbor, by rendering the
   file before building on it.
+- With that fixed, the server still did not start, and said nothing about a
+  registry. For a system default registry given with a project, registries.yaml
+  also sent every registry through a `"*"` mirror at `host/project`. The image
+  references already carry the project, so the mirror asked for
+  `host/project/v2/project/...`, a path Harbor does not serve and answers with
+  its web page and a 200. The pull therefore did not fail: RKE2 took the page
+  for its runtime image, extracted nothing, and stopped with `chmod
+  .../bin: no such file or directory` on every restart. The `"*"` mirror is now
+  written only for a registry given as a bare host, and no `mirrors:` heading
+  is written with nothing under it. Measured on the lab against a private
+  Harbor project: with the mirror removed by hand, the runtime image
+  extracted, the server was Ready in under two minutes, and every running
+  container's image came from the project. The test added with the previous
+  entry asserted the mirror as correct; it now asserts its absence.
 
 ## [0.96.5] - 2026-09-16
 

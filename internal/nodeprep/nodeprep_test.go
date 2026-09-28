@@ -239,9 +239,15 @@ func TestRegistriesYAML(t *testing.T) {
 		if !strings.Contains(got, `username: "robot"`) {
 			t.Errorf("the credentials are not attached to the registry's host:\n%s", got)
 		}
-		// The project stays where it is part of the address: the endpoint.
-		if !strings.Contains(got, `"https://harbor.acme.internal/rke2"`) {
-			t.Errorf("the endpoint lost its project:\n%s", got)
+		// No "*" mirror. The image references already carry the project, so a
+		// mirror at host/project asks for host/project/v2/project/..., which
+		// Harbor answers with its web page and a 200: RKE2 took that for the
+		// runtime image, extracted nothing and stopped. Measured on the lab.
+		if strings.Contains(got, `"*":`) || strings.Contains(got, `https://harbor.acme.internal/rke2`) {
+			t.Errorf("the registry is mirrored under \"*\" at a path, which doubles the project:\n%s", got)
+		}
+		if strings.Contains(got, "mirrors:") {
+			t.Errorf("an empty mirrors: heading was written:\n%s", got)
 		}
 	})
 

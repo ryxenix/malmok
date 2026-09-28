@@ -20,3 +20,9 @@ __pycache__/
 # credential whatever the password is.
 test/lab/cache/tls/
 test/lab/cache/auth/
+
+# Credentials kept beside the repository for lab runs. Read with grep/cut,
+# never sourced: a value holding a shell metacharacter is cut short by the
+# shell and the remainder interpreted as a command.
+node_env
+harbor_registry_env

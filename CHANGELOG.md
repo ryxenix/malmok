@@ -50,6 +50,18 @@
   one, with each pointing at the other. Found while working out whether Malmok
   could mirror through a Harbor, which addresses its upstreams by project and
   is therefore exactly the shape nothing had rendered.
+- The same defect, in the half of the file that fix did not look at. A
+  system default registry is usually written with its project --
+  `harbor.acme.internal/rke2`, where the cluster's images were pushed -- and
+  the private registry's configs key was built from that value as written. The
+  credentials sat under a key containerd never looks up, so `registry.mode
+  external` against a private Harbor project refused every pull with 401: the
+  case the mode exists for. The network preflight read the same value the same
+  way, dialling a host named after the project and asking `/v2/` of a path no
+  registry serves. Both now take the host alone; the project stays in the image
+  references and the endpoint, where it is part of the address. Found while
+  preparing to verify external mode against a real Harbor, by rendering the
+  file before building on it.
 
 ## [0.96.5] - 2026-09-16
 

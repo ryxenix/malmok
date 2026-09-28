@@ -527,12 +527,15 @@ func (p *Prober) checkRegistryAuth(ctx context.Context, client *http.Client, end
 
 // registryHost is the host:port the document points image pulls at.
 //
-// A mirror endpoint's path is dropped on purpose: a project path is part of
-// the address a pull uses, not part of the host it connects to.
+// The path is dropped from both the system default registry and a mirror
+// endpoint: a project path is part of the address a pull uses, not part of the
+// host it connects to. Kept, the probe dials a host named after the project
+// and asks /v2/ of a path the registry does not serve.
+//
 // internal/nodeprep.endpointHost derives the same value for the file written
 // to the node. If one of these changes, the other has to.
 func registryHost(spec v1alpha1.ClusterSpec) string {
-	if h := strings.TrimSpace(spec.Registry.SystemDefaultRegistry); h != "" {
+	if h := hostOnly(spec.Registry.SystemDefaultRegistry); h != "" {
 		return h
 	}
 	// Fall back to the first mirror endpoint, which is where a document that
@@ -544,16 +547,29 @@ func registryHost(spec v1alpha1.ClusterSpec) string {
 	sort.Strings(keys)
 	for _, k := range keys {
 		for _, ep := range spec.Registry.Mirrors[k] {
-			u, err := url.Parse(ep)
-			if err == nil && u.Host != "" {
-				return u.Host
-			}
-			if !strings.Contains(ep, "://") && strings.TrimSpace(ep) != "" {
-				return strings.TrimSpace(ep)
+			if h := hostOnly(ep); h != "" {
+				return h
 			}
 		}
 	}
 	return ""
+}
+
+// hostOnly is the host:port of a registry address, with or without a scheme,
+// without whatever path follows it.
+func hostOnly(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if !strings.Contains(s, "://") {
+		s = "https://" + s
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 func skipped(id, detail string) ProbeResult {

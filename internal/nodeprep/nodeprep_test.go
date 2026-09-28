@@ -219,6 +219,32 @@ func TestRegistriesYAML(t *testing.T) {
 		}
 	})
 
+	// Harbor is usually given as a host and a project: the project is where the
+	// cluster's images were pushed, so it belongs in every image reference. It
+	// does not belong in the configs key. containerd looks credentials up by the
+	// host it connects to, and a key carrying the project is never found -- a
+	// private project then answers every pull with 401.
+	t.Run("a system default registry with a project is configured under its host", func(t *testing.T) {
+		spec := embeddedSpec()
+		spec.Registry = v1alpha1.RegistrySpec{
+			Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "harbor.acme.internal/rke2",
+		}
+		got := registriesYAML(spec, TrustMaterial{RegistryUser: "robot", RegistryPass: "s3cret"})
+		if !strings.Contains(got, `"harbor.acme.internal":`) {
+			t.Errorf("the registry's host is not configured:\n%s", got)
+		}
+		if strings.Contains(got, `"harbor.acme.internal/`) {
+			t.Errorf("a config key carries the project, which containerd does not match on:\n%s", got)
+		}
+		if !strings.Contains(got, `username: "robot"`) {
+			t.Errorf("the credentials are not attached to the registry's host:\n%s", got)
+		}
+		// The project stays where it is part of the address: the endpoint.
+		if !strings.Contains(got, `"https://harbor.acme.internal/rke2"`) {
+			t.Errorf("the endpoint lost its project:\n%s", got)
+		}
+	})
+
 	t.Run("a password with yaml punctuation stays one value", func(t *testing.T) {
 		spec := embeddedSpec()
 		spec.Registry = v1alpha1.RegistrySpec{

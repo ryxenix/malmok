@@ -283,6 +283,17 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 		}
 	}
 
+	// hostKey is the same registry without the project a document may name
+	// with it -- harbor.acme.internal/rke2 is one host and one project. The
+	// project is part of every image reference and of the endpoint; it is not
+	// part of the configs key, which containerd matches against the host it
+	// connects to. Keyed with the project, the credentials below are never
+	// found and a private project refuses every pull.
+	hostKey := ""
+	if host != "" {
+		hostKey = endpointHost(host)
+	}
+
 	// Sorted, because the step writes this file and then compares what it
 	// finds against what it meant to write. Walking the map in its own order
 	// produced a different file each run, which is drift the step caused
@@ -343,8 +354,8 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 	//
 	// http endpoints need no entry: there is no certificate to verify.
 	configured := make([]string, 0, len(upstreams)+1)
-	if host != "" {
-		configured = append(configured, host)
+	if hostKey != "" {
+		configured = append(configured, hostKey)
 	}
 	for _, upstream := range upstreams {
 		for _, e := range spec.Registry.Mirrors[upstream] {
@@ -379,7 +390,7 @@ func registriesYAML(spec v1alpha1.ClusterSpec, t TrustMaterial) string {
 		// Credentials belong to the private registry the document named. A
 		// mirror is somebody else's endpoint and sending them there would be
 		// handing the registry's password to a cache.
-		if h == host && (t.RegistryUser != "" || t.RegistryPass != "") {
+		if h == hostKey && (t.RegistryUser != "" || t.RegistryPass != "") {
 			b.WriteString("    auth:\n")
 			b.WriteString("      username: " + yamlString(t.RegistryUser) + "\n")
 			b.WriteString("      password: " + yamlString(t.RegistryPass) + "\n")
@@ -421,7 +432,10 @@ func endpointURL(e string) string {
 // does -- would otherwise be described under a key no pull ever matches. The
 // port is part of the host and stays.
 //
-// internal/preflight.registryHost derives the same value from the same field.
+// The private registry's own address goes through here too, for the same
+// reason: a system default registry is often written with its project.
+//
+// internal/preflight.registryHost derives the same value from the same fields.
 // If one of these changes, the other has to.
 func endpointHost(e string) string {
 	u, err := url.Parse(endpointURL(e))

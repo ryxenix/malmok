@@ -471,6 +471,24 @@ func TestRegistryHostFallsBackToMirrors(t *testing.T) {
 	}
 }
 
+// A system default registry given with a project is still one host to
+// connect to. Probing it with the project in the host dials a name that does
+// not exist and asks /v2/ of a path Harbor does not serve.
+func TestRegistryHostDropsTheProject(t *testing.T) {
+	for _, tc := range []struct{ sdr, want string }{
+		{"harbor.acme.internal/rke2", "harbor.acme.internal"},
+		{"harbor.acme.internal:5000/rke2", "harbor.acme.internal:5000"},
+		{"https://harbor.acme.internal/rke2", "harbor.acme.internal"},
+		{"harbor.acme.internal", "harbor.acme.internal"},
+	} {
+		s := baseSpec()
+		s.Registry.SystemDefaultRegistry = tc.sdr
+		if got := registryHost(s); got != tc.want {
+			t.Errorf("registryHost(%q) = %q, want %q", tc.sdr, got, tc.want)
+		}
+	}
+}
+
 // hostAndCA returns the test server's host:port and its CA in PEM.
 func hostAndCA(t *testing.T, srv *httptest.Server) (string, []byte) {
 	t.Helper()

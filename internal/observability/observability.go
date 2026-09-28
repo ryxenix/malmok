@@ -209,9 +209,28 @@ spec:
 
 	// A private registry has to be told to every chart, or the pull fails with
 	// an opaque error naming an upstream host nobody configured.
+	//
+	// And it has to be told the way each part of this chart reads it, which is
+	// not one way. Rendered at the pinned version with global.image.registry
+	// alone, three images still came from upstream and a fourth was wrong:
+	//
+	//   - kube-state-metrics and node-exporter are prometheus-community
+	//     subcharts and read global.imageRegistry;
+	//   - the dashboard sync job takes syncJob.image.repository verbatim, so it
+	//     is given the whole reference;
+	//   - the operator's CRD cleanup job prefixes the registry to its
+	//     repository, which upstream writes as registry.k8s.io/kubectl, so it
+	//     is given the bare name.
+	//
+	// Every resulting path is the upstream reference with its host dropped,
+	// which is where a site mirroring by that rule has the image.
 	if r := strings.TrimSpace(spec.Registry.SystemDefaultRegistry); r != "" &&
 		spec.Registry.Mode != v1alpha1.RegistryEmbedded {
-		b.WriteString("    global:\n      image:\n        registry: " + yamlString(r) + "\n")
+		b.WriteString("    global:\n      image:\n        registry: " + yamlString(r) + "\n" +
+			"      imageRegistry: " + yamlString(r) + "\n" +
+			"    syncJob:\n      image:\n        repository: " + yamlString(r+"/victoriametrics/sync-job") + "\n" +
+			"    victoria-metrics-operator:\n      crds:\n        cleanup:\n          image:\n" +
+			"            repository: " + yamlString("kubectl") + "\n")
 	}
 	return b.String()
 }

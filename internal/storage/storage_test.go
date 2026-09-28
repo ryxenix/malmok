@@ -161,3 +161,35 @@ func TestTheManifestRendersTheSameEveryTime(t *testing.T) {
 		}
 	}
 }
+
+// A private registry in the document has to move both images. A closed site
+// that can reach only its registry otherwise never runs the provisioner, and
+// the helper pod -- started for every volume create and delete -- never
+// starts, so a claim waits forever. Found by building against a Harbor
+// project on the lab: the provisioner came from docker.io.
+func TestAPrivateRegistryMovesBothImages(t *testing.T) {
+	s := specWith(v1alpha1.StorageLocalPath)
+	s.Registry = v1alpha1.RegistrySpec{
+		Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "harbor.acme.internal/rke2",
+	}
+	body := Manifest(s)
+	for _, want := range []string{
+		"image: harbor.acme.internal/rke2/rancher/local-path-provisioner:" + ProvisionerVersion,
+		"image: harbor.acme.internal/rke2/library/busybox:1.37.0",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the manifest is missing %q", want)
+		}
+	}
+	if strings.Contains(body, "docker.io/") {
+		t.Errorf("an image still names docker.io with a private registry configured:\n%s", body)
+	}
+
+	// The embedded mirror names no registry to move anything to.
+	s.Registry = v1alpha1.RegistrySpec{
+		Mode: v1alpha1.RegistryEmbedded, SystemDefaultRegistry: "harbor.acme.internal/rke2",
+	}
+	if !strings.Contains(Manifest(s), "image: "+ProvisionerImage) {
+		t.Errorf("the embedded mirror moved the provisioner image")
+	}
+}

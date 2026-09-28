@@ -152,3 +152,34 @@ func TestGeneratedNamesFitKubernetesLimits(t *testing.T) {
 			margin, NamePrefix)
 	}
 }
+
+// global.image.registry is what this chart's own templates read, and it is not
+// what every image reads. Rendered at the pinned version with only that key,
+// three images still came from upstream -- kube-state-metrics and node-exporter
+// read global.imageRegistry, the dashboard sync job takes its repository
+// verbatim -- and the CRD cleanup job prefixed the registry to a reference
+// that already named registry.k8s.io. On a site that reaches only its
+// registry, each of those is a pod that never starts.
+func TestAPrivateRegistryReachesEveryImageTheChartPulls(t *testing.T) {
+	s := spec()
+	s.Registry = v1alpha1.RegistrySpec{
+		Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "harbor.acme.internal/rke2",
+	}
+	chart := StackChart(s, Options{})
+	for _, want := range []string{
+		`registry: "harbor.acme.internal/rke2"`,
+		`imageRegistry: "harbor.acme.internal/rke2"`,
+		`repository: "harbor.acme.internal/rke2/victoriametrics/sync-job"`,
+		`repository: "kubectl"`,
+	} {
+		if !strings.Contains(chart, want) {
+			t.Errorf("the values are missing %q:\n%s", want, chart)
+		}
+	}
+
+	for _, unwanted := range []string{"imageRegistry", "sync-job", "kubectl"} {
+		if strings.Contains(StackChart(spec(), Options{}), unwanted) {
+			t.Errorf("a document with no private registry still overrides %q", unwanted)
+		}
+	}
+}

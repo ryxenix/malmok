@@ -76,6 +76,22 @@
   extracted, the server was Ready in under two minutes, and every running
   container's image came from the project. The test added with the previous
   entry asserted the mirror as correct; it now asserts its absence.
+- With the cluster built against a private Harbor project, four running
+  images had not come from it: the local-path provisioner, node-exporter,
+  kube-state-metrics and the dashboard sync job. The lab reaches the internet,
+  so they were pulled from upstream and the build passed; a site that reaches
+  only its registry would have had four pods that never start. Two more were
+  found by rendering rather than by running: the local-path helper pod, started
+  for every volume create and delete, and the metrics operator's CRD cleanup
+  job. The storage phase never read the system default registry at all. The
+  metrics chart was given `global.image.registry`, which its own templates
+  read and three of its images do not: the prometheus-community subcharts read
+  `global.imageRegistry`, the sync job takes its repository verbatim, and the
+  cleanup job prefixed the registry to a reference already naming
+  `registry.k8s.io`. Each is now told the way it reads it. Rendering the pinned
+  chart with the values Malmok writes names the private registry for every
+  image, at the upstream path with its host dropped. There were no tests of the
+  metrics chart's registry values before this.
 
 ## [0.96.5] - 2026-09-16
 

@@ -126,7 +126,7 @@ spec:
           effect: NoExecute
       containers:
         - name: local-path-provisioner
-          image: ` + ProvisionerImage + `
+          image: ` + imageFor(spec, ProvisionerImage) + `
           imagePullPolicy: IfNotPresent
           command:
             - local-path-provisioner
@@ -208,7 +208,7 @@ data:
           effect: NoSchedule
       containers:
         - name: helper-pod
-          image: ` + HelperImage + `
+          image: ` + imageFor(spec, HelperImage) + `
           imagePullPolicy: IfNotPresent
 `)
 

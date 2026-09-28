@@ -22,6 +22,7 @@ package storage
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ryxenix/malmok/api/v1alpha1"
@@ -61,6 +62,27 @@ const (
 	ProvisionerImage = "docker.io/rancher/local-path-provisioner:" + ProvisionerVersion
 	HelperImage      = "docker.io/library/busybox:1.37.0"
 )
+
+// imageFor is ref as a node pulls it: from the private registry the document
+// names when it names one, and from where it was published otherwise.
+//
+// The registry's host is dropped and the path kept -- docker.io/rancher/x is
+// fetched as <registry>/rancher/x -- which is how RKE2's
+// system-default-registry moves its own images, and so how a site that
+// mirrors one set of images mirrors the other. Without it these two came from
+// docker.io while everything else came from the registry, which a site that
+// reaches only its registry finds out as a claim that never binds.
+func imageFor(spec v1alpha1.ClusterSpec, ref string) string {
+	reg := strings.TrimSpace(spec.Registry.SystemDefaultRegistry)
+	if reg == "" || spec.Registry.Mode == v1alpha1.RegistryEmbedded {
+		return ref
+	}
+	path := ref
+	if i := strings.Index(ref, "/"); i > 0 && strings.ContainsAny(ref[:i], ".:") {
+		path = ref[i+1:]
+	}
+	return reg + "/" + path
+}
 
 // DataPath is where volumes are carved out on each node.
 //

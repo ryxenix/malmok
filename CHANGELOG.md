@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.6] - 2026-09-29
 
 ### Added
 - `malmok plan -o json` writes the plan as a document a policy engine can read,

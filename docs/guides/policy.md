@@ -3,10 +3,10 @@
 `malmok plan -o json` writes the plan as a document, so a policy engine can
 judge it before anything on a node changes.
 
-!!! info "Available on main"
+!!! info "Available since v0.96.6"
 
-    The `-o json` flag and the `policy/` rules are on current `main`, after
-    v0.96.5. They are not in that release's installer download. See the
+    The `-o json` flag and the `policy/` rules arrived in v0.96.6. Earlier
+    releases do not have them. See the
     [changelog](https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md) and
     [installation](../getting-started/installation.md).
 

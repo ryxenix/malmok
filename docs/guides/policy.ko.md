@@ -3,10 +3,10 @@
 `malmok plan -o json`은 계획을 문서로 출력합니다. 노드에서 무엇이든 바뀌기
 전에 정책 엔진이 그 계획을 판정할 수 있습니다.
 
-!!! info "현재 main에서 제공"
+!!! info "v0.96.6부터 제공"
 
-    `-o json` 플래그와 `policy/` 규칙은 v0.96.5 이후 현재 `main`에 있습니다.
-    해당 릴리스의 설치 스크립트 다운로드에는 포함되지 않습니다.
+    `-o json` 플래그와 `policy/` 규칙은 v0.96.6에 들어왔습니다. 그 이전
+    릴리스에는 없습니다.
     [변경 이력](https://github.com/ryxenix/malmok/blob/main/CHANGELOG.md)과
     [설치 안내](../getting-started/installation.md)를 참고하십시오.
 

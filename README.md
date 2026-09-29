@@ -137,7 +137,7 @@ Pass `--version vX.Y.Z`, `--bin-dir ~/.local/bin`, or `--airgap` after
 binary. For example:
 
 ```bash
-curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.5
+curl -fsSL https://malmok.dev/install.sh | sh -s -- --version v0.96.6
 ```
 
 You can also download a binary directly from the releases page -- Linux and
@@ -342,7 +342,7 @@ This is a point-in-time scan, not automatic renewal or continuous monitoring.
 
 ## Check the plan against policy
 
-On current `main` (not yet in v0.96.5), the plan can be written as a document
+Since v0.96.6, the plan can be written as a document
 and judged before anything on a node changes:
 
 ```bash
@@ -511,7 +511,7 @@ after it and passes on 0.96.3; the twelfth, upgrading three servers, on
 | Longhorn / NFS storage | **not implemented** | the document is refused rather than producing a cluster with no StorageClass |
 | Site-owned CSI (`byo-csi`) | **not verified** | the phase observes a StorageClass; no site CSI has been run against it |
 | Proxy | **not verified** | schema only |
-| External private registry (`registry.mode: external`) | **verified on hardware, with egress allowed** | run by hand, not a matrix case, on `4929e20` (unreleased, after 0.96.5): a server and an agent, Ubuntu 24.04, RKE2 v1.36.4+rke2r1, `systemDefaultRegistry` naming a private Harbor project (`host/project`) with a robot credential. Every image the cluster pulled -- RKE2's runtime and system images, Cilium, the local-path provisioner and its helper pod, the metrics stack -- came from the project and from nowhere else, and a volume claim bound. Getting there found three defects, fixed in the same commits. Not verified: with egress dropped (the metrics stack's dashboard sync job still fetches dashboards from GitHub), a registry behind a private CA (this Harbor's certificate is publicly trusted), wrong credentials, re-apply, resume, HA and upgrade |
+| External private registry (`registry.mode: external`) | **verified on hardware, with egress allowed** | run by hand, not a matrix case, on 0.96.6 (`4929e20`): a server and an agent, Ubuntu 24.04, RKE2 v1.36.4+rke2r1, `systemDefaultRegistry` naming a private Harbor project (`host/project`) with a robot credential. Every image the cluster pulled -- RKE2's runtime and system images, Cilium, the local-path provisioner and its helper pod, the metrics stack -- came from the project and from nowhere else, and a volume claim bound. Getting there found three defects, fixed in the same commits. Not verified: with egress dropped (the metrics stack's dashboard sync job still fetches dashboards from GitHub), a registry behind a private CA (this Harbor's certificate is publicly trusted), wrong credentials, re-apply, resume, HA and upgrade |
 | External registry mirror | **not verified** | delivered to the node since 0.93.0, never exercised against a registry on hardware. A mirror endpoint with a path -- a Harbor proxy-cache project -- is suspect: Harbor answers a path it does not serve with its web page and a 200, which is how the private registry above first failed |
 | Observability (VictoriaMetrics) | **verified on hardware** | matrix, 0.95.0 -- the metrics database serving on a cluster this tool built; and 19 scrape targets on the production cluster |
 

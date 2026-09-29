@@ -21,6 +21,18 @@
   so it warns and leaves the decision where it belongs. The rules are tested as
   rego rather than by feeding fixtures through and inverting exit codes.
 
+### Changed
+- The verification table has a row for an external private registry, marked
+  verified on hardware with egress allowed, and says exactly how far that
+  goes. It was run by hand rather than as a matrix case: a server and an agent
+  built against a private Harbor project named with its project path, every
+  image the cluster pulled coming from that project and nowhere else, and a
+  volume claim bound. It is not verified with egress dropped -- the metrics
+  stack's dashboard sync job still fetches dashboards from GitHub -- nor behind
+  a private CA, with wrong credentials, or through re-apply, resume, HA or
+  upgrade, and the row says each of those. The registry mirror row stays
+  unverified, and now says why a path-bearing mirror is suspect.
+
 ### Fixed
 - Every page says which release it describes, and a release left it naming the
   one before. The line is read from the tags present when the site is built,

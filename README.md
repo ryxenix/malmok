@@ -473,8 +473,10 @@ Single-node and two-node builds, upgrades, resume and re-apply have been tested
 on real hardware. Three-server builds, one-server loss and a three-server
 upgrade have also been tested.
 The air-gapped path uses carried RKE2 artifacts, charts and images with egress
-dropped. Proxy networks and external registry mirrors remain unverified; the
-table below records the exact scope and release evidence.
+dropped. A build against an external private registry (a Harbor project) has
+been tested with egress allowed. Proxy networks, registry mirrors and a private
+registry on a closed network remain unverified; the table below records the
+exact scope and release evidence.
 
 The version describes compatibility, not a maturity score. `0.x` allows schema
 changes. The 1.0 milestone is a `v1` schema and verification of the remaining
@@ -509,7 +511,8 @@ after it and passes on 0.96.3; the twelfth, upgrading three servers, on
 | Longhorn / NFS storage | **not implemented** | the document is refused rather than producing a cluster with no StorageClass |
 | Site-owned CSI (`byo-csi`) | **not verified** | the phase observes a StorageClass; no site CSI has been run against it |
 | Proxy | **not verified** | schema only |
-| External registry mirror | **not verified** | delivered to the node since 0.93.0, never exercised against a registry on hardware |
+| External private registry (`registry.mode: external`) | **verified on hardware, with egress allowed** | run by hand, not a matrix case, on `4929e20` (unreleased, after 0.96.5): a server and an agent, Ubuntu 24.04, RKE2 v1.36.4+rke2r1, `systemDefaultRegistry` naming a private Harbor project (`host/project`) with a robot credential. Every image the cluster pulled -- RKE2's runtime and system images, Cilium, the local-path provisioner and its helper pod, the metrics stack -- came from the project and from nowhere else, and a volume claim bound. Getting there found three defects, fixed in the same commits. Not verified: with egress dropped (the metrics stack's dashboard sync job still fetches dashboards from GitHub), a registry behind a private CA (this Harbor's certificate is publicly trusted), wrong credentials, re-apply, resume, HA and upgrade |
+| External registry mirror | **not verified** | delivered to the node since 0.93.0, never exercised against a registry on hardware. A mirror endpoint with a path -- a Harbor proxy-cache project -- is suspect: Harbor answers a path it does not serve with its web page and a 200, which is how the private registry above first failed |
 | Observability (VictoriaMetrics) | **verified on hardware** | matrix, 0.95.0 -- the metrics database serving on a cluster this tool built; and 19 scrape targets on the production cluster |
 
 The verification matrix defines combinations across eight dimensions --

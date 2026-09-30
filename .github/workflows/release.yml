@@ -14,6 +14,9 @@ on:
 
 permissions:
   contents: write
+  # To start the documentation workflow once the release exists; see the last
+  # step.
+  actions: write
 
 jobs:
   release:
@@ -66,3 +69,14 @@ jobs:
             --notes-file dist/notes.md \
             dist/malmok_* dist/malmok-airgap_* dist/malmok-images_* \
             dist/images.txt dist/SHA256SUMS
+
+      # The site says which release it describes, read from the tags present
+      # when it is built, so it is rebuilt now that this one exists. Started
+      # by dispatch because a release this workflow creates triggers nothing
+      # else: GitHub does not run workflows from events caused by the
+      # workflow's own token, and dispatch is the one exception. From main,
+      # which is where the site is published from.
+      - name: site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docs.yml --ref main --repo "${GITHUB_REPOSITORY}"

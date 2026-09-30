@@ -25,12 +25,12 @@ on:
   # leaves the site describing the release before it: v0.96.5 shipped and
   # malmok.dev went on saying "v0.96.4 plus 6 unreleased changes".
   #
-  # published rather than created, because it fires once the release exists, by
-  # which time the tag is there to be read. Not a tag filter on the push above:
-  # combined with paths, a tag push satisfies neither cleanly, and a fix for a
-  # stale banner that silently never runs is worse than the banner.
-  release:
-    types: [published]
+  # The release workflow therefore starts this one by hand once the release is
+  # published. A `release: published` trigger was tried first and never fired:
+  # the release is created with the workflow's own token, and GitHub does not
+  # start workflows from events that token causes -- manual dispatch is the
+  # exception. v0.96.6 had a correct banner only because the tag happened to
+  # reach GitHub before this workflow's push-triggered build read the tags.
   workflow_dispatch:
 
 permissions:

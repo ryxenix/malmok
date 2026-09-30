@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- The documentation site was meant to rebuild when a release is published, and
+  never did. The trigger added for it listens for the release being published,
+  but the release workflow creates the release with its own token, and GitHub
+  does not start workflows from events that token causes. v0.96.6 went out
+  with a correct banner only because its tag reached GitHub before the
+  push-triggered build read the tags; a tag pushed a little later would have
+  left the site describing v0.96.5 again. The release workflow now starts the
+  documentation workflow by dispatch after publishing, which that token is
+  allowed to do, and the trigger that never fired is gone along with the
+  comment that said it worked.
+
 ## [0.96.6] - 2026-09-29
 
 ### Added

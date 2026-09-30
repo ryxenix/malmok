@@ -473,7 +473,8 @@ Single-node and two-node builds, upgrades, resume and re-apply have been tested
 on real hardware. Three-server builds, one-server loss and a three-server
 upgrade have also been tested.
 The air-gapped path uses carried RKE2 artifacts, charts and images with egress
-dropped. A build against an external private registry (a Harbor project) has
+dropped, and an air-gapped cluster has been upgraded from restaged artifacts
+the same way. A build against an external private registry (a Harbor project) has
 been tested with egress allowed. Proxy networks, registry mirrors and a private
 registry on a closed network remain unverified; the table below records the
 exact scope and release evidence.
@@ -507,6 +508,7 @@ after it and passes on 0.96.3; the twelfth, upgrading three servers, on
 | ACME DNS-01 certificates (wildcards) | not verified | needs a credential for the DNS zone |
 | Three-server HA (etcd quorum) | **verified on hardware** | matrix `ha-failover`, 0.96.3: three servers under a VIP, and the one holding the VIP rebooted -- the VIP moved, a write landed with two of three etcd members, and the server rejoined on its own. An upgrade across three servers is verified too: matrix `upgrade-three`, 0.96.4 -- built at v1.35.8+rke2r1 and moved to v1.36.4+rke2r1 one server at a time, with every kubelet reporting the new version afterwards. Stopping a server with `rke2-killall.sh` leaves the VIP on it; see the [recovery guide](docs/guides/upgrade-and-recovery.md) |
 | Airgap install (no egress) | **verified on hardware** | matrix `airgap-pair`, 0.96.4: egress dropped the way a site firewall does. RKE2 and Cilium from carried artifacts, platform charts carried as files (`registry.chartDir`), every image from a carried bundle, local-path serving claims and the metrics database running -- nothing fetched. Nine of the twelve cases ran as one uninterrupted sweep on this release; this one, `canal-pair` and `upgrade-three` ran as single-case runs on the same build, so twelve in a single pass has still not happened |
+| Air-gapped upgrade | **verified on hardware** | run by hand, not a matrix case, on `5ab979e` (unreleased, after 0.96.6): a server and an agent, Ubuntu 24.04, egress dropped the way `airgap-pair` drops it -- `github.com`, `get.rke2.io` and `update.rke2.io` timing out from both nodes before and after. Built at v1.35.8+rke2r1 from carried artifacts; an upgrade to v1.36.4+rke2r1 attempted before restaging was refused by `UP-006` on both nodes with nothing changed -- still v1.35.8, neither node cordoned; with the directory restaged it moved both nodes to v1.36.4+rke2r1 in six and a half minutes, every pod Running or Completed and the metrics volume bound. Not verified: three servers, a failed or interrupted air-gapped upgrade, and whether anything that tried to reach out while egress was dropped mattered -- the drop rule counted packets, and one pod sandbox asked docker.io for the pause image once before the new images were loaded |
 | local-path storage | **verified on hardware** | matrix, 0.95.0 -- every case that installs the metrics stack binds its volume |
 | Longhorn / NFS storage | **not implemented** | the document is refused rather than producing a cluster with no StorageClass |
 | Site-owned CSI (`byo-csi`) | **not verified** | the phase observes a StorageClass; no site CSI has been run against it |

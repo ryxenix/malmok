@@ -48,10 +48,14 @@ the node named and nothing changed. RKE2's artifact names carry no version, so
 this is the only way a directory staged for the build is told apart from one
 staged for the upgrade.
 
-!!! warning "Not yet verified on hardware"
+!!! info "Verification scope"
 
-    An upgrade from carried artifacts is covered by tests, not yet by a run on
-    real machines with egress dropped. Earlier releases did not read the
+    Verified by hand on real machines with egress dropped, not as a matrix
+    case: a server and an agent built at v1.35.8+rke2r1 from carried
+    artifacts, refused by `UP-006` with nothing changed while the directory
+    still held v1.35.8, then moved to v1.36.4+rke2r1 once it was restaged.
+    Three servers, and an air-gapped upgrade that fails or is interrupted part
+    way, have not been run. Releases before this change did not read the
     artifact path during an upgrade at all.
 
 ## Resume an interrupted run

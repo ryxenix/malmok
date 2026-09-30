@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+- The verification table has a row for an air-gapped upgrade, verified by hand
+  on real machines rather than as a matrix case. A server and an agent built
+  at v1.35.8+rke2r1 from carried artifacts with egress dropped; an upgrade to
+  v1.36.4+rke2r1 attempted while the directory still held v1.35.8 was refused
+  by `UP-006` on both nodes with nothing changed; with the directory restaged
+  the upgrade completed and every kubelet reported v1.36.4. The upgrade guide's
+  "not yet verified" note gives the same scope instead. The row names what was
+  not run -- three servers, an upgrade that fails part way -- and that the drop
+  rule counted packets while egress was cut, including one pod sandbox asking
+  docker.io for the pause image before the new images were loaded.
+
 ### Fixed
 - An upgrade ignored `kubernetes.artifactPath` and fetched get.rke2.io, so on a
   closed network it could not work, and it failed at the worst moment: the

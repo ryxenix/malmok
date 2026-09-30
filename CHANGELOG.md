@@ -15,6 +15,16 @@
   docker.io for the pause image before the new images were loaded.
 
 ### Fixed
+- The verification matrix could not start while the RKE2 channel server was
+  down. update.rke2.io answered 404 on every path for hours on 2026-09-30,
+  while update.k3s.io answered, and the harness stops when it cannot read the
+  channel. MALMOK_LAB_STABLE and MALMOK_LAB_LATEST now stand in for it, both or
+  neither, and MALMOK_LAB_UPGRADE_FROM for where the upgrade case starts; the
+  run logs which source the versions came from, and with the server down and
+  none of them set it stops and names them. The product is unaffected:
+  `kubernetes.version` is required, so the installer is always given a version
+  and never asks the channel, and the wizard already leaves the version field
+  for the operator to fill when there is no answer.
 - On an air-gapped network the metrics stack's dashboard sync job is turned
   off. It fetches the chart's default alert rules and dashboards from
   raw.githubusercontent.com when it runs; with pods genuinely cut off on the

@@ -82,6 +82,8 @@ kube-vip 이 붙을 인터페이스가 없어 VIP 케이스가 `vip-interface` �
 | `MALMOK_LAB_VIP` | VIP 케이스가 쓸 주소. 노드와 같은 세그먼트의 빈 주소 |
 | `MALMOK_LAB_LB_POOL` | 로드밸런서 풀 CIDR |
 | `MALMOK_LAB_AIRGAP_VERSION` | 노드에 반입해 둔 RKE2 릴리스. 없으면 에어갭 케이스는 무엇을 놓아야 하는지 말하고 skip 한다 |
+| `MALMOK_LAB_STABLE` · `MALMOK_LAB_LATEST` | 채널 서버 대신 쓸 stable·latest 릴리스. 둘 다 주거나 둘 다 비운다. 기본은 채널 서버(update.rke2.io)를 읽고, 그 서버가 죽었을 때만 쓴다 — 2026-09-30 에 모든 경로가 404 였다 |
+| `MALMOK_LAB_UPGRADE_FROM` | 업그레이드 케이스의 시작 릴리스. 비우면 채널 서버에서 이전 마이너의 최신을 읽는다 |
 | `MALMOK_LAB_MIRROR` | pull-through 캐시 주소. 기본 꺼짐 — 캐시를 통과한 초록은 캐시 없는 고객의 설치를 증명하지 않는다 |
 | `MALMOK_LAB_THIRD` | 세 번째 머신. 서버 3대 케이스만 쓰고, 지정되면 매 케이스마다 같이 와이프한다 — HA 케이스가 남긴 서버가 VIP 를 계속 주장하면 다음 케이스의 kube-vip 과 싸운다. 없으면 그 케이스는 skip |
 

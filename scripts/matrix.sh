@@ -45,6 +45,7 @@ if [ -z "${MALMOK_LAB_VIP:-}" ] || [ -z "${MALMOK_LAB_LB_POOL:-}" ]; then
 fi
 export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_MIRROR
 export MALMOK_LAB_VIP MALMOK_LAB_LB_POOL MALMOK_LAB_THIRD
+export MALMOK_LAB_STABLE MALMOK_LAB_LATEST MALMOK_LAB_UPGRADE_FROM
 
 # The binary the operator runs, not a fresh build of maybe-different code.
 [ -x bin/malmok ] || { echo "no bin/malmok -- run scripts/build.sh first" >&2; exit 1; }
@@ -67,6 +68,9 @@ docker run --rm \
   -e MALMOK_LAB_VIP \
   -e MALMOK_LAB_LB_POOL \
   -e MALMOK_LAB_THIRD \
+  -e MALMOK_LAB_STABLE \
+  -e MALMOK_LAB_LATEST \
+  -e MALMOK_LAB_UPGRADE_FROM \
   -e MALMOK_BIN=/app-local/bin/malmok \
   -w /app-local \
   golang:alpine \

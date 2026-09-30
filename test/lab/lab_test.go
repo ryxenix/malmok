@@ -155,13 +155,9 @@ func TestMatrix(t *testing.T) {
 
 	// The version comes from the channel server, not from a constant. A suite
 	// that pins a version stops testing the version people install.
-	ch, err := rke2.FetchChannels(context.Background())
-	if err != nil || ch.Stable == "" {
-		t.Fatalf("could not read the RKE2 channel: %v", err)
-	}
-	older := previousMinor(t, ch.Stable)
-	t.Logf("matrix on %s: %d cases, RKE2 stable %s, latest %s, upgrades from %s",
-		server, len(matrix.Cases()), ch.Stable, ch.Latest, orNone(older))
+	ch, older, source := labVersions(t)
+	t.Logf("matrix on %s: %d cases, RKE2 stable %s, latest %s, upgrades from %s (%s)",
+		server, len(matrix.Cases()), ch.Stable, ch.Latest, orNone(older), source)
 
 	// Sequential by necessity: every case owns the same machines.
 	for _, c := range matrix.Cases() {
@@ -890,6 +886,40 @@ func (r *labRun) rootRun(host, script string, timeout time.Duration) (string, er
 func readFile(path string) string {
 	b, _ := os.ReadFile(path)
 	return string(b)
+}
+
+// labVersions is what the matrix builds at and upgrades between, and where
+// that came from.
+//
+// The channel server, unless the operator names the versions. It is not
+// optional in general -- a pinned suite tests yesterday's install -- but it can
+// be down: update.rke2.io answered 404 on every path for hours on 2026-09-30,
+// while update.k3s.io answered, and the matrix could not start at all. So
+// MALMOK_LAB_STABLE and MALMOK_LAB_LATEST stand in for it, both or neither,
+// and MALMOK_LAB_UPGRADE_FROM for the release the upgrade case starts from.
+// They are an operator's statement, logged as such, never a guess made here:
+// with the server down and them unset the suite stops and says what to set.
+func labVersions(t *testing.T) (ch rke2.Channels, older, source string) {
+	t.Helper()
+	ch = rke2.Channels{Stable: os.Getenv("MALMOK_LAB_STABLE"), Latest: os.Getenv("MALMOK_LAB_LATEST")}
+	older = os.Getenv("MALMOK_LAB_UPGRADE_FROM")
+	switch {
+	case ch.Stable != "" && ch.Latest != "":
+		source = "versions from the environment, not the channel server"
+	case ch.Stable != "" || ch.Latest != "":
+		t.Fatal("set both MALMOK_LAB_STABLE and MALMOK_LAB_LATEST, or neither")
+	default:
+		got, err := rke2.FetchChannels(context.Background())
+		if err != nil || got.Stable == "" {
+			t.Fatalf("could not read the RKE2 channel: %v. If update.rke2.io is down, set "+
+				"MALMOK_LAB_STABLE, MALMOK_LAB_LATEST and MALMOK_LAB_UPGRADE_FROM to the releases to test", err)
+		}
+		ch, source = got, "versions from the channel server"
+	}
+	if older == "" {
+		older = previousMinor(t, ch.Stable)
+	}
+	return ch, older, source
 }
 
 // previousMinor asks the channel server for the newest release of the minor

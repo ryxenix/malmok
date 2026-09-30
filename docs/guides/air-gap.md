@@ -38,6 +38,16 @@ Prepare these on a connected staging machine:
 The release's air-gap Malmok binary embeds Helm and k9s for amd64 or arm64. It
 does not embed RKE2, Kubernetes images or your application payloads.
 
+!!! warning "No default alert rules or dashboards"
+
+    The metrics stack installs its default alert rules and dashboards through a
+    sync job that fetches them from GitHub when it runs. On a closed network it
+    cannot, so with `network.mode: airgap` Malmok turns that job off. Metrics
+    are still collected and stored; the stack simply starts with no alert
+    rules and no dashboards. Carrying them in is not supported yet. With pods
+    genuinely cut off on the lab, the job left on exhausted its retries in five
+    and a half minutes and created nothing.
+
 ## Stage the nodes
 
 Place the RKE2 artifacts in the same directory on each node. The exact list

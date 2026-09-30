@@ -224,12 +224,39 @@ spec:
 	//
 	// Every resulting path is the upstream reference with its host dropped,
 	// which is where a site mirroring by that rule has the image.
+	registry := ""
 	if r := strings.TrimSpace(spec.Registry.SystemDefaultRegistry); r != "" &&
 		spec.Registry.Mode != v1alpha1.RegistryEmbedded {
+		registry = r
 		b.WriteString("    global:\n      image:\n        registry: " + yamlString(r) + "\n" +
-			"      imageRegistry: " + yamlString(r) + "\n" +
-			"    syncJob:\n      image:\n        repository: " + yamlString(r+"/victoriametrics/sync-job") + "\n" +
-			"    victoria-metrics-operator:\n      crds:\n        cleanup:\n          image:\n" +
+			"      imageRegistry: " + yamlString(r) + "\n")
+	}
+
+	// The dashboard sync job fetches the chart's default alert rules and
+	// dashboards from raw.githubusercontent.com when it runs. On a closed
+	// network it cannot: with the pods cut off on the lab it exhausted its
+	// retries in five and a half minutes, created nothing, and left a failed
+	// Job behind -- after an install that had already reported success,
+	// because nothing here waits on it. So it is off there. The rules and
+	// dashboards are then not installed at all, which is what the air-gap
+	// guide says, rather than a Job that fails for a reason nobody is told.
+	//
+	// One syncJob key for both reasons it appears. YAML keeps the last of two
+	// equal keys, so writing the registry's image under a second one would
+	// turn the job back on without anyone noticing.
+	airgap := spec.Network.Mode == v1alpha1.NetworkAirgap
+	if airgap || registry != "" {
+		b.WriteString("    syncJob:\n")
+		if airgap {
+			b.WriteString("      enabled: false\n")
+		}
+		if registry != "" {
+			b.WriteString("      image:\n        repository: " + yamlString(registry+"/victoriametrics/sync-job") + "\n")
+		}
+	}
+
+	if registry != "" {
+		b.WriteString("    victoria-metrics-operator:\n      crds:\n        cleanup:\n          image:\n" +
 			"            repository: " + yamlString("kubectl") + "\n")
 	}
 	return b.String()

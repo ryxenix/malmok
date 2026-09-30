@@ -15,6 +15,17 @@
   docker.io for the pause image before the new images were loaded.
 
 ### Fixed
+- On an air-gapped network the metrics stack's dashboard sync job is turned
+  off. It fetches the chart's default alert rules and dashboards from
+  raw.githubusercontent.com when it runs; with pods genuinely cut off on the
+  lab it exhausted its retries in five and a half minutes, created nothing,
+  and left a failed Job behind an install that had already reported success.
+  A closed site now starts with no default alert rules or dashboards, which
+  the air-gap guide says, instead of a Job that fails for a reason nobody is
+  told. Carrying them in is not supported yet. The registry's sync-job image
+  and the switch share one `syncJob` key, because YAML keeps the last of two
+  equal keys and a second one would have turned the job back on. Rendering
+  the pinned chart with the air-gapped values produces no sync-job resource.
 - The lab's air gap now holds pods too. It was an iptables chain jumped to
   from OUTPUT and FORWARD, and Cilium, starting after it, puts an accept for
   pod interfaces ahead of it, so pod traffic left the "air-gapped" nodes. It

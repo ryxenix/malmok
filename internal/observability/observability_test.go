@@ -183,3 +183,34 @@ func TestAPrivateRegistryReachesEveryImageTheChartPulls(t *testing.T) {
 		}
 	}
 }
+
+// On a closed network the dashboard sync job is off. It fetches its rules and
+// dashboards from GitHub at install time; with pods cut off on the lab it
+// exhausted its retries and left a failed Job behind, having created nothing.
+// Online it stays on.
+func TestTheSyncJobIsOffOnAClosedNetwork(t *testing.T) {
+	const off = "    syncJob:\n      enabled: false\n"
+
+	if strings.Contains(StackChart(spec(), Options{}), off) {
+		t.Error("the sync job was turned off on a network that can reach GitHub")
+	}
+
+	s := spec()
+	s.Network.Mode = v1alpha1.NetworkAirgap
+	if chart := StackChart(s, Options{}); !strings.Contains(chart, off) {
+		t.Errorf("the sync job is left on for an air-gapped network:\n%s", chart)
+	}
+
+	// Air-gapped with a private registry: one syncJob key, carrying both. A
+	// second key would be the YAML that silently keeps only the last one.
+	s.Registry = v1alpha1.RegistrySpec{
+		Mode: v1alpha1.RegistryExternal, SystemDefaultRegistry: "harbor.acme.internal/rke2",
+	}
+	chart := StackChart(s, Options{})
+	if n := strings.Count(chart, "    syncJob:\n"); n != 1 {
+		t.Errorf("syncJob appears %d times, want once:\n%s", n, chart)
+	}
+	if !strings.Contains(chart, off) {
+		t.Errorf("the registry's syncJob values displaced enabled: false:\n%s", chart)
+	}
+}

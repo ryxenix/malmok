@@ -5,9 +5,8 @@ artifact the cluster consumes must cross the boundary deliberately, and the
 document must name where each one was placed.
 
 Malmok's air-gap path is the verification matrix's `airgap-pair` case: two
-nodes on real hardware with their own egress dropped. Pod egress was not
-blocked in that run, so what a workload does on a closed network -- the metrics
-stack's dashboard sync job, for one, fetches from GitHub -- is not verified. See
+nodes on real hardware with egress dropped for the nodes and their pods alike,
+passing on 0.96.7. Runs before that dropped only the nodes' own traffic. See
 the README's verification table for the conditions.
 
 ## What must cross the boundary

@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- The air-gapped build row cites 0.96.7, with egress dropped for the pods as
+  well as the nodes: `airgap-pair` re-run under the nftables air gap, both
+  nodes Ready, every pod Running or Completed, and no sync job or anything it
+  would create. The air-gapped upgrade row keeps its caveat, because that run
+  predates the new rule. The row also lost a missing full stop that had run
+  two sentences together.
 - The verification table has a row for an air-gapped upgrade, verified by hand
   on real machines rather than as a matrix case. A server and an agent built
   at v1.35.8+rke2r1 from carried artifacts with egress dropped; an upgrade to

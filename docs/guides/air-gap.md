@@ -4,9 +4,11 @@ An air-gapped build is more than installing the `malmok-airgap` binary. Every
 artifact the cluster consumes must cross the boundary deliberately, and the
 document must name where each one was placed.
 
-Malmok's air-gap path has been verified in a dedicated two-node hardware run
-with egress rejected. It is not yet a dimension in the general verification
-matrix.
+Malmok's air-gap path is the verification matrix's `airgap-pair` case: two
+nodes on real hardware with their own egress dropped. Pod egress was not
+blocked in that run, so what a workload does on a closed network -- the metrics
+stack's dashboard sync job, for one, fetches from GitHub -- is not verified. See
+the README's verification table for the conditions.
 
 ## What must cross the boundary
 

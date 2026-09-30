@@ -50,8 +50,9 @@ staged for the upgrade.
 
 !!! info "Verification scope"
 
-    Verified by hand on real machines with egress dropped, not as a matrix
-    case: a server and an agent built at v1.35.8+rke2r1 from carried
+    Verified by hand on real machines with the nodes' own egress dropped,
+    not as a matrix case (pod egress was not blocked; see the README's
+    verification table): a server and an agent built at v1.35.8+rke2r1 from carried
     artifacts, refused by `UP-006` with nothing changed while the directory
     still held v1.35.8, then moved to v1.36.4+rke2r1 once it was restaged.
     Three servers, and an air-gapped upgrade that fails or is interrupted part

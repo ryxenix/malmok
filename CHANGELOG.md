@@ -15,6 +15,21 @@
   docker.io for the pause image before the new images were loaded.
 
 ### Fixed
+- The air-gapped rows said nothing was fetched, and only the nodes had been
+  cut off. The lab drops egress with an iptables rule in OUTPUT and FORWARD,
+  put in place before the build; Cilium, when it starts, inserts its own
+  FORWARD rules ahead of it, one of which accepts everything leaving a pod
+  interface. So the nodes' own traffic was dropped -- RKE2's install and
+  upgrade, containerd's image pulls -- and pod traffic went out untouched.
+  Found after the air-gapped upgrade run: the metrics stack's sync job, told
+  to fetch 37 files from raw.githubusercontent.com, had created all 39 of its
+  alert rules and 43 dashboards while the nodes were cut off. The README rows,
+  the air-gap and upgrade guides and the matrix document now say that pod
+  egress was not blocked and what a workload does on a closed network is not
+  verified. The air-gap guide also said egress was "rejected" (it is dropped)
+  and that the air gap was not a matrix dimension (it is, as `airgap-pair`).
+  The pause-image request that the upgrade row attributed to the upgrade
+  happened during the build.
 - An upgrade ignored `kubernetes.artifactPath` and fetched get.rke2.io, so on a
   closed network it could not work, and it failed at the worst moment: the
   install step runs after the drain, so the first node was left cordoned with

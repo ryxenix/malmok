@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.7] - 2026-10-01
 
 ### Changed
 - The air-gapped build row cites 0.96.7, with egress dropped for the pods as

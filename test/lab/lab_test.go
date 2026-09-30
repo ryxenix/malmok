@@ -690,8 +690,8 @@ func airgapURLs(t *testing.T, bin string) map[string]string {
 // prepareAirgap gets the nodes into the state a closed site is in, and returns
 // the function that undoes it.
 //
-// The nodes are cut off from everything but the segment with DROP rather than
-// REJECT. The difference is not cosmetic: a rejected connection fails at once
+// The nodes -- and their pods, see airgapOn -- are cut off from everything but
+// the segment with DROP rather than REJECT. The difference is not cosmetic: a rejected connection fails at once
 // and a dropped one fails at the connect timeout, so a step that reaches for
 // the internet looks fine against the first and hangs against the second --
 // and the second is what a site firewall does.
@@ -780,23 +780,51 @@ echo "staged $(basename "$b")"`, c.ArtifactPath, c.ArtifactPath))
 	}
 }
 
-const airgapOn = `
-for chain in OUTPUT FORWARD; do iptables -D "$chain" -j MALMOK_AIRGAP 2>/dev/null || true; done
-iptables -F MALMOK_AIRGAP 2>/dev/null || iptables -N MALMOK_AIRGAP
-iptables -A MALMOK_AIRGAP -o lo -j RETURN
-iptables -A MALMOK_AIRGAP -d 192.168.88.0/24 -j RETURN
-iptables -A MALMOK_AIRGAP -d 10.42.0.0/16 -j RETURN
-iptables -A MALMOK_AIRGAP -d 10.43.0.0/16 -j RETURN
-iptables -A MALMOK_AIRGAP -d 127.0.0.0/8 -j RETURN
-iptables -A MALMOK_AIRGAP -j DROP
-iptables -I OUTPUT 1 -j MALMOK_AIRGAP
-iptables -I FORWARD 1 -j MALMOK_AIRGAP
+// airgapOn cuts the node off, pods included.
+//
+// It used to be an iptables chain jumped to from OUTPUT and FORWARD. That cut
+// the node's own traffic and let every pod's through: Cilium, starting after
+// the rule was placed, inserts its own FORWARD rules ahead of it, and one of
+// them accepts everything leaving a pod interface. The air-gapped cases passed
+// with the metrics stack's sync job fetching from GitHub, and the README said
+// nothing had been fetched.
+//
+// A table of its own is not subject to that ordering. In nftables a drop in
+// any base chain is final whatever another chain on the same hook accepted,
+// so Cilium's accept cannot let a packet past this one. Checked on the lab:
+// with Cilium restarted after it, a pod timed out reaching github.com and
+// still reached the segment.
+//
+// "fwd" is an nftables keyword and cannot name a chain, which is why the
+// chains carry the table's prefix.
+const airgapOn = `set -e
+nft list table ip malmok_airgap >/dev/null 2>&1 && nft delete table ip malmok_airgap
+nft -f - <<'N'
+table ip malmok_airgap {
+	chain malmok_output {
+		type filter hook output priority -5; policy accept;
+		oifname "lo" accept
+		ip daddr { 192.168.88.0/24, 10.42.0.0/16, 10.43.0.0/16, 127.0.0.0/8 } accept
+		counter drop
+	}
+	chain malmok_forward {
+		type filter hook forward priority -5; policy accept;
+		ip daddr { 192.168.88.0/24, 10.42.0.0/16, 10.43.0.0/16, 127.0.0.0/8 } accept
+		counter drop
+	}
+}
+N
+nft list table ip malmok_airgap >/dev/null
 echo "egress dropped"`
 
+// airgapOff removes the table, and the iptables chain an earlier harness left
+// behind if it is still there.
 const airgapOff = `
+nft list table ip malmok_airgap >/dev/null 2>&1 && nft delete table ip malmok_airgap
 for chain in OUTPUT FORWARD; do iptables -D "$chain" -j MALMOK_AIRGAP 2>/dev/null || true; done
 iptables -F MALMOK_AIRGAP 2>/dev/null || true
 iptables -X MALMOK_AIRGAP 2>/dev/null || true
+nft list table ip malmok_airgap >/dev/null 2>&1 && { echo "the table is still there"; exit 1; }
 echo "egress restored"`
 
 // onHost runs a check on a named node. onNode is the same thing against the

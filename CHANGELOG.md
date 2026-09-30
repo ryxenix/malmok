@@ -15,6 +15,17 @@
   docker.io for the pause image before the new images were loaded.
 
 ### Fixed
+- The lab's air gap now holds pods too. It was an iptables chain jumped to
+  from OUTPUT and FORWARD, and Cilium, starting after it, puts an accept for
+  pod interfaces ahead of it, so pod traffic left the "air-gapped" nodes. It
+  is now an nftables table of its own: a drop in one base chain is final
+  whatever another accepted. Reproduced and checked on the lab with Cilium
+  restarted after the rule: under the old chain a pod reached github.com,
+  under the table it timed out and still reached the segment. Cut off
+  properly, the metrics stack's dashboard sync job fails -- it exhausted its
+  retries in five and a half minutes -- so on a closed site the alert rules
+  and dashboards it would fetch are never created, while the install itself
+  completes. `airgap-pair` has not been re-run under the new rule.
 - The air-gapped rows said nothing was fetched, and only the nodes had been
   cut off. The lab drops egress with an iptables rule in OUTPUT and FORWARD,
   put in place before the build; Cilium, when it starts, inserts its own

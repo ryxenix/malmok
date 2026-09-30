@@ -124,9 +124,9 @@ func runUpgrade(cmd *cobra.Command, f upgradeFlags) error {
 	phases, err := upgrade.Phases(doc.Spec, f.to, upgrade.Runners{
 		ByHost: b.runners.ByHost, Control: b.runners.Control,
 	}, upgrade.Options{
-		// The same timeouts `apply` uses, and no artifact path for the same
-		// reason it has none: nothing wires one yet, and an airgap source that
-		// only the upgrade honoured would be a difference nobody asked for.
+		// The same timeouts `apply` uses. The artifact path is not set here:
+		// Phases takes it from the document, as the build does in the
+		// catalogue, and UP-006 above has checked every node holds the target.
 		RKE2: rke2.Options{
 			InstallTimeout: 20 * time.Minute,
 			ReadyTimeout:   15 * time.Minute,

@@ -652,3 +652,165 @@ func TestTheDrainCountsByOwnerNotByName(t *testing.T) {
 		t.Errorf("the check excludes a control plane pod by name:\n%s", drain.Check)
 	}
 }
+
+// A cluster built from carried artifacts is upgraded from them too. The upgrade
+// fetched get.rke2.io instead: on a site with no route out that fails, and it
+// fails after the drain, with the node cordoned and its workloads already
+// moved. Every step is searched, not only the install, because "fetches
+// nothing" is a claim about the whole upgrade.
+func TestAnUpgradeInstallsFromTheCarriedArtifacts(t *testing.T) {
+	s := twoNodeSpec()
+	s.Kubernetes.ArtifactPath = "/srv/rke2"
+	phases, err := Phases(s, "v1.35.7+rke2r1", runners(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	installs := 0
+	for _, p := range phases {
+		for _, node := range p.Nodes {
+			for _, step := range p.Steps(node) {
+				sh, ok := step.(*engine.ShellStep)
+				if !ok {
+					continue
+				}
+				for _, script := range []string{sh.Check, sh.Do} {
+					for _, fetch := range []string{"curl", "get.rke2.io"} {
+						if strings.Contains(script, fetch) {
+							t.Errorf("%s on %s reaches out with %q:\n%s", sh.Name, node, fetch, script)
+						}
+					}
+				}
+				if sh.Name != "install" {
+					continue
+				}
+				installs++
+				if !strings.Contains(sh.Do, "INSTALL_RKE2_ARTIFACT_PATH='/srv/rke2'") {
+					t.Errorf("the install on %s does not read the carried artifacts:\n%s", node, sh.Do)
+				}
+			}
+		}
+	}
+	if installs != 2 {
+		t.Errorf("found %d install steps, want one per node", installs)
+	}
+}
+
+// carried is what a node holds at the artifact path.
+func carried(t *testing.T, version string, files ...string) Artifacts {
+	t.Helper()
+	a := Artifacts{Measured: true, Arch: "amd64", Files: files}
+	if version != "" {
+		a.Version = mustParse(t, version)
+	}
+	return a
+}
+
+var complete = []string{
+	"install.sh", "rke2.linux-amd64.tar.gz", "sha256sum-amd64.txt",
+	"rke2-images.linux-amd64.tar.zst", "rke2-images-cilium.linux-amd64.tar.zst",
+}
+
+var binariesOnly = []string{"install.sh", "rke2.linux-amd64.tar.gz", "sha256sum-amd64.txt"}
+
+// Every way a carried directory can be wrong is found before a node is
+// touched. The one that matters most is the quiet one: a directory still
+// holding the release the cluster was built from looks complete, and the
+// installer would put that release back after the drain.
+func TestCarriedArtifactsMustBeTheTarget(t *testing.T) {
+	const target = "v1.35.7+rke2r1"
+	for _, tc := range []struct {
+		name      string
+		path      string
+		airgap    bool
+		cni       string
+		artifacts []Artifacts
+		blocked   bool
+	}{
+		{name: "no artifact path: the installer fetches", path: ""},
+		{name: "the target, complete", path: "/srv/rke2", airgap: true, cni: "cilium",
+			artifacts: []Artifacts{carried(t, target, complete...), carried(t, target, complete...)}},
+		{name: "the build's release is still there", path: "/srv/rke2", blocked: true,
+			artifacts: []Artifacts{carried(t, "v1.34.9+rke2r1", complete...), carried(t, "v1.34.9+rke2r1", complete...)}},
+		{name: "no install.sh", path: "/srv/rke2", blocked: true,
+			artifacts: []Artifacts{carried(t, target, complete[1:]...), carried(t, target, complete...)}},
+		{name: "online: the images may be pulled", path: "/srv/rke2",
+			artifacts: []Artifacts{carried(t, target, binariesOnly...), carried(t, target, binariesOnly...)}},
+		{name: "airgap: no images archive", path: "/srv/rke2", airgap: true, blocked: true,
+			artifacts: []Artifacts{carried(t, target, binariesOnly...), carried(t, target, binariesOnly...)}},
+		{name: "airgap cilium: no cilium archive", path: "/srv/rke2", airgap: true, cni: "cilium", blocked: true,
+			artifacts: []Artifacts{carried(t, target, complete[:4]...), carried(t, target, complete[:4]...)}},
+		{name: "the node could not be asked", path: "/srv/rke2", blocked: true,
+			artifacts: []Artifacts{{Problem: "connection reset"}, carried(t, target, complete...)}},
+		{name: "the directory is not there", path: "/srv/rke2", blocked: true,
+			artifacts: []Artifacts{{Measured: true, Missing: true}, carried(t, target, complete...)}},
+		{name: "the binary would not run", path: "/srv/rke2", blocked: true,
+			artifacts: []Artifacts{{Measured: true, Arch: "amd64", Files: complete, Problem: "permission denied"},
+				carried(t, target, complete...)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := state(t, server(t, "10.0.0.11", "v1.34.9+rke2r1"), agent(t, "10.0.0.21", "v1.34.9+rke2r1"))
+			st.ArtifactPath, st.Airgap, st.CNIArchive = tc.path, tc.airgap, tc.cni
+			for i, a := range tc.artifacts {
+				st.Nodes[i].Artifacts = a
+			}
+			results := Check(st, target)
+			if got := has(failed(results), "UP-006"); got != tc.blocked {
+				t.Errorf("UP-006 blocked = %v, want %v", got, tc.blocked)
+			}
+			if tc.blocked && len(Blocking(results)) == 0 {
+				t.Error("UP-006 failed without stopping the upgrade")
+			}
+			for _, r := range results {
+				if r.ID == "UP-006" && r.Failed() && r.Node == "" {
+					t.Errorf("a failure names no node, so nobody knows which directory to restage: %s", r.Detail)
+				}
+			}
+		})
+	}
+}
+
+// Read asks each node its own directory and understands the answer: the
+// architecture, the files, and what the binary in the tarball says it is.
+func TestReadMeasuresTheCarriedArtifacts(t *testing.T) {
+	s := twoNodeSpec()
+	s.Kubernetes.ArtifactPath = "/srv/rke2"
+	s.Network.Mode = v1alpha1.NetworkAirgap
+	s.Kubernetes.Dataplane.Preset = "cilium-gw"
+
+	staged := &exec.Fake{Responses: map[string]exec.Result{
+		"===ARCH": {Stdout: "===ARCH amd64\n===FILES " + strings.Join(complete, " ") +
+			" \n===VERSION rke2 version v1.34.9+rke2r1 (a1b2c3)\n"},
+	}}
+	absent := &exec.Fake{Responses: map[string]exec.Result{"===ARCH": {Stdout: "===MISSING\n"}}}
+	st := Read(context.Background(), s,
+		map[string]exec.Runner{"10.0.0.11": staged, "10.0.0.21": absent}, &exec.Fake{})
+
+	if !st.Airgap || st.CNIArchive != "cilium" || st.ArtifactPath != "/srv/rke2" {
+		t.Fatalf("the document's artifact settings were not carried into the state: %+v", st)
+	}
+	got := st.Nodes[0].Artifacts
+	if !got.Measured || got.Arch != "amd64" || len(got.Files) != len(complete) || got.Version.String() != "v1.34.9+rke2r1" {
+		t.Errorf("the staged node was read as %+v", got)
+	}
+	if a := st.Nodes[1].Artifacts; !a.Measured || !a.Missing {
+		t.Errorf("the node with no directory was read as %+v", a)
+	}
+
+	// Measured, then decided: the build's release is still staged, so the
+	// upgrade to the next one stops before anything moves.
+	if !has(failed(Check(st, "v1.35.7+rke2r1")), "UP-006") {
+		t.Error("a directory holding the running release did not stop the upgrade")
+	}
+}
+
+// Without an artifact path nothing is asked: the node is not made to run a
+// script about a directory the document never named.
+func TestReadDoesNotAskAboutArtifactsNobodyNamed(t *testing.T) {
+	f := &exec.Fake{}
+	Read(context.Background(), twoNodeSpec(), map[string]exec.Runner{"10.0.0.11": f, "10.0.0.21": f}, &exec.Fake{})
+	for _, cmd := range f.Log {
+		if strings.Contains(cmd, "===ARCH") {
+			t.Errorf("the artifact directory was read with no artifact path in the document:\n%s", cmd)
+		}
+	}
+}

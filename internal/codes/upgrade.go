@@ -15,8 +15,9 @@ package codes
 // but must never lead it, and etcd has no downgrade.
 
 const (
-	catUPVersion  = "Version skew"
-	catUPReadines = "Cluster readiness"
+	catUPVersion   = "Version skew"
+	catUPReadines  = "Cluster readiness"
+	catUPArtifacts = "Carried artifacts"
 )
 
 var upgradeCodes = []Code{
@@ -54,6 +55,17 @@ var upgradeCodes = []Code{
 		Summary: "No agent leads its servers",
 		Message: "An agent runs a newer version than the servers. A kubelet may lag its API server and must never lead it; " +
 			"this cluster is already outside the supported skew and the servers have to be brought up first",
+		Severity: SeverityBlock,
+	},
+
+	{
+		ID: "UP-006", Family: FamilyUpgrade, Category: catUPArtifacts,
+		Summary: "Carried artifacts are the target release",
+		Message: "A node's kubernetes.artifactPath is missing, incomplete, unreadable, or holds a release other than " +
+			"the target. The upgrade installs from that directory and fetches nothing, so a directory still holding " +
+			"the release the cluster was built from would put that release back -- after the node had been drained",
+		// Found after the drain, this is a cordoned node and a maintenance
+		// window spent on nothing. Found here, it is a directory to restage.
 		Severity: SeverityBlock,
 	},
 

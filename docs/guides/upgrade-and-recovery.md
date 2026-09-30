@@ -31,6 +31,29 @@ malmok upgrade --to "$TARGET_RKE2"
     [verification matrix](../40-verification-matrix.md) for what each row
     covers.
 
+### With carried artifacts
+
+When the document sets `kubernetes.artifactPath`, the upgrade installs from
+that directory on each node and fetches nothing. The directory still holds the
+release the cluster was built from, so before upgrading, replace its contents
+on **every node** with the target release's artifacts: `install.sh`,
+`rke2.linux-<arch>.tar.gz`, `sha256sum-<arch>.txt`, and on an air-gapped
+network the images archives as well (`rke2-images.linux-<arch>.tar.zst`, and
+`rke2-images-cilium.linux-<arch>.tar.zst` for a Cilium dataplane).
+
+Before any node is drained, `UP-006` reads each node's directory and runs the
+`rke2` binary inside its tarball to ask its version. A directory that is
+missing, incomplete, unreadable or holds another release stops the upgrade with
+the node named and nothing changed. RKE2's artifact names carry no version, so
+this is the only way a directory staged for the build is told apart from one
+staged for the upgrade.
+
+!!! warning "Not yet verified on hardware"
+
+    An upgrade from carried artifacts is covered by tests, not yet by a run on
+    real machines with egress dropped. Earlier releases did not read the
+    artifact path during an upgrade at all.
+
 ## Resume an interrupted run
 
 Every apply writes durable state and a JSONL event stream under its run

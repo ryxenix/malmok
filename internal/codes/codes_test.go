@@ -94,7 +94,7 @@ func TestOtherInventories(t *testing.T) {
 		{
 			family: FamilyUpgrade,
 			want: []string{
-				"UP-001", "UP-002", "UP-003", "UP-004", "UP-005",
+				"UP-001", "UP-002", "UP-003", "UP-004", "UP-005", "UP-006",
 				"UP-101", "UP-102", "UP-103",
 			},
 		},
@@ -123,7 +123,7 @@ func TestOtherInventories(t *testing.T) {
 // definition and became PF-612, the EX family added 9 for the phase runner,
 // and PF-109 (machine UUID) arrived with the handoff.
 func TestTotalInventory(t *testing.T) {
-	const want = 142
+	const want = 143
 	if got := len(All()); got != want {
 		t.Errorf("registry holds %d codes, want %d", got, want)
 	}

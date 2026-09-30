@@ -60,6 +60,14 @@ func Phases(spec v1alpha1.ClusterSpec, target string, r Runners, o Options) ([]e
 		return nil, err
 	}
 
+	// A cluster built from carried artifacts is upgraded from them, the way
+	// the build reads them in the catalogue. Left empty, the install step
+	// fetched get.rke2.io whatever the document said -- on a closed site, after
+	// the drain. UP-006 has already checked the directory holds the target.
+	if p := strings.TrimSpace(spec.Kubernetes.ArtifactPath); p != "" && o.RKE2.ArtifactPath == "" {
+		o.RKE2.ArtifactPath = p
+	}
+
 	servers, agents := roles(spec)
 	if len(servers) == 0 {
 		return nil, fmt.Errorf("upgrade: the document names no server, so there is no control plane to move")

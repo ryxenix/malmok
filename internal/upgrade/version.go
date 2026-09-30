@@ -112,6 +112,32 @@ type NodeState struct {
 	Ready bool
 	// Evidence is the raw line the node printed.
 	Evidence string
+	// Artifacts is what the node holds at the document's artifact path, when
+	// the document names one.
+	Artifacts Artifacts
+}
+
+// Artifacts is what one node holds at kubernetes.artifactPath.
+//
+// The version is what the rke2 binary inside the node's own tarball reports
+// when run, the same observable the install step converges on. RKE2's artifact
+// names carry no version, so a directory staged for the build and never
+// restaged looks exactly like one staged for the upgrade until something asks
+// the binary.
+type Artifacts struct {
+	// Measured is true when the node answered at all.
+	Measured bool
+	// Missing is true when the directory does not exist.
+	Missing bool
+	// Arch is the node's architecture as RKE2 names its tarballs.
+	Arch string
+	// Files is what the directory holds.
+	Files []string
+	// Version is what bin/rke2 in the node's tarball reports. Zero when it
+	// could not be read, and Problem says why.
+	Version Version
+	// Problem is why the node, the directory or the binary could not be read.
+	Problem string
 }
 
 // State is everything Check is a function of.
@@ -128,6 +154,14 @@ type State struct {
 	// Now is the clock, passed in so the snapshot age is not a function of when
 	// the test runs.
 	Now time.Time
+	// ArtifactPath is kubernetes.artifactPath, "" when the installer fetches.
+	ArtifactPath string
+	// Airgap is network.mode airgap: nothing can be pulled either, so the
+	// images archives have to be carried with the binaries.
+	Airgap bool
+	// CNIArchive is the per-CNI images archive the dataplane needs beside the
+	// combined one, "" when it needs none.
+	CNIArchive string
 }
 
 // SnapshotAge is how old a snapshot may be before it stops being a way back.
@@ -252,6 +286,30 @@ func Check(st State, target string) []preflight.ProbeResult {
 		})
 	}
 
+	// The carried artifacts, when the document names them. Checked here rather
+	// than by the install step because the install step runs after the drain:
+	// the upgrade used to fetch get.rke2.io whatever the document said, and on
+	// a closed site that failed with the first node already cordoned and its
+	// workloads moved. Every node is read, because each installs from its own
+	// directory and each can be staged wrong on its own.
+	if st.ArtifactPath == "" {
+		out = append(out, preflight.ProbeResult{
+			ID: "UP-006", Status: preflight.StatusSkip, Severity: codes.MustLookup("UP-006").Severity,
+			Detail: "the document names no artifact path; the installer fetches " + want.String(),
+		})
+	} else {
+		carried := true
+		for _, n := range st.Nodes {
+			if why := artifactProblem(st, n, want); why != "" {
+				add("UP-006", false, n.Host, why, strings.Join(n.Artifacts.Files, " "))
+				carried = false
+			}
+		}
+		if carried {
+			add("UP-006", true, "", fmt.Sprintf("every node carries %s at %s", want, st.ArtifactPath), "")
+		}
+	}
+
 	switch {
 	case st.LastSnapshot.IsZero():
 		add("UP-103", false, "", "no etcd snapshot was found; a failed control plane upgrade has no way back", "")
@@ -265,6 +323,62 @@ func Check(st State, target string) []preflight.ProbeResult {
 	}
 
 	return out
+}
+
+// artifactProblem says what is wrong with one node's carried artifacts, or ""
+// when they are the target release and complete.
+func artifactProblem(st State, n NodeState, want Version) string {
+	a, p := n.Artifacts, st.ArtifactPath
+	switch {
+	case !a.Measured:
+		return fmt.Sprintf("%s could not be asked what %s holds: %s", n.Host, p, a.Problem)
+	case a.Missing:
+		return fmt.Sprintf("%s has no directory %s; the target's release artifacts are carried to every node "+
+			"before the upgrade, not fetched by it", n.Host, p)
+	case len(a.Files) == 0 && a.Problem != "":
+		return fmt.Sprintf("%s: %s could not be read: %s", n.Host, p, a.Problem)
+	}
+
+	has := func(match func(string) bool) bool {
+		for _, f := range a.Files {
+			if match(f) {
+				return true
+			}
+		}
+		return false
+	}
+	named := func(name string) func(string) bool { return func(f string) bool { return f == name } }
+	prefixed := func(pre string) func(string) bool { return func(f string) bool { return strings.HasPrefix(f, pre) } }
+
+	var missing []string
+	for _, name := range []string{"install.sh", "rke2.linux-" + a.Arch + ".tar.gz", "sha256sum-" + a.Arch + ".txt"} {
+		if !has(named(name)) {
+			missing = append(missing, name)
+		}
+	}
+	// Where nothing can be pulled, the images come from the archives or not at
+	// all: the combined one, and the per-CNI one beside it for a dataplane the
+	// combined one does not carry.
+	if st.Airgap {
+		if !has(prefixed("rke2-images.linux-" + a.Arch)) {
+			missing = append(missing, "rke2-images.linux-"+a.Arch+".tar.zst")
+		}
+		if st.CNIArchive != "" && !has(prefixed("rke2-images-"+st.CNIArchive+".linux-"+a.Arch)) {
+			missing = append(missing, "rke2-images-"+st.CNIArchive+".linux-"+a.Arch+".tar.zst")
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Sprintf("%s: %s is missing %s", n.Host, p, strings.Join(missing, ", "))
+	}
+
+	if !a.Version.Known() {
+		return fmt.Sprintf("%s: the rke2 binary in %s could not be run to read its version: %s", n.Host, p, a.Problem)
+	}
+	if a.Version.Compare(want) != 0 {
+		return fmt.Sprintf("%s: %s holds %s, not the target %s; the installer would put %s back on the node, "+
+			"so restage the directory with %s first", n.Host, p, a.Version, want, a.Version, want)
+	}
+	return ""
 }
 
 func minorPhrase(step int) string {

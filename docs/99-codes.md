@@ -16,12 +16,12 @@ outlive releases.
 |---|--:|--:|--:|--:|--:|
 | `PF` | 70 | 37 | 11 | 18 | 4 |
 | `PV` | 8 | 4 | — | 3 | 1 |
-| `UP` | 8 | 6 | — | 1 | 1 |
+| `UP` | 9 | 7 | — | 1 | 1 |
 | `EX` | 9 | 8 | — | 1 | — |
 | `MC` | 42 | — | — | — | — |
 | `DG` | 5 | — | — | — | — |
 
-Total: 142 codes.
+Total: 143 codes.
 
 ---
 
@@ -194,6 +194,12 @@ These codes carry no severity — see `internal/codes/codes.go`.
 | `UP-003` | One minor version at a time | The target skips a minor version. The control plane supports one minor step, and skipping one leaves API objects stored in a version the new server never learned to convert |
 | `UP-004` | No node is ahead of the target | A node already runs a version newer than the target, so the upgrade would move it backwards |
 | `UP-005` | No agent leads its servers | An agent runs a newer version than the servers. A kubelet may lag its API server and must never lead it; this cluster is already outside the supported skew and the servers have to be brought up first |
+
+### Carried artifacts
+
+| ID | Item | Default message |
+|---|---|---|
+| `UP-006` | Carried artifacts are the target release | A node's kubernetes.artifactPath is missing, incomplete, unreadable, or holds a release other than the target. The upgrade installs from that directory and fetches nothing, so a directory still holding the release the cluster was built from would put that release back -- after the node had been drained |
 
 ### Cluster readiness
 

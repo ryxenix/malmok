@@ -606,7 +606,7 @@ ls -1 "$p" 2>/dev/null | tr '\n' ' '`)
 				"system images -- which works where there is a route and hangs where there is not", path)
 	}
 
-	if cni := cniArchive(preset); cni != "" {
+	if cni := CNIArchive(preset); cni != "" {
 		if !has(func(f string) bool { return strings.HasPrefix(f, "rke2-images-"+cni) && isArchive(f) }) {
 			return failf("PF-709", "ARTIFACT_IMAGES_NO_CNI",
 				"%s holds rke2-images.linux-<arch>.tar.zst, which carries Calico and Flannel; "+
@@ -630,12 +630,12 @@ ls -1 "$p" 2>/dev/null | tr '\n' ' '`)
 	return passf("PF-709", "%s holds the release artifacts (%s)", path, out)
 }
 
-// cniArchive names the per-CNI image archive a preset needs beside the combined
+// CNIArchive names the per-CNI image archive a preset needs beside the combined
 // one, or "" when the combined archive already carries its CNI.
 //
 // Calico and Flannel are in rke2-images.<os>-<arch>.tar; Cilium is published
 // separately and is not.
-func cniArchive(preset v1alpha1.DataplanePreset) string {
+func CNIArchive(preset v1alpha1.DataplanePreset) string {
 	if strings.HasPrefix(string(preset), "cilium-") {
 		return "cilium"
 	}

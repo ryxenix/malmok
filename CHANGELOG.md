@@ -3,6 +3,25 @@
 ## [Unreleased]
 
 ### Fixed
+- An upgrade ignored `kubernetes.artifactPath` and fetched get.rke2.io, so on a
+  closed network it could not work, and it failed at the worst moment: the
+  install step runs after the drain, so the first node was left cordoned with
+  its workloads moved. The command even said why -- "no artifact path for the
+  same reason apply has none: nothing wires one yet" -- which stopped being
+  true when the build started reading it. Wiring the path alone would have
+  broken something else: the directory still holds the release the cluster was
+  built from, and RKE2's artifact names carry no version, so an upgrade would
+  reinstall the old release after the drain, and an online site that had set
+  the path and upgraded fine until now would start failing the same way. So
+  the path is wired and a new precondition, `UP-006`, reads every node's
+  directory before anything moves: the files the installer needs, the images
+  archives where nothing can be pulled, and the version the rke2 binary inside
+  the tarball reports when run. It runs that binary from under
+  /var/lib/rancher/rke2 where it can, because hardened nodes mount /tmp
+  noexec and would otherwise block every upgrade. Found by an assessment of
+  the source rather than on a machine; the new test fails on the previous code
+  and the script was run against the real v1.36.4 tarball as an ordinary
+  user. An upgrade from carried artifacts has not been run on hardware.
 - The documentation site was meant to rebuild when a release is published, and
   never did. The trigger added for it listens for the release being published,
   but the release workflow creates the release with its own token, and GitHub

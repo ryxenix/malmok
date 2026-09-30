@@ -22,7 +22,9 @@ test/lab/cache/tls/
 test/lab/cache/auth/
 
 # Credentials kept beside the repository for lab runs. Read with grep/cut,
-# never sourced: a value holding a shell metacharacter is cut short by the
-# shell and the remainder interpreted as a command.
+# never sourced: sourcing expands `$` inside a value, and a registry robot
+# account's name contains one -- the shell turned the rest of the name into an
+# empty variable, and the credential that reached the registry was wrong while
+# looking present.
 node_env
 harbor_registry_env

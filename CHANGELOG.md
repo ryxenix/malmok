@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- The verification harness now waits for every node's clock to synchronise
+  after the post-wipe reboot, and no longer than that. A node just rebooted
+  can sit a second or more off its source for most of a minute, and PF-502
+  refuses a skew over a second, so a case could fail on the harness's timing
+  and have it reported as the cluster's. The wait asks the node rather than
+  pausing: `chronyc waitsync` where chrony runs, the offset where timesyncd
+  does -- both are on the lab. Run against the lab's two nodes it returned in
+  two seconds.
+
 ## [0.96.7] - 2026-10-01
 
 ### Changed

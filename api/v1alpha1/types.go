@@ -398,14 +398,22 @@ const (
 	DowngradeForbid  DowngradePolicy = "forbid"
 )
 
+// EtcdSpec is how every server snapshots its etcd member. Each field is written
+// to the server's RKE2 configuration; unset, RKE2's defaults stand -- every
+// twelve hours, five kept, on the node's own disk.
+//
+// A snapshot that has never been restored is not yet a backup. Malmok has no
+// restore command; restoring is RKE2's own cluster reset.
 type EtcdSpec struct {
-	SnapshotSchedule  string `yaml:"snapshotSchedule,omitempty"  json:"snapshotSchedule,omitempty"`
-	SnapshotRetention int    `yaml:"snapshotRetention,omitempty" json:"snapshotRetention,omitempty"`
-	// SnapshotTarget: local path, NFS mount, or S3-compatible endpoint.
-	// A backup that has never been restore-tested is not a backup; the engine
-	// exposes `malmok restore --dry-run` to force the rehearsal.
-	SnapshotTarget string  `yaml:"snapshotTarget,omitempty" json:"snapshotTarget,omitempty"`
-	S3             *S3Spec `yaml:"s3,omitempty" json:"s3,omitempty"`
+	// SnapshotSchedule is a five-field cron expression (etcd-snapshot-schedule-cron).
+	SnapshotSchedule string `yaml:"snapshotSchedule,omitempty"  json:"snapshotSchedule,omitempty"`
+	// SnapshotRetention is how many snapshots each server keeps (etcd-snapshot-retention).
+	SnapshotRetention int `yaml:"snapshotRetention,omitempty" json:"snapshotRetention,omitempty"`
+	// SnapshotTarget is a directory on each server, local or mounted
+	// (etcd-snapshot-dir). A mount has to exist before the server starts.
+	SnapshotTarget string `yaml:"snapshotTarget,omitempty" json:"snapshotTarget,omitempty"`
+	// S3 is reserved and not implemented; validation refuses it.
+	S3 *S3Spec `yaml:"s3,omitempty" json:"s3,omitempty"`
 }
 
 type S3Spec struct {

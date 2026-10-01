@@ -53,10 +53,16 @@ kind: ClusterSpec
 스키마 검증은 문서 형식을 검사하며, 모든 선언 기능의 구현이나 노드 적용까지 확인하지는
 않습니다. 현재 `main`의 `os.hardening.cisProfile`과 `prepareCISPrerequisites`는
 사전 점검·보고서에서 처리하지만 CIS 프로파일과 전체 전제조건을 적용하는 경로에는
-연결되지 않았습니다. `kubernetes.etcd.snapshotSchedule`, `snapshotRetention`,
-`snapshotTarget`도 선언돼 있으나 말목이 RKE2 설정에 쓰지 않습니다.
-이 필드만으로 실행 중인 클러스터 설정이 바뀐다고 가정하지 마십시오. RKE2 기본값이나
-외부에서 관리한 설정은 활성 상태일 수 있으므로 실제 적용 설정을 별도로 확인하십시오.
+연결되지 않았습니다. 이 필드만으로 실행 중인 클러스터 설정이 바뀐다고 가정하지
+마시고, 실제 적용 설정을 별도로 확인하십시오.
+
+`kubernetes.etcd.snapshotSchedule`, `snapshotRetention`, `snapshotTarget`은 모든
+서버의 RKE2 설정(`etcd-snapshot-schedule-cron`, `etcd-snapshot-retention`,
+`etcd-snapshot-dir`)에 기록됩니다. 비워 두면 RKE2 기본값(12시간마다, 5개 보관, 각
+노드의 로컬 디스크)이 적용됩니다. 저장 위치는 각 서버의 디렉터리이며, 마운트한 백업
+디렉터리라면 서버가 시작되기 전에 마운트돼 있어야 합니다. `kubernetes.etcd.s3`는
+예약된 미구현 필드라 문서 검증에서 거부합니다. 이 변경 이전 릴리스는 이 필드들을
+선언만 하고 설정에 쓰지 않았습니다.
 
 `topology[].gpu`는 성격이 다릅니다. 무시하는 것이 아니라 **거절합니다.** 말목은 device
 plugin도, RuntimeClass도, GPU 컨테이너 런타임도 설치하지 않으므로, 이 필드를 설정한

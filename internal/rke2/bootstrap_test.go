@@ -585,3 +585,44 @@ func TestTheOperatorKubeconfigNamesTheVIP(t *testing.T) {
 		}
 	}
 }
+
+// The document's snapshot settings reach every server, the first and the ones
+// that join it. They were declared, shown in the examples and written nowhere:
+// a cluster asked to snapshot every six hours into /mnt/backup/etcd got RKE2's
+// defaults on the node's own disk, and nothing said so.
+func TestSnapshotSettingsReachEveryServer(t *testing.T) {
+	spec := clusterSpec()
+	spec.Kubernetes.Etcd = v1alpha1.EtcdSpec{
+		SnapshotSchedule: "0 */6 * * *", SnapshotRetention: 20, SnapshotTarget: "/mnt/backup/etcd",
+	}
+	second := v1alpha1.NodeSpec{Host: "192.168.88.242", Role: v1alpha1.RoleServer}
+	for name, body := range map[string]string{
+		"first server":   ServerConfig(serverNode(), spec, ""),
+		"joining server": withServerURL(ServerConfig(second, spec, "t"), spec),
+	} {
+		got := parse(t, body)
+		for key, want := range map[string]any{
+			"etcd-snapshot-schedule-cron": "0 */6 * * *",
+			"etcd-snapshot-retention":     20,
+			"etcd-snapshot-dir":           "/mnt/backup/etcd",
+		} {
+			if got[key] != want {
+				t.Errorf("%s: %s = %v, want %v\n%s", name, key, got[key], want, body)
+			}
+		}
+	}
+
+	// An agent runs no etcd, and RKE2 refuses a server-only flag on one.
+	for key := range parse(t, AgentConfig(serverNode(), spec, "t")) {
+		if strings.HasPrefix(key, "etcd-snapshot") {
+			t.Errorf("an agent was given %s", key)
+		}
+	}
+
+	// Unset, nothing is written and RKE2's own defaults stand.
+	for key := range parse(t, ServerConfig(serverNode(), clusterSpec(), "")) {
+		if strings.HasPrefix(key, "etcd-snapshot") {
+			t.Errorf("%s was written with no snapshot settings in the document", key)
+		}
+	}
+}

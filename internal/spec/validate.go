@@ -184,6 +184,45 @@ func validateTopology(s *v1alpha1.ClusterSpec) []error {
 	return errs
 }
 
+// validateEtcd checks the snapshot settings that are written to every server.
+//
+// S3 is refused, the way a node's gpu block is: it needs an endpoint, a bucket,
+// credentials and a CA written where RKE2 reads them, none of that is done,
+// and a document naming a bucket would otherwise get its snapshots on the
+// node's own disk. The target is a directory on each server -- local or
+// mounted -- so a URL there is the same request by another name.
+func validateEtcd(e v1alpha1.EtcdSpec) []error {
+	var errs []error
+	if e.S3 != nil {
+		errs = append(errs, errors.New(
+			"kubernetes.etcd.s3 is reserved and not implemented: Malmok writes no S3 settings for RKE2, "+
+				"so snapshots would stay on each server's own disk. Remove it, and point "+
+				"kubernetes.etcd.snapshotTarget at a mounted backup directory instead"))
+	}
+	if t := strings.TrimSpace(e.SnapshotTarget); t != "" {
+		switch {
+		case strings.Contains(t, "://"):
+			errs = append(errs, fmt.Errorf(
+				"kubernetes.etcd.snapshotTarget %q is a URL; it is a directory on each server, local or "+
+					"mounted, and S3 is not implemented", t))
+		case !strings.HasPrefix(t, "/"):
+			errs = append(errs, fmt.Errorf(
+				"kubernetes.etcd.snapshotTarget %q must be an absolute path on each server", t))
+		}
+	}
+	if e.SnapshotRetention < 0 {
+		errs = append(errs, fmt.Errorf(
+			"kubernetes.etcd.snapshotRetention is %d; it is how many snapshots to keep, so zero or more",
+			e.SnapshotRetention))
+	}
+	if c := strings.TrimSpace(e.SnapshotSchedule); c != "" && len(strings.Fields(c)) != 5 {
+		errs = append(errs, fmt.Errorf(
+			"kubernetes.etcd.snapshotSchedule %q is not a cron expression of five fields, "+
+				"e.g. \"0 */6 * * *\"", c))
+	}
+	return errs
+}
+
 func validateKubernetes(s *v1alpha1.ClusterSpec) []error {
 	var errs []error
 	k := &s.Kubernetes
@@ -191,6 +230,7 @@ func validateKubernetes(s *v1alpha1.ClusterSpec) []error {
 	if strings.TrimSpace(k.Version) == "" {
 		errs = append(errs, errors.New("kubernetes.version is required, e.g. v1.34.5+rke2r1"))
 	}
+	errs = append(errs, validateEtcd(k.Etcd)...)
 
 	// Keeping swap is allowed and is not free: a kubelet that has not been told
 	// to tolerate it refuses to start, and the failure it prints names a flag

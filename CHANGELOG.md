@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Fixed
+- `kubernetes.etcd.snapshotSchedule`, `snapshotRetention` and `snapshotTarget`
+  are written to every server's RKE2 configuration. They were declared, shown
+  in the DMZ example -- every six hours, twenty kept, into /mnt/backup/etcd --
+  and written nowhere, so a cluster asking for snapshots in a mounted backup
+  directory kept its only ones on the disk most likely to be lost with the
+  node, and nothing said so. `kubernetes.etcd.s3` is refused at validation, as
+  a node's gpu block is: none of what S3 needs is written. The target must be
+  an absolute directory, the retention zero or more, the schedule five cron
+  fields. The schema comment that promised a `malmok restore --dry-run`
+  command, which does not exist, now says restoring is RKE2's cluster reset.
 - The verification harness now waits for every node's clock to synchronise
   after the post-wipe reboot, and no longer than that. A node just rebooted
   can sit a second or more off its source for most of a minute, and PF-502

@@ -453,6 +453,26 @@ func ServerConfig(node v1alpha1.NodeSpec, spec v1alpha1.ClusterSpec, token strin
 		b.WriteString("embedded-registry: true\n")
 	}
 
+	// etcd snapshots, as the document asks. Every server runs an etcd member
+	// and takes its own snapshots, so every server is told -- the first here
+	// and the ones that join through withServerURL on the same config. Unset
+	// fields are left out and RKE2's defaults stand: every twelve hours, five
+	// kept, under /var/lib/rancher/rke2/server/db/snapshots on the node.
+	//
+	// These were declared, shown in the examples and written nowhere, so a
+	// cluster asked to snapshot into a mounted backup directory kept its only
+	// snapshots on the disk most likely to be lost with it.
+	etcd := spec.Kubernetes.Etcd
+	if c := strings.TrimSpace(etcd.SnapshotSchedule); c != "" {
+		b.WriteString("etcd-snapshot-schedule-cron: " + yamlString(c) + "\n")
+	}
+	if etcd.SnapshotRetention > 0 {
+		b.WriteString(fmt.Sprintf("etcd-snapshot-retention: %d\n", etcd.SnapshotRetention))
+	}
+	if d := strings.TrimSpace(etcd.SnapshotTarget); d != "" {
+		b.WriteString("etcd-snapshot-dir: " + yamlString(d) + "\n")
+	}
+
 	writeList(&b, "kubelet-arg", spec.Kubernetes.KubeletArgs)
 	writeList(&b, "kube-apiserver-arg", spec.Kubernetes.APIServerArgs)
 	return b.String()

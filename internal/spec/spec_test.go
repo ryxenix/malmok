@@ -154,6 +154,45 @@ func TestValidate(t *testing.T) {
 			wantErr: "not implemented",
 		},
 		{
+			// S3 snapshots need endpoint, bucket, credentials and CA written
+			// where RKE2 reads them, and none of that exists. A document that
+			// named a bucket got snapshots on the node's own disk, which is
+			// where they are lost along with the node.
+			name: "etcd s3 is refused rather than ignored",
+			mutate: func(s *v1alpha1.ClusterSpec) {
+				s.Kubernetes.Etcd.S3 = &v1alpha1.S3Spec{Endpoint: "https://s3.acme.internal", Bucket: "etcd"}
+			},
+			wantErr: "not implemented",
+		},
+		{
+			name: "an S3 URL as the snapshot target is refused",
+			mutate: func(s *v1alpha1.ClusterSpec) {
+				s.Kubernetes.Etcd.SnapshotTarget = "s3://etcd/snapshots"
+			},
+			wantErr: "a directory",
+		},
+		{
+			name: "a relative snapshot target is refused",
+			mutate: func(s *v1alpha1.ClusterSpec) {
+				s.Kubernetes.Etcd.SnapshotTarget = "backup/etcd"
+			},
+			wantErr: "absolute path",
+		},
+		{
+			name: "a negative snapshot retention is refused",
+			mutate: func(s *v1alpha1.ClusterSpec) {
+				s.Kubernetes.Etcd.SnapshotRetention = -1
+			},
+			wantErr: "snapshotRetention",
+		},
+		{
+			name: "a schedule that is not five cron fields is refused",
+			mutate: func(s *v1alpha1.ClusterSpec) {
+				s.Kubernetes.Etcd.SnapshotSchedule = "daily"
+			},
+			wantErr: "five fields",
+		},
+		{
 			name: "kube-vip needs an address",
 			mutate: func(s *v1alpha1.ClusterSpec) {
 				s.Topology.VIP = &v1alpha1.VIPSpec{Provider: v1alpha1.VIPKubeVIP}
@@ -922,5 +961,20 @@ func TestTheRetiredAPIVersionSaysHowToMigrate(t *testing.T) {
 	}
 	if _, err := Load(other); err == nil || strings.Contains(err.Error(), "sed") {
 		t.Errorf("an unrelated apiVersion is offered the migration: %v", err)
+	}
+}
+
+// Well-formed snapshot settings validate. The table above only proves the
+// refusals; this proves the fields are usable at all.
+func TestEtcdSnapshotSettingsAreAccepted(t *testing.T) {
+	doc := parse(t, minimal)
+	if _, err := doc.ApplyProfile(); err != nil {
+		t.Fatal(err)
+	}
+	doc.Spec.Kubernetes.Etcd = v1alpha1.EtcdSpec{
+		SnapshotSchedule: "0 */6 * * *", SnapshotRetention: 20, SnapshotTarget: "/mnt/backup/etcd",
+	}
+	if err := doc.Validate(false); err != nil {
+		t.Errorf("well-formed snapshot settings were refused: %v", err)
 	}
 }

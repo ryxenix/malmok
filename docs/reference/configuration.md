@@ -56,12 +56,18 @@ the operator. `malmok plan` reports both the resolved value and its source.
 Schema validation checks the document, not whether every declared feature is
 implemented or active on a node. On current `main`, `os.hardening.cisProfile`
 and `prepareCISPrerequisites` have preflight/report handling but are not wired
-to apply the CIS profile and its full prerequisites. Likewise,
+to apply the CIS profile and its full prerequisites. Do not rely on those
+fields to change a running cluster; check its effective configuration
+separately.
+
 `kubernetes.etcd.snapshotSchedule`, `snapshotRetention` and `snapshotTarget`
-are declared but are not written into the RKE2 configuration by Malmok.
-Do not rely on these fields to change a running cluster. Check its effective
-configuration separately; RKE2 defaults or externally managed settings may
-still be active.
+are written to every server's RKE2 configuration (`etcd-snapshot-schedule-cron`,
+`etcd-snapshot-retention`, `etcd-snapshot-dir`). Left unset, RKE2's defaults
+apply: every twelve hours, five kept, on each node's own disk. The target is a
+directory on each server; a mounted backup directory has to exist before the
+server starts. `kubernetes.etcd.s3` is reserved and refused at validation --
+Malmok writes no S3 settings. Releases before this change declared these
+fields without writing them.
 
 `topology[].gpu` is different: it is refused rather than ignored. Malmok
 installs no device plugin, no RuntimeClass and no GPU container runtime, so a

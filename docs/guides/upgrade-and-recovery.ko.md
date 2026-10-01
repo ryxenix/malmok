@@ -100,6 +100,92 @@ sudo ip addr del <VIP>/32 dev <interface>
 재부팅하면 저절로 떨어집니다. 서버가 통째로 죽는 장애에서는 이 문제가 남지
 않는 이유입니다.
 
+## 스냅숏으로 etcd 복구
+
+말목에는 복구 명령이 없습니다. 복구는 RKE2 자체의 cluster reset이며, 아래
+절차는 랩에서 리허설한 그대로입니다.
+
+### 서버 밖에 보관할 것
+
+- 스냅숏 파일: `kubernetes.etcd.snapshotTarget` 또는
+  `/var/lib/rancher/rke2/server/db/snapshots`
+- 서버 토큰: `/var/lib/rancher/rke2/server/token`
+- `/etc/rancher/rke2/`: `config.yaml`, `registries.yaml`
+- `/var/lib/rancher/rke2/server/manifests/`: 말목이 기록한 매니페스트
+- RKE2 버전, 폐쇄망이라면 해당 릴리스 자재
+
+!!! danger "스냅숏과 토큰이 함께 있으면 클러스터 비밀값을 풀 수 있습니다"
+
+    스냅숏에는 클러스터 CA 키와 비밀값이 들어 있습니다. 스냅숏과 서버 토큰을
+    함께 가진 사람은 이를 읽을 수 있으므로 둘 다 보호하고, 가능하면 따로
+    보관하십시오.
+
+작업 전에 스냅숏을 직접 뜨려면:
+
+```bash
+sudo rke2 etcd-snapshot save --name before-maintenance
+```
+
+### 같은 서버에서 복구
+
+`SNAPSHOT`을 파일 이름으로 바꿉니다.
+
+```bash
+sudo systemctl stop rke2-server
+sudo rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/SNAPSHOT
+sudo systemctl start rke2-server
+```
+
+reset은 끝나면 스스로 종료합니다. 마지막 줄 "Managed etcd cluster membership
+has been reset, restart without --cluster-reset flag now"는 error 수준으로
+찍히지만 정상 종료입니다.
+
+### 서버를 잃었을 때
+
+같은 주소의 대체 서버에서:
+
+1. 같은 RKE2 버전을 설치합니다. 폐쇄망이면 `INSTALL_RKE2_ARTIFACT_PATH`로 반입
+   자재에서 설치합니다.
+2. `/etc/rancher/rke2/`와 `/var/lib/rancher/rke2/server/manifests/`를 되돌립니다.
+3. 스냅숏 파일을 `/var/lib/rancher/rke2/server/db/snapshots/` 아래에 둡니다.
+4. 보관한 토큰으로 reset한 뒤 서비스를 시작합니다. `TOKEN_FILE`은 토큰을 둔
+   위치입니다.
+
+=== "Bash"
+
+    ```bash
+    sudo rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/SNAPSHOT --token="$(sudo cat TOKEN_FILE)"
+    sudo systemctl enable --now rke2-server
+    ```
+
+=== "Fish"
+
+    ```fish
+    sudo rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/SNAPSHOT --token=(sudo cat TOKEN_FILE)
+    sudo systemctl enable --now rke2-server
+    ```
+
+`config.yaml`에 토큰이 있다면 보관한 토큰과 같아야 하며, 다르면 RKE2가 시작되지
+않습니다. 에이전트는 등록 주소를 바라보고 에이전트 토큰을 갖고 있으므로 스스로
+다시 붙습니다.
+
+### 서버가 여러 대일 때
+
+리허설하지 않았습니다. RKE2 절차는 모든 서버에서 `rke2-server`를 멈추고, 한
+대에서 reset 후 시작한 다음, 나머지 서버마다 `/var/lib/rancher/rke2/server/db/`를
+지우고 시작하는 것입니다.
+
+!!! info "검증 범위"
+
+    매트릭스 케이스가 아닌 수동 리허설입니다. 랩에서 서버 1대와 에이전트 1대,
+    v1.36.4, 외부 통신 허용 상태로 했습니다. 같은 서버에서 복구한 경우와, 같은
+    서버를 초기화한 뒤 보관한 토큰·설정·매니페스트로 재설치해 복구한 경우 모두,
+    스냅숏 전에 만든 ConfigMap은 돌아오고 스냅숏 후에 만든 것은 사라졌으며 두
+    노드가 Ready, 에이전트도 다시 붙었습니다. 서버 3대와 폐쇄망 복구는 아직
+    리허설하지 않았습니다. 내장 레지스트리 미러를 쓰는 클러스터에서는
+    `rke2 etcd-snapshot save`가 "Unknown flag --embedded-registry found in
+    config.yaml, skipping"을 출력하지만, 스냅숏 생성과 복구는 정상이었습니다.
+
 ## 근거부터 확인
 
 인증서 유지보수를 준비한다면 v0.96.4 이상의 [읽기 전용 만료 점검](certificates.md)도

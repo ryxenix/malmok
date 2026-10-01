@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+- A procedure for restoring etcd from a snapshot, in the upgrade and recovery
+  guide: what to keep off the servers -- the snapshot, the server token,
+  `/etc/rancher/rke2/`, the manifests Malmok wrote, the RKE2 version -- and how
+  to restore in place and onto a replacement for a lost server. Malmok has no
+  restore command; this is RKE2's cluster reset. Rehearsed by hand on the lab
+  with one server and one agent: in place, and onto the same server wiped and
+  reinstalled. Both times a ConfigMap made before the snapshot came back, one
+  made after it was gone, and the agent rejoined. Three servers and an
+  air-gapped restore are not rehearsed, and the guide and README say so.
+
 ### Fixed
 - UP-103, the upgrade's etcd snapshot check, looks where the document puts the
   snapshots and says whether "none" means none. It read one fixed directory

@@ -105,6 +105,84 @@ sudo ip addr del <VIP>/32 dev <interface>
 A reboot does the same on its own, which is why a server that fails outright
 does not leave this behind.
 
+## Restore etcd from a snapshot
+
+Malmok has no restore command. Restoring is RKE2's own cluster reset, and the
+steps below are the ones rehearsed on the lab.
+
+### What to keep, off the servers
+
+- the snapshot file, from `kubernetes.etcd.snapshotTarget` or
+  `/var/lib/rancher/rke2/server/db/snapshots`;
+- the server token, `/var/lib/rancher/rke2/server/token`;
+- `/etc/rancher/rke2/`, which holds `config.yaml` and `registries.yaml`;
+- `/var/lib/rancher/rke2/server/manifests/`, the manifests Malmok wrote;
+- the RKE2 version, and on an air-gapped site its release artifacts.
+
+!!! danger "The snapshot and the token together unlock the cluster's secrets"
+
+    A snapshot holds the cluster's CA keys and its secrets. Anyone holding a
+    snapshot and the server token can read them, so keep the two protected,
+    and apart where you can.
+
+To take a snapshot on demand before maintenance:
+
+```bash
+sudo rke2 etcd-snapshot save --name before-maintenance
+```
+
+### On the same server
+
+Replace `SNAPSHOT` with the file's name:
+
+```bash
+sudo systemctl stop rke2-server
+sudo rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/SNAPSHOT
+sudo systemctl start rke2-server
+```
+
+The reset exits by itself. Its last line, "Managed etcd cluster membership has
+been reset, restart without --cluster-reset flag now", is logged at error level
+and is the expected end.
+
+### When the server is lost
+
+On a replacement with the same address:
+
+1. Install the same RKE2 version. On an air-gapped site, from the carried
+   artifacts with `INSTALL_RKE2_ARTIFACT_PATH`.
+2. Put back `/etc/rancher/rke2/` and `/var/lib/rancher/rke2/server/manifests/`.
+3. Put the snapshot file under `/var/lib/rancher/rke2/server/db/snapshots/`.
+4. Reset with the saved token, then start the service. `TOKEN_FILE` is where
+   you put the saved token:
+
+```bash
+sudo rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/SNAPSHOT --token="$(sudo cat TOKEN_FILE)"
+sudo systemctl enable --now rke2-server
+```
+
+In Fish, the token is `--token=(sudo cat TOKEN_FILE)`. If `config.yaml` sets a
+token, it has to be the saved one, or RKE2 does not start. Agents rejoin on
+their own: they point at the registration address and carry the agent token.
+
+### With more than one server
+
+Not rehearsed. RKE2's procedure is to stop `rke2-server` on every server, reset
+on one and start it, then on each of the others delete
+`/var/lib/rancher/rke2/server/db/` and start it.
+
+!!! info "Verification scope"
+
+    Rehearsed by hand on the lab, not as a matrix case: one server and one
+    agent on v1.36.4, with egress allowed. In place, and onto the same server
+    wiped and reinstalled from the saved token, configuration and manifests.
+    Both times a ConfigMap made before the snapshot came back, one made after
+    it was gone, both nodes were Ready and the agent had rejoined. Three
+    servers and an air-gapped restore have not been rehearsed. On a cluster
+    using the embedded mirror, `rke2 etcd-snapshot save` prints "Unknown flag
+    --embedded-registry found in config.yaml, skipping"; the snapshot was
+    taken and restored regardless.
+
 ## Read the evidence first
 
 For certificate maintenance, v0.96.4 and later support

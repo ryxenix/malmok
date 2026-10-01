@@ -149,8 +149,13 @@ type Artifacts struct {
 type State struct {
 	Nodes []NodeState
 	// LastSnapshot is the newest etcd snapshot found on a server, zero when
-	// there is none.
+	// there is none or it could not be told.
 	LastSnapshot time.Time
+	// SnapshotDir is where it was looked for.
+	SnapshotDir string
+	// SnapshotProblem is why the answer is not known, "" when it is: an empty
+	// directory is an answer, an unreadable one is not.
+	SnapshotProblem string
 	// Now is the clock, passed in so the snapshot age is not a function of when
 	// the test runs.
 	Now time.Time
@@ -310,16 +315,27 @@ func Check(st State, target string) []preflight.ProbeResult {
 		}
 	}
 
+	// Where it looked, and whether "none" means none. A directory the server
+	// could not read, or a server that could not be asked, is reported as
+	// unknown rather than as no snapshot: they call for different things.
+	// Still a warning either way -- whether a missing snapshot should stop a
+	// production upgrade is a site's decision, not this tool's.
+	dir := st.SnapshotDir
+	if dir == "" {
+		dir = DefaultSnapshotDir
+	}
 	switch {
+	case st.SnapshotProblem != "":
+		add("UP-103", false, "", "whether an etcd snapshot exists is unknown: "+st.SnapshotProblem, "")
 	case st.LastSnapshot.IsZero():
-		add("UP-103", false, "", "no etcd snapshot was found; a failed control plane upgrade has no way back", "")
+		add("UP-103", false, "", "no etcd snapshot in "+dir+"; a failed control plane upgrade has no way back", "")
 	case st.Now.Sub(st.LastSnapshot) > SnapshotAge:
 		add("UP-103", false, "",
-			fmt.Sprintf("the newest etcd snapshot is from %s, more than %s ago",
-				st.LastSnapshot.Format(time.RFC3339), SnapshotAge), "")
+			fmt.Sprintf("the newest etcd snapshot in %s is from %s, more than %s ago",
+				dir, st.LastSnapshot.Format(time.RFC3339), SnapshotAge), "")
 	default:
 		add("UP-103", true, "",
-			"the newest etcd snapshot is from "+st.LastSnapshot.Format(time.RFC3339), "")
+			"the newest etcd snapshot in "+dir+" is from "+st.LastSnapshot.Format(time.RFC3339), "")
 	}
 
 	return out

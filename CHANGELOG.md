@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Fixed
+- UP-103, the upgrade's etcd snapshot check, looks where the document puts the
+  snapshots and says whether "none" means none. It read one fixed directory
+  and folded every failure into "no snapshot", so a cluster snapshotting into
+  the directory its document named was told it had no way back, and a server
+  that could not be asked looked like one that had never snapshotted. It now
+  reads `kubernetes.etcd.snapshotTarget`, or RKE2's default, and reports a
+  missing directory, an unreadable one and an unreachable server as unknown
+  rather than as absent -- only root can tell absent from hidden there, and the
+  first version, run as an ordinary account on the lab, reported a directory
+  holding that morning's snapshot as missing. It is still a warning.
 - `kubernetes.etcd.snapshotSchedule`, `snapshotRetention` and `snapshotTarget`
   are written to every server's RKE2 configuration. They were declared, shown
   in the DMZ example -- every six hours, twenty kept, into /mnt/backup/etcd --

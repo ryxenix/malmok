@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -811,6 +812,88 @@ func TestReadDoesNotAskAboutArtifactsNobodyNamed(t *testing.T) {
 	for _, cmd := range f.Log {
 		if strings.Contains(cmd, "===ARCH") {
 			t.Errorf("the artifact directory was read with no artifact path in the document:\n%s", cmd)
+		}
+	}
+}
+
+// Read looks for snapshots where the document puts them, and says why it found
+// none. It read one fixed directory and folded every failure into "none": a
+// cluster snapshotting into a mounted backup directory was told it had no way
+// back, and a server that could not be asked looked the same as one with no
+// snapshots.
+func TestReadFindsSnapshotsWhereTheDocumentPutsThem(t *testing.T) {
+	for _, tc := range []struct {
+		name, target, answer, wantDir, wantProblem string
+		wantTime                                   bool
+		runnerErr                                  error
+	}{
+		{name: "the default directory", answer: "===NEWEST 1786000000 etcd-snapshot-a-1786000000\n",
+			wantDir: "/var/lib/rancher/rke2/server/db/snapshots", wantTime: true},
+		{name: "the document's directory", target: "/mnt/backup/etcd",
+			answer: "===NEWEST 1786000000 etcd-snapshot-a-1786000000\n", wantDir: "/mnt/backup/etcd", wantTime: true},
+		{name: "the directory is not there", target: "/mnt/backup/etcd", answer: "===NODIR\n",
+			wantDir: "/mnt/backup/etcd", wantProblem: "does not exist"},
+		{name: "the directory cannot be read", answer: "===NOACCESS\n",
+			wantDir: "/var/lib/rancher/rke2/server/db/snapshots", wantProblem: "could not be read"},
+		{name: "the directory is empty", answer: "===EMPTY\n",
+			wantDir: "/var/lib/rancher/rke2/server/db/snapshots"},
+		{name: "the server could not be asked", runnerErr: errors.New("connection reset"),
+			wantDir: "/var/lib/rancher/rke2/server/db/snapshots", wantProblem: "connection reset"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := twoNodeSpec()
+			s.Kubernetes.Etcd.SnapshotTarget = tc.target
+			control := &exec.Fake{Err: tc.runnerErr, Responses: map[string]exec.Result{"===NEWEST": {Stdout: tc.answer}}}
+			st := Read(context.Background(), s, map[string]exec.Runner{"10.0.0.11": &exec.Fake{}, "10.0.0.21": &exec.Fake{}}, control)
+			if st.SnapshotDir != tc.wantDir {
+				t.Errorf("looked in %q, want %q", st.SnapshotDir, tc.wantDir)
+			}
+			if got := !st.LastSnapshot.IsZero(); got != tc.wantTime {
+				t.Errorf("found a snapshot = %v, want %v", got, tc.wantTime)
+			}
+			if tc.wantProblem == "" && st.SnapshotProblem != "" || !strings.Contains(st.SnapshotProblem, tc.wantProblem) {
+				t.Errorf("problem = %q, want one containing %q", st.SnapshotProblem, tc.wantProblem)
+			}
+			if tc.runnerErr == nil && !strings.Contains(strings.Join(control.Log, "\n"), tc.wantDir) {
+				t.Errorf("the script did not look in %s:\n%s", tc.wantDir, strings.Join(control.Log, "\n"))
+			}
+		})
+	}
+}
+
+// UP-103 names the directory and says which of "none" and "could not tell" it
+// is, and stays a warning either way.
+func TestSnapshotFindingSaysWhereAndWhy(t *testing.T) {
+	base := func() State {
+		st := state(t, server(t, "10.0.0.11", "v1.34.10+rke2r1"))
+		st.SnapshotDir = "/mnt/backup/etcd"
+		return st
+	}
+	none := base()
+	none.LastSnapshot = time.Time{}
+	unread := base()
+	unread.LastSnapshot, unread.SnapshotProblem = time.Time{}, "the directory could not be read by this account"
+
+	for name, tc := range map[string]struct {
+		st   State
+		want string
+	}{
+		"none":         {none, "no etcd snapshot in /mnt/backup/etcd"},
+		"unreadable":   {unread, "could not be read"},
+		"fresh enough": {base(), "/mnt/backup/etcd"},
+	} {
+		results := Check(tc.st, "v1.35.7+rke2r1")
+		var detail string
+		for _, r := range results {
+			if r.ID == "UP-103" {
+				detail = r.Detail
+			}
+		}
+		if !strings.Contains(detail, tc.want) {
+			t.Errorf("%s: UP-103 says %q, want it to contain %q", name, detail, tc.want)
+		}
+		if len(Blocking(results)) > 0 {
+			t.Errorf("%s: a snapshot finding blocked the upgrade", name)
 		}
 	}
 }

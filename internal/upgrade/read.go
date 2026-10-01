@@ -77,7 +77,8 @@ func Read(ctx context.Context, s v1alpha1.ClusterSpec,
 		}
 	}
 
-	st.LastSnapshot = newestSnapshot(ctx, control)
+	st.SnapshotDir = SnapshotDir(s)
+	st.LastSnapshot, st.SnapshotProblem = newestSnapshot(ctx, control, st.SnapshotDir)
 	return st
 }
 
@@ -109,25 +110,65 @@ func clusterNodes(ctx context.Context, control exec.Runner) map[string]clusterVi
 	return out
 }
 
-// newestSnapshot is the time of the most recent etcd snapshot on a server.
+// DefaultSnapshotDir is where RKE2 keeps etcd snapshots unless told otherwise.
+const DefaultSnapshotDir = "/var/lib/rancher/rke2/server/db/snapshots"
+
+// SnapshotDir is where the document's servers keep their etcd snapshots.
+func SnapshotDir(s v1alpha1.ClusterSpec) string {
+	if d := strings.TrimSpace(s.Kubernetes.Etcd.SnapshotTarget); d != "" {
+		return d
+	}
+	return DefaultSnapshotDir
+}
+
+// newestSnapshot is the time of the most recent etcd snapshot in dir on a
+// server, or why there is none to report.
 //
 // Read from disk rather than from the API, because a snapshot that exists only
-// as a CR is not one anybody can restore from.
-func newestSnapshot(ctx context.Context, control exec.Runner) time.Time {
+// as a CR is not one anybody can restore from. It used to read one fixed
+// directory and fold every failure into "no snapshot": a cluster snapshotting
+// into the directory its document named was told it had no way back, and a
+// server that could not be asked looked like one that had never snapshotted.
+// The problem is "" when the answer is a real one -- a time, or an empty
+// directory.
+//
+// Only root can say a directory is absent. RKE2's server directory is root's
+// alone, so to anyone else its snapshot directory is invisible whether or not
+// it exists: run as an ordinary account on the lab, the first version of this
+// reported "does not exist" for a directory holding a snapshot taken that
+// morning. The certificate scan learned the same thing the same way.
+func newestSnapshot(ctx context.Context, control exec.Runner, dir string) (time.Time, string) {
 	if control == nil {
-		return time.Time{}
+		return time.Time{}, "there is no connection to a server"
 	}
-	res, err := control.Run(ctx,
-		`ls -t /var/lib/rancher/rke2/server/db/snapshots 2>/dev/null | head -1 | `+
-			`xargs -I{} stat -c %Y /var/lib/rancher/rke2/server/db/snapshots/{} 2>/dev/null`)
-	if err != nil || !res.OK() {
-		return time.Time{}
+	res, err := control.Run(ctx, `d=`+rke2.ShellQuote(dir)+`
+if [ ! -d "$d" ]; then
+  if [ "$(id -u)" = 0 ]; then echo '===NODIR'; else echo '===NOACCESS'; fi
+  exit 0
+fi
+[ -r "$d" ] && [ -x "$d" ] || { echo '===NOACCESS'; exit 0; }
+n=$(find "$d" -maxdepth 1 -type f -printf '%T@ %f\n' | sort -n | tail -1)
+[ -n "$n" ] || { echo '===EMPTY'; exit 0; }
+echo "===NEWEST ${n%%.*} ${n#* }"`)
+	if err != nil {
+		return time.Time{}, "the server could not be asked: " + err.Error()
 	}
-	var unix int64
-	if _, err := fmt.Sscanf(strings.TrimSpace(res.Out()), "%d", &unix); err != nil || unix == 0 {
-		return time.Time{}
+	out := strings.TrimSpace(res.Stdout)
+	switch {
+	case out == "===NODIR":
+		return time.Time{}, dir + " does not exist on the server, so no snapshot has been written there"
+	case out == "===NOACCESS":
+		return time.Time{}, dir + " could not be read by the account Malmok connects as"
+	case out == "===EMPTY":
+		return time.Time{}, ""
+	case strings.HasPrefix(out, "===NEWEST "):
+		var unix int64
+		if _, err := fmt.Sscanf(strings.TrimPrefix(out, "===NEWEST "), "%d", &unix); err == nil && unix > 0 {
+			return time.Unix(unix, 0), ""
+		}
 	}
-	return time.Unix(unix, 0)
+	return time.Time{}, fmt.Sprintf("the server's answer was not understood (exit %d): %q %s",
+		res.ExitCode, out, res.Err())
 }
 
 // Markers the artifact script prints, so a line of ls output can never be

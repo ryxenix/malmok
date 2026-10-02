@@ -40,8 +40,10 @@
   refuses a skew over a second, so a case could fail on the harness's timing
   and have it reported as the cluster's. The wait asks the node rather than
   pausing: `chronyc waitsync` where chrony runs, the offset where timesyncd
-  does -- both are on the lab. Run against the lab's two nodes it returned in
-  two seconds.
+  does -- both are on the lab. It waits for 100ms, not tighter: asked for 10ms,
+  an agent whose time source was a server that had just rebooted too was
+  still 0.18s out after two minutes, and the run stopped for nothing. PF-502
+  refuses a second.
 
 ## [0.96.7] - 2026-10-01
 

@@ -545,14 +545,19 @@ echo wiped`
 // refused exactly that way: the harness's timing, reported as the cluster's
 // fault. A fixed pause would either waste minutes or not be long enough, so
 // this asks. chrony answers through `chronyc waitsync`, which returns the
-// moment the correction is under 10ms; timesyncd through its offset, polled
+// moment the correction is under 100ms; timesyncd through its offset, polled
 // once a second. Both lab time daemons are in use -- the first attempt at this
 // read only timesyncd's offset, and on the chrony nodes it waited five minutes
 // for a number that never came.
+//
+// 100ms, not tighter. PF-502 refuses a skew of a second between nodes, and a
+// node whose source is another node that has just rebooted too spends minutes
+// slewing its last fraction of a second: asked for 10ms, the lab agent was
+// still 0.18s out after two minutes and the run stopped for nothing.
 func (r *labRun) waitForClocks() {
 	r.t.Helper()
 	for _, host := range machines() {
-		out, err := r.rootRun(host, clockScript, 2*time.Minute)
+		out, err := r.rootRun(host, clockScript, 4*time.Minute)
 		if err != nil {
 			r.t.Fatalf("%s's clock did not synchronise after the reboot: %v\n%s", host, err, out)
 		}
@@ -561,17 +566,20 @@ func (r *labRun) waitForClocks() {
 }
 
 const clockScript = `if command -v chronyc >/dev/null 2>&1 && systemctl is-active --quiet chrony; then
-  if chronyc waitsync 90 0.01 0 1 >/dev/null; then
+  if chronyc waitsync 180 0.1 0 1 >/dev/null; then
     echo "clock synced (chrony, $(chronyc tracking | awk -F': ' '/System time/{print $2}'))"; exit 0
   fi
-  echo "not synced after 90s (chrony)"; chronyc tracking; exit 1
+  echo "not synced after 180s (chrony)"; chronyc tracking; exit 1
 fi
-for i in $(seq 1 90); do
+for i in $(seq 1 180); do
   off=$(timedatectl timesync-status 2>/dev/null | awk '/Offset:/{print $2}')
-  case "$off" in *us|*ns) echo "clock synced (timesyncd, offset $off)"; exit 0 ;; esac
+  case "$off" in
+    *us|*ns) echo "clock synced (timesyncd, offset $off)"; exit 0 ;;
+    *ms) v=${off%ms}; v=${v#[+-]}; case "$v" in [0-9].*|[0-9]|[0-9][0-9].*|[0-9][0-9]) echo "clock synced (timesyncd, offset $off)"; exit 0 ;; esac ;;
+  esac
   sleep 1
 done
-echo "not synced after 90s (timesyncd, offset ${off:-unknown})"; exit 1`
+echo "not synced after 180s (timesyncd, offset ${off:-unknown})"; exit 1`
 
 // waitForNodes waits until every node has actually rebooted.
 //

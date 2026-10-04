@@ -190,7 +190,7 @@ These codes carry no severity — see `internal/codes/codes.go`.
 | ID | Item | Default message |
 |---|---|---|
 | `UP-001` | Target version is well formed | The target version is not an RKE2 version. It has the form v<major>.<minor>.<patch>+rke2r<n> |
-| `UP-002` | Target is newer than what runs | The target is not newer than the version already running. Kubernetes and etcd have no supported downgrade: the API server writes storage the older one cannot read, and restoring a snapshot is the only way back |
+| `UP-002` | Target is newer than what runs | The target is not newer than the version already running. Kubernetes and etcd have no supported downgrade: the API server writes storage the older one cannot read, and restoring a snapshot is the only way back. An upgrade interrupted after the servers moved passes: agents still behind the target, or a node still cordoned, are finished rather than refused |
 | `UP-003` | One minor version at a time | The target skips a minor version. The control plane supports one minor step, and skipping one leaves API objects stored in a version the new server never learned to convert |
 | `UP-004` | No node is ahead of the target | A node already runs a version newer than the target, so the upgrade would move it backwards |
 | `UP-005` | No agent leads its servers | An agent runs a newer version than the servers. A kubelet may lag its API server and must never lead it; this cluster is already outside the supported skew and the servers have to be brought up first |

@@ -113,6 +113,11 @@ func agent(t *testing.T, host, version string) NodeState {
 	return n
 }
 
+func cordoned(n NodeState) NodeState {
+	n.Unschedulable = true
+	return n
+}
+
 // failed reports which codes stopped the upgrade.
 func failed(results []preflight.ProbeResult) []string {
 	var out []string
@@ -172,6 +177,32 @@ func TestCheck(t *testing.T) {
 			name:     "the same version again",
 			st:       state(t, server(t, "10.0.0.11", "v1.34.10+rke2r1")),
 			target:   "v1.34.10+rke2r1",
+			wantFail: []string{"UP-002"},
+		},
+		{
+			// The case the lab found: interrupted after the servers moved and
+			// before the agent did. Refusing it left the agent cordoned on the
+			// old release with no way for the tool to finish what it started.
+			name: "servers already on the target and an agent still behind",
+			st: state(t, server(t, "10.0.0.11", "v1.36.4+rke2r1"),
+				agent(t, "10.0.0.21", "v1.35.8+rke2r1")),
+			target: "v1.36.4+rke2r1",
+			wantOK: true,
+		},
+		{
+			// Interrupted between the last node's restart and its uncordon:
+			// every version is right and a node still refuses work.
+			name: "every node on the target and one still cordoned",
+			st: state(t, server(t, "10.0.0.11", "v1.36.4+rke2r1"),
+				cordoned(agent(t, "10.0.0.21", "v1.36.4+rke2r1"))),
+			target: "v1.36.4+rke2r1",
+			wantOK: true,
+		},
+		{
+			name: "every node on the target and accepting work",
+			st: state(t, server(t, "10.0.0.11", "v1.36.4+rke2r1"),
+				agent(t, "10.0.0.21", "v1.36.4+rke2r1")),
+			target:   "v1.36.4+rke2r1",
 			wantFail: []string{"UP-002"},
 		},
 		{
@@ -654,6 +685,27 @@ func TestTheDrainCountsByOwnerNotByName(t *testing.T) {
 	}
 }
 
+// A node the cluster already reports on the target is not drained again.
+// Without this a second run after an interruption drained every finished
+// server a second time before reaching the node that was left behind.
+func TestTheDrainLeavesANodeAlreadyOnTheTarget(t *testing.T) {
+	phases, err := Phases(twoNodeSpec(), "v1.35.7+rke2r1", runners(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range phases[0].Steps("10.0.0.11") {
+		if st, ok := s.(*engine.ShellStep); ok && st.Name == "drain" {
+			for _, want := range []string{"kubeletVersion", "v1.35.7+rke2r1"} {
+				if !strings.Contains(st.Check, want) {
+					t.Errorf("the drain check does not look for %q:\n%s", want, st.Check)
+				}
+			}
+			return
+		}
+	}
+	t.Fatal("there is no drain step")
+}
+
 // A cluster built from carried artifacts is upgraded from them too. The upgrade
 // fetched get.rke2.io instead: on a site with no route out that fails, and it
 // fails after the drain, with the node cordoned and its workloads already
@@ -895,5 +947,25 @@ func TestSnapshotFindingSaysWhereAndWhy(t *testing.T) {
 		if len(Blocking(results)) > 0 {
 			t.Errorf("%s: a snapshot finding blocked the upgrade", name)
 		}
+	}
+}
+
+// A cordoned node is read from the listing, and a node never cordoned -- which
+// the API reports with no unschedulable field at all -- is still read.
+func TestReadSeesACordonedNode(t *testing.T) {
+	control := &exec.Fake{Responses: map[string]exec.Result{
+		"kubeletVersion": {Stdout: "10.0.0.11 True v1.36.4+rke2r1 \n10.0.0.21 True v1.35.8+rke2r1 true\n"},
+	}}
+	st := Read(context.Background(), twoNodeSpec(),
+		map[string]exec.Runner{"10.0.0.11": &exec.Fake{}, "10.0.0.21": &exec.Fake{}}, control)
+
+	if len(st.Nodes) != 2 {
+		t.Fatalf("read %d nodes", len(st.Nodes))
+	}
+	if n := st.Nodes[0]; !n.Ready || n.Unschedulable || n.Version.String() != "v1.36.4+rke2r1" {
+		t.Errorf("the server was read as %+v", n)
+	}
+	if n := st.Nodes[1]; !n.Ready || !n.Unschedulable || n.Version.String() != "v1.35.8+rke2r1" {
+		t.Errorf("the cordoned agent was read as %+v", n)
 	}
 }

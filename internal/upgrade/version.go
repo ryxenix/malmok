@@ -110,6 +110,9 @@ type NodeState struct {
 	Installed Version
 	// Ready is what the control plane says about it.
 	Ready bool
+	// Unschedulable is a node left cordoned, which is what an upgrade
+	// interrupted between its drain and its uncordon leaves behind.
+	Unschedulable bool
 	// Evidence is the raw line the node printed.
 	Evidence string
 	// Artifacts is what the node holds at the document's artifact path, when
@@ -248,8 +251,28 @@ func Check(st State, target string) []preflight.ProbeResult {
 		add("UP-005", true, "", "no agent is ahead of the servers", "")
 	}
 
+	// What an interrupted upgrade left to do. The servers move first, so a run
+	// stopped after them leaves the control plane on the target with agents
+	// behind it, or a node still cordoned; refusing that as "not newer" left
+	// the cluster half moved with no way for the tool to finish it.
+	var behind, fenced []string
+	for _, n := range st.Nodes {
+		if n.Version.Known() && n.Version.Compare(want) < 0 {
+			behind = append(behind, n.Host)
+		} else if n.Unschedulable {
+			fenced = append(fenced, n.Host)
+		}
+	}
+
 	if haveServer {
 		switch {
+		case want.Compare(lowestServer) == 0 && len(behind) > 0:
+			add("UP-002", true, "",
+				fmt.Sprintf("the servers already run %s; finishing %s", want, strings.Join(behind, ", ")), "")
+		case want.Compare(lowestServer) == 0 && len(fenced) > 0:
+			add("UP-002", true, "",
+				fmt.Sprintf("every node runs %s; %s is still cordoned and is let back to work", want,
+					strings.Join(fenced, ", ")), "")
 		case want.Compare(lowestServer) <= 0:
 			add("UP-002", false, "",
 				fmt.Sprintf("the servers run %s and the target is %s, which is not newer", lowestServer, want),

@@ -55,6 +55,7 @@ func Read(ctx context.Context, s v1alpha1.ClusterSpec,
 			}
 			if seen, ok := cluster[addr]; ok {
 				node.Ready = seen.ready
+				node.Unschedulable = seen.unschedulable
 				node.Evidence = seen.kubelet
 				if v, err := ParseVersion(seen.kubelet); err == nil {
 					node.Version = v
@@ -84,8 +85,9 @@ func Read(ctx context.Context, s v1alpha1.ClusterSpec,
 
 // clusterView is what the control plane says about one node.
 type clusterView struct {
-	ready   bool
-	kubelet string
+	ready         bool
+	kubelet       string
+	unschedulable bool
 }
 
 // clusterNodes maps a node's address to what the cluster reports about it.
@@ -98,13 +100,16 @@ func clusterNodes(ctx context.Context, control exec.Runner) map[string]clusterVi
 		`kubectl get nodes -o jsonpath='{range .items[*]}`+
 		`{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{" "}`+
 		`{range .status.conditions[?(@.type=="Ready")]}{.status}{end}{" "}`+
-		`{.status.nodeInfo.kubeletVersion}{"\n"}{end}' 2>/dev/null`)
+		`{.status.nodeInfo.kubeletVersion}{" "}{.spec.unschedulable}{"\n"}{end}' 2>/dev/null`)
 	if err != nil || !res.OK() {
 		return out
 	}
 	for _, line := range strings.Split(res.Out(), "\n") {
-		if f := strings.Fields(line); len(f) == 3 {
-			out[f[0]] = clusterView{ready: f[1] == "True", kubelet: f[2]}
+		// The fourth field is absent on a node that was never cordoned:
+		// the API leaves spec.unschedulable out rather than writing false.
+		if f := strings.Fields(line); len(f) == 3 || len(f) == 4 {
+			out[f[0]] = clusterView{ready: f[1] == "True", kubelet: f[2],
+				unschedulable: len(f) == 4 && f[3] == "true"}
 		}
 	}
 	return out

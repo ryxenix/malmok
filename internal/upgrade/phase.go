@@ -148,7 +148,7 @@ func NodeSteps(phase string, runner, control exec.Runner, node v1alpha1.NodeSpec
 
 	var steps []engine.Step
 	if !o.SingleNode {
-		steps = append(steps, onControl(drainStep(addr, o)))
+		steps = append(steps, onControl(drainStep(addr, want, o)))
 	}
 	steps = append(steps,
 		onNode(rke2.InstallStep(want.String(), kind, o.RKE2)),
@@ -182,7 +182,13 @@ func nodeName(addr string) string {
 // The observable is not "drain was run" -- that is an action, and an action is
 // not a state anything can be resumed from. It is that the node is
 // unschedulable and no pod is left on it that would have to be evicted.
-func drainStep(addr string, o Options) *engine.ShellStep {
+//
+// A node the cluster already reports on the target needs no drain: an earlier
+// run moved it, and draining it again on a second run after an interruption
+// only moved its workloads for nothing before reaching the node left behind.
+// The uncordon after it still runs, so a node stopped between the two is let
+// back to work.
+func drainStep(addr string, want Version, o Options) *engine.ShellStep {
 	// Counted by what owns a pod, not by what it is called.
 	//
 	// A drain does not evict two kinds of pod, and both stay behind on a node
@@ -211,11 +217,14 @@ func drainStep(addr string, o Options) *engine.ShellStep {
 	return &engine.ShellStep{
 		Name: "drain",
 		Check: rke2.Kubectl + nodeName(addr) + fmt.Sprintf(`
+running=$(kubectl get node "$node" -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null || true)
+[ "$running" = %s ] && { echo "$node already runs %s"; exit 0; }
 sched=$(kubectl get node "$node" -o jsonpath='{.spec.unschedulable}' 2>/dev/null || true)
 [ "$sched" = "true" ] || { echo "$node still accepts work"; exit 1; }
 left=$(%s)
 [ "$left" = "0" ] || { echo "$node still runs $left pod(s) that would be evicted"; exit 1; }
-echo "$node is cordoned and its workloads have moved"`, remaining),
+echo "$node is cordoned and its workloads have moved"`,
+			rke2.ShellQuote(want.String()), want.String(), remaining),
 
 		Do: rke2.Kubectl + nodeName(addr) + fmt.Sprintf(`
 kubectl drain "$node" --ignore-daemonsets --delete-emptydir-data --timeout=%ds%s`,

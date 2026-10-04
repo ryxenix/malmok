@@ -14,6 +14,16 @@
   air-gapped restore are not rehearsed, and the guide and README say so.
 
 ### Fixed
+- An upgrade interrupted after the servers moved can be finished. UP-002
+  compared the target only with the servers, so a second run to the same
+  version was refused as "not newer" once the servers were on it, and the
+  agents behind them stayed on the old release with one left cordoned. Found
+  on the lab by killing an air-gapped upgrade during an agent's restart. Now
+  UP-002 passes when an agent is still behind the target or a node is still
+  cordoned, and fails only when every node runs the target and accepts work.
+  The drain also leaves alone a node the cluster already reports on the
+  target, so a second run without `--resume` no longer drains the finished
+  servers again before reaching the agent.
 - UP-103, the upgrade's etcd snapshot check, looks where the document puts the
   snapshots and says whether "none" means none. It read one fixed directory
   and folded every failure into "no snapshot", so a cluster snapshotting into

@@ -34,7 +34,9 @@ var upgradeCodes = []Code{
 		ID: "UP-002", Family: FamilyUpgrade, Category: catUPVersion,
 		Summary: "Target is newer than what runs",
 		Message: "The target is not newer than the version already running. Kubernetes and etcd have no supported downgrade: " +
-			"the API server writes storage the older one cannot read, and restoring a snapshot is the only way back",
+			"the API server writes storage the older one cannot read, and restoring a snapshot is the only way back. " +
+			"An upgrade interrupted after the servers moved passes: agents still behind the target, or a node still " +
+			"cordoned, are finished rather than refused",
 		Severity: SeverityBlock,
 	},
 	{

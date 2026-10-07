@@ -54,6 +54,16 @@
   an agent whose time source was a server that had just rebooted too was
   still 0.18s out after two minutes, and the run stopped for nothing. PF-502
   refuses a second.
+- The verification harness's air gap now records what tried to leave, and cuts
+  IPv6 too. Each dropped packet is logged with its destination, and when the
+  case ends each node's drops are written to the run directory and printed by
+  chain, destination, protocol and port, with the pods the forwarded ones came
+  from. The table is `inet` rather than `ip`, with link-local and multicast
+  left open; the lab has no IPv6 route out, so this is a guard for a site that
+  does, not something the lab exercises. The first logged run showed two kinds
+  of drop on the server and none on the agent: the lab's NTP pool, and one pull
+  of the pause image during the first start -- containerd asked for it while
+  RKE2 was still importing the archive that holds it, and the import won.
 
 ## [0.96.7] - 2026-10-01
 

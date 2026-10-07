@@ -811,15 +811,49 @@ echo "staged $(basename "$b")"`, c.ArtifactPath, c.ArtifactPath))
 	}
 
 	for _, host := range []string{server, agent} {
-		r.rootOn(host, airgapOn)
+		r.t.Logf("%s: %s", host, strings.ReplaceAll(r.rootOutput(host, airgapOn), "\n", "; "))
 	}
 	// Restored even when the case fails: a node left cut off makes every
-	// later case fail for a reason that has nothing to do with it.
+	// later case fail for a reason that has nothing to do with it. What tried
+	// to leave is read first, while the rule that logged it still exists.
 	return func() {
 		for _, host := range []string{server, agent} {
+			r.recordDrops(host)
 			r.rootOn(host, airgapOff)
 		}
 	}
+}
+
+// recordDrops keeps what each node tried to reach while it was cut off.
+//
+// "Nothing got out" is what the drop rule guarantees; what an air-gapped site
+// needs to know is what tried, because each of those is a firewall ticket or a
+// defect. The first logged run found two: a pull of the pause image racing
+// its own import, and the lab's NTP pool. Written to the run directory beside
+// the logs and summarised in the test output, and recorded whether the case
+// passed or not -- a failure is when it matters most.
+func (r *labRun) recordDrops(host string) {
+	r.t.Helper()
+	out, err := r.rootRun(host, airgapDrops, 2*time.Minute)
+	path := filepath.Join(r.dir, "airgap-drops-"+host+".txt")
+	if werr := os.WriteFile(path, []byte(out+"\n"), 0o644); werr != nil {
+		r.t.Errorf("write %s: %v", path, werr)
+	}
+	if err != nil {
+		r.t.Errorf("reading what %s tried to reach: %v\n%s", host, err, out)
+		return
+	}
+	r.t.Logf("%s, dropped while cut off (%s):\n%s", host, path, out)
+}
+
+// rootOutput is rootOn for a script whose output is worth keeping.
+func (r *labRun) rootOutput(host, script string) string {
+	r.t.Helper()
+	out, err := r.rootRun(host, script, 2*time.Minute)
+	if err != nil {
+		r.t.Fatalf("%v\n%s", err, out)
+	}
+	return out
 }
 
 // airgapOn cuts the node off, pods included.
@@ -837,36 +871,73 @@ echo "staged $(basename "$b")"`, c.ArtifactPath, c.ArtifactPath))
 // with Cilium restarted after it, a pod timed out reaching github.com and
 // still reached the segment.
 //
+// The table is inet, so IPv6 is cut as well. The lab nodes have no IPv6 route
+// out, but a site's nodes may, and a cut that holds only because of how this
+// lab happens to be addressed proves nothing about one that has a route. Link
+// local and multicast stay open: neighbour discovery is the segment, not the
+// internet.
+//
+// Every drop is logged with where it was going, rate-limited so a loop cannot
+// fill the kernel log; the counter still counts what the limit did not log.
+// The time of the cut is kept so recordDrops reads only what happened since.
+//
 // "fwd" is an nftables keyword and cannot name a chain, which is why the
 // chains carry the table's prefix.
 const airgapOn = `set -e
 nft list table ip malmok_airgap >/dev/null 2>&1 && nft delete table ip malmok_airgap
+nft list table inet malmok_airgap >/dev/null 2>&1 && nft delete table inet malmok_airgap
 nft -f - <<'N'
-table ip malmok_airgap {
+table inet malmok_airgap {
 	chain malmok_output {
 		type filter hook output priority -5; policy accept;
 		oifname "lo" accept
 		ip daddr { 192.168.88.0/24, 10.42.0.0/16, 10.43.0.0/16, 127.0.0.0/8 } accept
+		ip6 daddr { fe80::/10, ff00::/8 } accept
+		limit rate 20/second burst 50 packets log prefix "malmok-airgap-out: "
 		counter drop
 	}
 	chain malmok_forward {
 		type filter hook forward priority -5; policy accept;
 		ip daddr { 192.168.88.0/24, 10.42.0.0/16, 10.43.0.0/16, 127.0.0.0/8 } accept
+		ip6 daddr { fe80::/10, ff00::/8 } accept
+		limit rate 20/second burst 50 packets log prefix "malmok-airgap-fwd: "
 		counter drop
 	}
 }
 N
-nft list table ip malmok_airgap >/dev/null
-echo "egress dropped"`
+nft list table inet malmok_airgap >/dev/null
+date +%s > /run/malmok-airgap.since
+printf 'egress dropped and logged, IPv4 and IPv6; ipv6 default route: '
+ip -6 route show default | grep -q . && echo present || echo none`
 
-// airgapOff removes the table, and the iptables chain an earlier harness left
-// behind if it is still there.
+// airgapDrops summarises what the node tried to reach since the cut: the
+// counters, then each destination by chain, protocol and port, then which
+// pods the forwarded drops came from. The kernel log is read rather than
+// conntrack because a dropped connection never becomes an entry there.
+const airgapDrops = `set -e
+since=$(cat /run/malmok-airgap.since 2>/dev/null || true)
+[ -n "$since" ] || { echo "no record of when the node was cut off; it rebooted, or the cut never ran"; exit 1; }
+nft list table inet malmok_airgap >/dev/null 2>&1 || { echo "the drop table is gone, so the counters are too"; exit 1; }
+echo "dropped (output, forward): $(nft list table inet malmok_airgap | grep -oE 'packets [0-9]+' | awk '{print $2}' | paste -sd, -)"
+journalctl -k --no-pager -o cat --since "@$since" | grep 'malmok-airgap-' > /tmp/malmok-drops || true
+echo "logged: $(wc -l < /tmp/malmok-drops)"
+sed -E 's/.*malmok-airgap-(out|fwd): .*SRC=([^ ]+) DST=([^ ]+) .*PROTO=([A-Za-z0-9]+)( .*DPT=([0-9]+))?.*/\1 \3 \4 \6/' /tmp/malmok-drops |
+  sort | uniq -c | sort -rn | head -30
+grep 'malmok-airgap-fwd' /tmp/malmok-drops | grep -oE 'SRC=[^ ]+' | sort | uniq -c | sort -rn | sed 's/SRC=/pod source /' | head -10
+rm -f /tmp/malmok-drops`
+
+// airgapOff removes the table, the IPv4-only table an earlier harness made,
+// and the iptables chain one before that, if either is still there.
 const airgapOff = `
+nft list table inet malmok_airgap >/dev/null 2>&1 && nft delete table inet malmok_airgap
 nft list table ip malmok_airgap >/dev/null 2>&1 && nft delete table ip malmok_airgap
 for chain in OUTPUT FORWARD; do iptables -D "$chain" -j MALMOK_AIRGAP 2>/dev/null || true; done
 iptables -F MALMOK_AIRGAP 2>/dev/null || true
 iptables -X MALMOK_AIRGAP 2>/dev/null || true
-nft list table ip malmok_airgap >/dev/null 2>&1 && { echo "the table is still there"; exit 1; }
+rm -f /run/malmok-airgap.since
+for family in inet ip; do
+  nft list table $family malmok_airgap >/dev/null 2>&1 && { echo "the $family table is still there"; exit 1; }
+done
 echo "egress restored"`
 
 // onHost runs a check on a named node. onNode is the same thing against the

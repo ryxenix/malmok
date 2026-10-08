@@ -91,6 +91,10 @@ kube-vip 이 붙을 인터페이스가 없어 VIP 케이스가 `vip-interface` �
 플랫폼 이미지 번들이다. 번들은 `MALMOK_IMAGE_ARCHES=amd64 scripts/airgap-images.sh <tag>`
 로 만들어 아티팩트 옆에 둔다 — 케이스가 와이프 뒤에 `/var/lib/rancher/rke2/agent/images/`
 로 옮긴다. 미리 거기 넣어둘 수 없다: 와이프가 `/var/lib/rancher` 를 통째로 지운다.
+옮길 때 이름 앞에 `zz-` 를 붙인다 — RKE2 가 이름 순서로 적재하므로, 원래 이름이면
+번들이 먼저 들어가 pause 이미지가 늦고 containerd 가 docker.io 로 한 번 나가려 한다.
+케이스가 끝나면 노드마다 차단된 외부 접속을 목적지별로 `airgap-drops-<노드>.txt`
+에 남긴다.
 
 - 케이스마다 **두 노드를 완전 초기화하고 재부팅**한다. 따라서 파괴해도 되는
   구간에만 겨눈다 (`MALMOK_LAB_SERVER` / `MALMOK_LAB_AGENT` 로 지정).

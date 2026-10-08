@@ -64,6 +64,14 @@
   of drop on the server and none on the agent: the lab's NTP pool, and one pull
   of the pause image during the first start -- containerd asked for it while
   RKE2 was still importing the archive that holds it, and the import won.
+- The air-gap guide says to give the platform image bundle a name that sorts
+  after RKE2's own archives in `agent/images/`, such as
+  `zz-malmok-images_<tag>_linux_<arch>.tar.zst`. RKE2 imports that directory
+  in name order; under its own name the bundle went first, the pause image
+  arrived about twenty seconds after containerd first asked for it, and
+  containerd spent thirty seconds trying docker.io. The harness stages it that
+  way, and on the lab the air-gapped build then dropped no HTTPS at all -- the
+  lab's NTP pool was the only thing that tried to leave.
 
 ## [0.96.7] - 2026-10-01
 

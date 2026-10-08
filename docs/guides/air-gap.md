@@ -26,7 +26,12 @@ Prepare these on a connected staging machine:
   in the name can be older than the release you are installing. Put it on each
   node in
   `/var/lib/rancher/rke2/agent/images/` before RKE2 starts, and containerd
-  imports it the way it imports RKE2's own archives. To check the list rather
+  imports it the way it imports RKE2's own archives. Give it a name that sorts
+  after RKE2's archives, such as
+  `zz-malmok-images_<tag>_linux_<arch>.tar.zst`: RKE2 imports the directory in
+  name order, and under its own name the bundle goes first, so the pause image
+  arrives late and containerd tries docker.io for it once on the first start.
+  The install still succeeds, but a closed site's firewall logs the attempt. To check the list rather
   than carry the bundle, `malmok images -f cluster.yaml` prints it and answers
   on a machine with no network; `images.txt` in the release is the same list
   for planning before you have anywhere to run the binary; and

@@ -773,6 +773,12 @@ done`, c.ArtifactPath))
 	// rather than out of band, because the wipe removes /var/lib/rancher
 	// entirely: anything put there before the case is gone by the time the
 	// case runs.
+	//
+	// Copied under a name that sorts after RKE2's own archives, as the
+	// air-gap guide says to. RKE2 imports the directory in name order, and
+	// under its own name the bundle went first: containerd asked for the
+	// pause image to start etcd while RKE2 was still importing the archive
+	// that holds it, and tried docker.io for it before the import won.
 	for _, host := range []string{server, agent} {
 		r.rootOn(host, fmt.Sprintf(`set -e
 b=$(ls %s/malmok-images_*linux_amd64.tar.zst 2>/dev/null | head -1)
@@ -783,8 +789,8 @@ if [ -z "$b" ]; then
   exit 1
 fi
 install -d -m 0755 /var/lib/rancher/rke2/agent/images
-cp -f "$b" /var/lib/rancher/rke2/agent/images/
-echo "staged $(basename "$b")"`, c.ArtifactPath, c.ArtifactPath))
+cp -f "$b" "/var/lib/rancher/rke2/agent/images/zz-$(basename "$b")"
+echo "staged $(basename "$b") as zz-$(basename "$b")"`, c.ArtifactPath, c.ArtifactPath))
 	}
 
 	// The charts go beside the document, which is what a staging machine does

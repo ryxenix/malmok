@@ -72,6 +72,13 @@
   containerd spent thirty seconds trying docker.io. The harness stages it that
   way, and on the lab the air-gapped build then dropped no HTTPS at all -- the
   lab's NTP pool was the only thing that tried to leave.
+- The README's verification table, the upgrade and recovery guide and the
+  verification matrix describe the air-gapped upgrade and restore as run with
+  the pods cut off too: an upgrade killed twice and finished, and both restore
+  procedures, in place and onto a wiped server. The upgrade guide says how to
+  finish an interrupted upgrade. The restore row records an observation not
+  yet explained: the agent the interrupted upgrade left on v1.35.8 reported
+  v1.36.4 after the in-place restore.
 
 ## [0.96.7] - 2026-10-01
 

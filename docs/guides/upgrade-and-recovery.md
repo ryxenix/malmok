@@ -50,14 +50,27 @@ staged for the upgrade.
 
 !!! info "Verification scope"
 
-    Verified by hand on real machines with the nodes' own egress dropped,
-    not as a matrix case (pod egress was not blocked; see the README's
-    verification table): a server and an agent built at v1.35.8+rke2r1 from carried
-    artifacts, refused by `UP-006` with nothing changed while the directory
-    still held v1.35.8, then moved to v1.36.4+rke2r1 once it was restaged.
-    Three servers, and an air-gapped upgrade that fails or is interrupted part
-    way, have not been run. Releases before this change did not read the
-    artifact path during an upgrade at all.
+    Verified by hand on real machines, not as a matrix case: a server and an
+    agent built at v1.35.8+rke2r1 from carried artifacts, refused by `UP-006`
+    with nothing changed while the directory still held v1.35.8, then moved to
+    v1.36.4+rke2r1 once it was restaged. First with the nodes' own egress
+    dropped, then with the pods cut off as well, and the second time killed
+    during the server's install and again during the agent's restart, then
+    finished as described below. Three servers, and an air-gapped upgrade that
+    fails part way rather than being killed, have not been run. Releases before
+    this change did not read the artifact path during an upgrade at all.
+
+### Finishing an interrupted upgrade
+
+Run the same `malmok upgrade --to` again, with `--resume RUN_ID` or without.
+The servers move first, so an upgrade stopped after them leaves the control
+plane on the target with agents still behind, or a node still cordoned; the
+preconditions pass for that state and the run finishes those nodes. A node the
+cluster already reports on the target is not drained again, and its uncordon
+still runs, so a node stopped between the two is let back to work. Only when
+every node runs the target and accepts work is the run refused, by `UP-002`.
+Before this was fixed, a second run in that state was refused as "not newer"
+and the agents stayed where they were.
 
 ## Resume an interrupted run
 
@@ -177,8 +190,10 @@ on one and start it, then on each of the others delete
     agent on v1.36.4, with egress allowed. In place, and onto the same server
     wiped and reinstalled from the saved token, configuration and manifests.
     Both times a ConfigMap made before the snapshot came back, one made after
-    it was gone, both nodes were Ready and the agent had rejoined. Three
-    servers and an air-gapped restore have not been rehearsed. On a cluster
+    it was gone, both nodes were Ready and the agent had rejoined. Both were
+    then repeated with the nodes and their pods cut off, on a cluster just
+    upgraded under the air gap, with the same results. Three servers have not
+    been rehearsed. On a cluster
     using the embedded mirror, `rke2 etcd-snapshot save` prints "Unknown flag
     --embedded-registry found in config.yaml, skipping"; the snapshot was
     taken and restored regardless.

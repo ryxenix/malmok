@@ -72,6 +72,12 @@
   containerd spent thirty seconds trying docker.io. The harness stages it that
   way, and on the lab the air-gapped build then dropped no HTTPS at all -- the
   lab's NTP pool was the only thing that tried to leave.
+- A time source for the lab, `test/lab/ntp/compose.yaml`: chrony in a
+  container on the LAN, serving the lab segment and never setting its host's
+  clock. The lab nodes took their time from the Ubuntu NTP pool, which the
+  air-gapped case cuts off, so for a whole case their clocks had no source and
+  most of the drop log was NTP; and the agent's only source was the server,
+  which reboots in the same wipe. The nodes now point at it.
 - The README's verification table, the upgrade and recovery guide and the
   verification matrix describe the air-gapped upgrade and restore as run with
   the pods cut off too: an upgrade killed twice and finished, and both restore

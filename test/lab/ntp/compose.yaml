@@ -1,0 +1,30 @@
+# A time source for the lab, on the LAN rather than on the internet.
+#
+# The lab nodes took their time from the Ubuntu NTP pool. The air-gapped case
+# drops everything that leaves the segment, so for the whole of a case the
+# nodes' clocks had no source at all, and the drop log was mostly NTP. A closed
+# site has a time source of its own inside the boundary; this is the lab's.
+#
+# It also takes the nodes off one another. The agent's only source used to be
+# the server, which reboots in the same wipe, and a case once failed waiting
+# for the agent's clock because its source was itself still starting.
+#
+# chronyd runs with -x: it follows its upstreams and serves what it has, but
+# never sets this machine's clock, which the host's own chrony keeps.
+#
+#   sudo docker compose -f test/lab/ntp/compose.yaml up -d
+#   chronyc -h <this host> tracking
+name: malmok-lab-ntp
+
+services:
+  chrony:
+    container_name: malmok-lab-ntp
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM alpine:3.22
+        RUN apk add --no-cache chrony
+        ENTRYPOINT ["chronyd", "-d", "-x", "-f", "/etc/chrony/chrony.conf"]
+    restart: unless-stopped
+    ports: ["123:123/udp"]
+    volumes: ["./chrony.conf:/etc/chrony/chrony.conf:ro"]

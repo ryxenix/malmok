@@ -66,6 +66,15 @@ var (
 	// the air-gapped case skips and says what to stage.
 	airgapVersion = os.Getenv("MALMOK_LAB_AIRGAP_VERSION")
 
+	// airgapFrom is the release the lifecycle case builds at before upgrading
+	// to airgapVersion. Both are staged on every node: airgapVersion's in the
+	// artifact path, or beside it as <path>-<version>, and the same for this
+	// one. The harness swaps the two directories by name -- they are 2GB each
+	// and are never copied per run -- and reads which release a directory
+	// holds from the rke2 binary inside its tarball, the way UP-006 does.
+	// Unset, the lifecycle case skips.
+	airgapFrom = os.Getenv("MALMOK_LAB_AIRGAP_FROM")
+
 	// mirror is the address of the pull-through cache in
 	// test/lab/cache/compose.yaml, or "" for no cache.
 	//
@@ -203,11 +212,19 @@ type labRun struct {
 	// channels had converged, and skipped.
 	older string
 	dir   string
+	// airgapAt is the release an air-gapped case's document asks for and its
+	// nodes' artifact path holds: airgapVersion, or airgapFrom for the
+	// lifecycle case until it upgrades.
+	airgapAt string
 }
 
 // execute builds the case and then does to it whatever its operation says.
 func (r *labRun) execute(c matrix.Case) {
 	if c.Network == "airgap" {
+		r.airgapAt = airgapVersion
+		if c.Op == matrix.OpLifecycle {
+			r.airgapAt = airgapFrom
+		}
 		defer r.prepareAirgap(c)()
 	}
 	doc := r.write(c, false)
@@ -265,6 +282,15 @@ func (r *labRun) execute(c matrix.Case) {
 		r.onNode(fmt.Sprintf(`n=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers | awk '$2=="Ready"' | wc -l); `+
 			`[ "$n" = %d ] || { kubectl get nodes; exit 1; }`, c.Nodes))
 		r.failover()
+
+	case matrix.OpLifecycle:
+		r.apply(doc, 40*time.Minute)
+		r.expectVersion(airgapFrom)
+		r.onNode(fmt.Sprintf(`n=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers | awk '$2=="Ready"' | wc -l); `+
+			`[ "$n" = %d ] || { kubectl get nodes; exit 1; }`, c.Nodes))
+		r.failover()
+		r.upgradeLosingArtifacts(c, doc)
+		r.restoreAll(c)
 	}
 
 	r.expectHealthy(c)
@@ -284,7 +310,7 @@ func (r *labRun) write(c matrix.Case, grown bool) string {
 		// The nodes hold one release. Asking for another is a document that
 		// cannot be satisfied without a network, which is the one thing this
 		// case does not have.
-		version = airgapVersion
+		version = r.airgapAt
 	}
 	doc := c.Document(version, matrix.Hosts{
 		Server: server, Agent: agent, Third: third, User: user, PasswordRef: "env://NODE_PASSWORD",
@@ -529,6 +555,8 @@ func (r *labRun) wipe() {
 }
 
 const wipeScript = `
+[ ! -f /etc/systemd/system/malmok-airgap.service ] || systemctl disable --now --quiet malmok-airgap.service
+rm -f /etc/systemd/system/malmok-airgap.service /etc/malmok-airgap.nft /var/lib/malmok-airgap.since
 [ -x /usr/local/bin/rke2-killall.sh ] && /usr/local/bin/rke2-killall.sh >/dev/null 2>&1 || true
 [ -x /usr/local/bin/rke2-uninstall.sh ] && /usr/local/bin/rke2-uninstall.sh >/dev/null 2>&1 || true
 rm -f /usr/local/bin/kubectl /usr/local/bin/k9s
@@ -749,10 +777,17 @@ func (r *labRun) prepareAirgap(c matrix.Case) func() {
 			"different version", c.ArtifactPath)
 	}
 
+	// The release the case builds at goes into the artifact path first: the
+	// lifecycle case leaves the newer one there, and the next case would
+	// otherwise build from whatever the last one finished on.
+	for _, host := range caseHosts(c) {
+		r.t.Logf("%s: %s", host, r.stageRelease(host, c.ArtifactPath, r.airgapAt))
+	}
+
 	// The artifacts are staged out of band -- they are 1.3GB and survive a
 	// wipe -- so this asks rather than copies, and says exactly what is
 	// missing rather than failing later inside the install.
-	for _, host := range []string{server, agent} {
+	for _, host := range caseHosts(c) {
 		r.onHost(host, fmt.Sprintf(
 			`d=%s
 [ -d "$d" ] || { echo "no artifact directory at $d; stage the RKE2 release into it"; exit 1; }
@@ -779,7 +814,7 @@ done`, c.ArtifactPath))
 	// under its own name the bundle went first: containerd asked for the
 	// pause image to start etcd while RKE2 was still importing the archive
 	// that holds it, and tried docker.io for it before the import won.
-	for _, host := range []string{server, agent} {
+	for _, host := range caseHosts(c) {
 		r.rootOn(host, fmt.Sprintf(`set -e
 b=$(ls %s/malmok-images_*linux_amd64.tar.zst 2>/dev/null | head -1)
 if [ -z "$b" ]; then
@@ -816,14 +851,14 @@ echo "staged $(basename "$b") as zz-$(basename "$b")"`, c.ArtifactPath, c.Artifa
 		}
 	}
 
-	for _, host := range []string{server, agent} {
+	for _, host := range caseHosts(c) {
 		r.t.Logf("%s: %s", host, strings.ReplaceAll(r.rootOutput(host, airgapOn), "\n", "; "))
 	}
 	// Restored even when the case fails: a node left cut off makes every
 	// later case fail for a reason that has nothing to do with it. What tried
 	// to leave is read first, while the rule that logged it still exists.
 	return func() {
-		for _, host := range []string{server, agent} {
+		for _, host := range caseHosts(c) {
 			r.recordDrops(host)
 			r.rootOn(host, airgapOff)
 		}
@@ -887,12 +922,19 @@ func (r *labRun) rootOutput(host, script string) string {
 // fill the kernel log; the counter still counts what the limit did not log.
 // The time of the cut is kept so recordDrops reads only what happened since.
 //
+// The rules are loaded at boot as well, by a unit ordered before the network
+// comes up. The lifecycle case reboots a server to fail it over, and a table
+// held only in memory came back without it: the server would have rejoined
+// with egress open, and the case would have reported a closed network that
+// had been open for its own failover. The wipe removes the unit, so a run
+// that dies with the cut in place does not leave it for the next case.
+//
 // "fwd" is an nftables keyword and cannot name a chain, which is why the
 // chains carry the table's prefix.
 const airgapOn = `set -e
 nft list table ip malmok_airgap >/dev/null 2>&1 && nft delete table ip malmok_airgap
 nft list table inet malmok_airgap >/dev/null 2>&1 && nft delete table inet malmok_airgap
-nft -f - <<'N'
+cat > /etc/malmok-airgap.nft <<'N'
 table inet malmok_airgap {
 	chain malmok_output {
 		type filter hook output priority -5; policy accept;
@@ -911,8 +953,26 @@ table inet malmok_airgap {
 	}
 }
 N
+nft -f /etc/malmok-airgap.nft
+cat > /etc/systemd/system/malmok-airgap.service <<'U'
+[Unit]
+Description=Lab air gap for the Malmok verification harness
+DefaultDependencies=no
+Before=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/malmok-airgap.nft
+
+[Install]
+WantedBy=sysinit.target
+U
+systemctl daemon-reload
+systemctl enable --quiet malmok-airgap.service
 nft list table inet malmok_airgap >/dev/null
-date +%s > /run/malmok-airgap.since
+date +%s > /var/lib/malmok-airgap.since
 printf 'egress dropped and logged, IPv4 and IPv6; ipv6 default route: '
 ip -6 route show default | grep -q . && echo present || echo none`
 
@@ -921,10 +981,10 @@ ip -6 route show default | grep -q . && echo present || echo none`
 // pods the forwarded drops came from. The kernel log is read rather than
 // conntrack because a dropped connection never becomes an entry there.
 const airgapDrops = `set -e
-since=$(cat /run/malmok-airgap.since 2>/dev/null || true)
-[ -n "$since" ] || { echo "no record of when the node was cut off; it rebooted, or the cut never ran"; exit 1; }
-nft list table inet malmok_airgap >/dev/null 2>&1 || { echo "the drop table is gone, so the counters are too"; exit 1; }
-echo "dropped (output, forward): $(nft list table inet malmok_airgap | grep -oE 'packets [0-9]+' | awk '{print $2}' | paste -sd, -)"
+since=$(cat /var/lib/malmok-airgap.since 2>/dev/null || true)
+[ -n "$since" ] || { echo "no record of when the node was cut off; the cut never ran"; exit 1; }
+nft list table inet malmok_airgap >/dev/null 2>&1 || { echo "the drop table is gone, so the node was not cut off at the end"; exit 1; }
+echo "dropped since the last boot (output, forward): $(nft list table inet malmok_airgap | grep -oE 'packets [0-9]+' | awk '{print $2}' | paste -sd, -)"
 journalctl -k --no-pager -o cat --since "@$since" | grep 'malmok-airgap-' > /tmp/malmok-drops || true
 echo "logged: $(wc -l < /tmp/malmok-drops)"
 sed -E 's/.*malmok-airgap-(out|fwd): .*SRC=([^ ]+) DST=([^ ]+) .*PROTO=([A-Za-z0-9]+)( .*DPT=([0-9]+))?.*/\1 \3 \4 \6/' /tmp/malmok-drops |
@@ -932,23 +992,28 @@ sed -E 's/.*malmok-airgap-(out|fwd): .*SRC=([^ ]+) DST=([^ ]+) .*PROTO=([A-Za-z0
 grep 'malmok-airgap-fwd' /tmp/malmok-drops | grep -oE 'SRC=[^ ]+' | sort | uniq -c | sort -rn | sed 's/SRC=/pod source /' | head -10
 rm -f /tmp/malmok-drops`
 
-// airgapOff removes the table, the IPv4-only table an earlier harness made,
-// and the iptables chain one before that, if either is still there.
+// airgapOff removes the table and the unit that reloads it at boot, the
+// IPv4-only table an earlier harness made, and the iptables chain one before
+// that, if either is still there.
 const airgapOff = `
+[ ! -f /etc/systemd/system/malmok-airgap.service ] || systemctl disable --now --quiet malmok-airgap.service
+rm -f /etc/systemd/system/malmok-airgap.service /etc/malmok-airgap.nft
+systemctl daemon-reload
 nft list table inet malmok_airgap >/dev/null 2>&1 && nft delete table inet malmok_airgap
 nft list table ip malmok_airgap >/dev/null 2>&1 && nft delete table ip malmok_airgap
 for chain in OUTPUT FORWARD; do iptables -D "$chain" -j MALMOK_AIRGAP 2>/dev/null || true; done
 iptables -F MALMOK_AIRGAP 2>/dev/null || true
 iptables -X MALMOK_AIRGAP 2>/dev/null || true
-rm -f /run/malmok-airgap.since
+rm -f /var/lib/malmok-airgap.since
 for family in inet ip; do
   nft list table $family malmok_airgap >/dev/null 2>&1 && { echo "the $family table is still there"; exit 1; }
 done
 echo "egress restored"`
 
-// onHost runs a check on a named node. onNode is the same thing against the
-// server, and predates there being a second machine worth asking.
-func (r *labRun) onHost(host, script string) {
+// onHost runs a check on a named node, and returns what it printed. onNode is
+// the same thing against the server, and predates there being a second
+// machine worth asking.
+func (r *labRun) onHost(host, script string) string {
 	r.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -965,6 +1030,7 @@ func (r *labRun) onHost(host, script string) {
 	if err != nil || !res.OK() {
 		r.t.Fatalf("%s (exit %d): %s\n%s\n%s", host, res.ExitCode, script, res.Out(), res.Err())
 	}
+	return strings.TrimSpace(res.Out())
 }
 
 // rootOn runs a script as root, for the things only root can do to a node.
@@ -1159,10 +1225,11 @@ func notRunnable(c matrix.Case) string {
 			"kube-vip claims it on an interface, so it cannot be a documentation range"
 	case c.Exposure == "lb-pool" && lbPool == "":
 		return "set MALMOK_LAB_LB_POOL to a free CIDR on the nodes' segment"
-	// Skipped rather than run as a plain build: a lifecycle case that only
-	// built would pass and be read as the lifecycle having passed.
-	case c.Op == matrix.OpLifecycle:
-		return "the lifecycle operation is not wired into the harness yet"
+	// The lifecycle upgrades between two carried releases, and the harness
+	// cannot fetch either.
+	case c.Op == matrix.OpLifecycle && airgapFrom == "":
+		return "set MALMOK_LAB_AIRGAP_FROM to the release the lifecycle case builds at, " +
+			"staged on every node beside MALMOK_LAB_AIRGAP_VERSION's as <artifact path>-<version>"
 	}
 	return ""
 }
@@ -1241,28 +1308,8 @@ func (r *labRun) failover() {
 			"so the check would prove nothing", holder, id)
 	}
 
-	// A write, through the address, from a server that was not lost. The
-	// kubeconfig on every server points at its own API server; --server sends
-	// the request to the VIP instead, which is the address kubelets and
-	// clients are given -- and whose certificate has to name it.
-	probe := fmt.Sprintf("malmok-failover-%d", time.Now().Unix())
-	out, err := r.rootRun(moved, kubeRoot+fmt.Sprintf(`k="kubectl --server https://%s:6443 --request-timeout=10s"
-out=""
-for i in $(seq 1 24); do
-  if out=$(printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: default\ndata:\n  at: "%%s"\n' "$(date +%%s)" | $k apply -f - 2>&1); then
-    $k -n default delete configmap %s --ignore-not-found >/dev/null 2>&1
-    echo "a write through the VIP landed with %s down"
-    exit 0
-  fi
-  sleep 5
-done
-echo "no write through the VIP landed within 2m. The last answer was:"
-echo "$out"
-exit 1`, vip, probe, probe, holder), 4*time.Minute)
-	if err != nil {
-		r.t.Fatalf("%v\n%s", err, out)
-	}
-	r.t.Log(out)
+	// A write, through the address, from a server that was not lost.
+	r.t.Log(r.writeThroughVIP(moved, holder+" down"))
 
 	// And the lost server comes back by itself. Nothing here starts it: a
 	// server that needs somebody to log in after a power cut is not highly
@@ -1277,7 +1324,7 @@ exit 1`, vip, probe, probe, holder), 4*time.Minute)
 		}
 		time.Sleep(5 * time.Second)
 	}
-	out, err = r.rootRun(moved, kubeRoot+fmt.Sprintf(`k="kubectl --server https://%s:6443 --request-timeout=10s"
+	out, err := r.rootRun(moved, kubeRoot+fmt.Sprintf(`k="kubectl --server https://%s:6443 --request-timeout=10s"
 for i in $(seq 1 60); do
   n=$($k get nodes --no-headers 2>/dev/null | awk '$2=="Ready"' | wc -l)
   [ "$n" -ge %d ] && { echo "all %d servers are Ready again"; exit 0; }
@@ -1287,6 +1334,251 @@ $k get nodes 2>&1
 exit 1`, vip, len(servers), len(servers)), 12*time.Minute)
 	if err != nil {
 		r.t.Fatalf("%s did not rejoin within 10m: %v\n%s", holder, err, out)
+	}
+	r.t.Log(out)
+}
+
+// writeThroughVIP makes a write through the VIP from one server, retrying for
+// two minutes, and fails the test if none lands.
+//
+// A read can be served from the API server's cache with etcd in pieces; a
+// write needs a quorum to agree, so a write is the observable. The kubeconfig
+// on every server points at its own API server; --server sends the request to
+// the VIP instead, which is the address kubelets and clients are given -- and
+// whose certificate has to name it.
+func (r *labRun) writeThroughVIP(from, while string) string {
+	r.t.Helper()
+	probe := fmt.Sprintf("malmok-write-%d", time.Now().UnixNano())
+	out, err := r.rootRun(from, kubeRoot+fmt.Sprintf(`k="kubectl --server https://%s:6443 --request-timeout=10s"
+out=""
+for i in $(seq 1 24); do
+  if out=$(printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: default\ndata:\n  at: "%%s"\n' "$(date +%%s)" | $k apply -f - 2>&1); then
+    $k -n default delete configmap %s --ignore-not-found >/dev/null 2>&1
+    echo "a write through the VIP landed with %s"
+    exit 0
+  fi
+  sleep 5
+done
+echo "no write through the VIP landed within 2m. The last answer was:"
+echo "$out"
+exit 1`, vip, probe, probe, while), 4*time.Minute)
+	if err != nil {
+		r.t.Fatalf("%v\n%s", err, out)
+	}
+	return out
+}
+
+// caseHosts are the machines a case is built on: the server and the agent,
+// and the third machine when the case is three servers.
+func caseHosts(c matrix.Case) []string {
+	if c.Nodes == 3 {
+		return []string{server, agent, third}
+	}
+	return []string{server, agent}
+}
+
+// stageRelease makes a node's artifact path hold the given release.
+//
+// Every node carries two releases, the one in the path and the other beside
+// it as <path>-<version>; this swaps the two directories by name when the path
+// holds the wrong one. Which release a directory holds is read from the rke2
+// binary inside its tarball, because the archive names carry no version. A
+// tarball an interrupted run hid is put back first, with a word about it.
+func (r *labRun) stageRelease(host, path, want string) string {
+	r.t.Helper()
+	return r.onHost(host, fmt.Sprintf(`d=%s; want=%s
+t=rke2.linux-amd64.tar.gz
+for x in "$d" "$d-$want"; do
+  [ -f "$x/$t.lost" ] && [ ! -e "$x/$t" ] && mv "$x/$t.lost" "$x/$t" && echo "put back $x/$t, hidden by an earlier run;"
+done
+ver() { b=$(mktemp); tar -xzf "$1/$t" -O bin/rke2 > "$b" 2>/dev/null && chmod +x "$b" && "$b" --version 2>/dev/null | awk 'NR==1{print $3}'; rm -f "$b"; }
+[ -d "$d" ] || { echo "no $d"; exit 1; }
+cur=$(ver "$d")
+[ -n "$cur" ] || { echo "cannot read which release $d holds"; exit 1; }
+[ "$cur" = "$want" ] && { echo "$d holds $want"; exit 0; }
+[ -d "$d-$want" ] || { echo "$d holds $cur, and there is no $d-$want to swap in"; exit 1; }
+[ ! -e "$d-$cur" ] || { echo "$d holds $cur and $d-$cur is already there"; exit 1; }
+mv "$d" "$d-$cur" && mv "$d-$want" "$d"
+echo "$d now holds $want; $cur moved to $d-$cur"`, path, want))
+}
+
+// expectSchedulable fails when any node still refuses work: an upgrade that
+// ends with a node cordoned has not finished, whatever it printed.
+func (r *labRun) expectSchedulable() {
+	r.t.Helper()
+	r.onNode(`c=$(kubectl get nodes --no-headers -o custom-columns=N:.metadata.name,U:.spec.unschedulable | awk '$2=="true"'); ` +
+		`[ -z "$c" ] || { echo "still cordoned: $c"; exit 1; }`)
+}
+
+// upgradeLosingArtifacts takes the three servers through an air-gapped
+// upgrade the way a site will meet one: refused while the old release is
+// still staged, then started with the new one and losing the second server's
+// tarball as that server's drain begins, then finished.
+//
+// The loss is real, not simulated: the tarball is moved away on the node, so
+// the install step meets exactly what a half-copied directory gives it. What
+// has to hold is that the run stops on that server and says so, the other two
+// keep the quorum -- a write through the VIP lands -- and a second run, once
+// the tarball is back, finishes the job and leaves no node cordoned.
+func (r *labRun) upgradeLosingArtifacts(c matrix.Case, doc string) {
+	r.t.Helper()
+	hosts := caseHosts(c)
+	bundle := filepath.Join(r.dir, "out")
+
+	out, err := r.malmok(10*time.Minute, "upgrade", "-f", doc, "--to", airgapVersion,
+		"--insecure-host-key", "--approve", "--timeout", "10m", "--bundle", bundle)
+	if err == nil || !strings.Contains(out, "UP-006") || !strings.Contains(out, "nothing has been changed") {
+		r.t.Fatalf("an upgrade with %s still staged was not refused by UP-006 (err %v):\n%s",
+			airgapFrom, err, tail(out, 30))
+	}
+	r.expectVersion(airgapFrom)
+	r.expectSchedulable()
+	r.t.Log("refused by UP-006 with the old release staged, and nothing changed")
+
+	for _, host := range hosts {
+		r.t.Logf("%s: %s", host, r.stageRelease(host, c.ArtifactPath, airgapVersion))
+	}
+
+	second := hosts[1]
+	tarball := c.ArtifactPath + "/rke2.linux-amd64.tar.gz"
+	log := filepath.Join(r.dir, "upgrade-lost.log")
+	f, err := os.Create(log)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	defer f.Close()
+	cmd := exec.Command(r.bin, "upgrade", "-f", doc, "--to", airgapVersion,
+		"--insecure-host-key", "--approve", "--timeout", "45m", "--bundle", bundle)
+	cmd.Env = append(os.Environ(), "NODE_PASSWORD="+password)
+	cmd.Stdout, cmd.Stderr = f, f
+	if err := cmd.Start(); err != nil {
+		r.t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	marker := "upgrade-server/drain/" + second
+	hidden := false
+	var runErr error
+	deadline := time.After(50 * time.Minute)
+	for finished := false; !finished; {
+		select {
+		case runErr = <-done:
+			finished = true
+		case <-time.After(2 * time.Second):
+			if !hidden && strings.Contains(readFile(log), marker) {
+				r.onHost(second, fmt.Sprintf(`mv %s %s.lost`, tarball, tarball))
+				r.t.Logf("%s: the tarball went missing as its drain began", second)
+				hidden = true
+			}
+		case <-deadline:
+			_ = cmd.Process.Kill()
+			r.t.Fatalf("the upgrade neither finished nor failed within 50m:\n%s", tail(readFile(log), 30))
+		}
+	}
+	body := readFile(log)
+	switch {
+	case !hidden:
+		r.t.Fatalf("the upgrade ended (%v) before %s began, so nothing was lost:\n%s",
+			runErr, marker, tail(body, 30))
+	case runErr == nil:
+		r.t.Fatalf("the upgrade succeeded with %s's tarball gone:\n%s", second, tail(body, 30))
+	case !strings.Contains(body, "upgrade-server/install/"+second):
+		r.t.Fatalf("the upgrade failed without reaching %s's install, so the loss is not what "+
+			"stopped it:\n%s", second, tail(body, 30))
+	}
+	r.t.Logf("the upgrade stopped on %s:\n%s", second, tail(body, 12))
+
+	// The quorum held with one server new, one stopped mid-upgrade and one
+	// not yet reached, and the run said where it stopped.
+	r.t.Log(r.writeThroughVIP(hosts[0], second+" stopped mid-upgrade"))
+	left, err := r.rootRun(hosts[0], kubeRoot+fmt.Sprintf(`kubectl get nodes --no-headers -o custom-columns=N:.metadata.name,R:.status.conditions[-1].status,U:.spec.unschedulable,V:.status.nodeInfo.kubeletVersion
+n=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers | awk '$2 ~ /^Ready/' | wc -l)
+[ "$n" = %d ] || { echo "only $n etcd members Ready"; exit 1; }`, len(hosts)), time.Minute)
+	if err != nil {
+		r.t.Fatalf("after the failed upgrade: %v\n%s", err, left)
+	}
+	r.t.Logf("left behind:\n%s", left)
+
+	r.onHost(second, fmt.Sprintf(`mv %s.lost %s`, tarball, tarball))
+	r.upgrade(doc, airgapVersion)
+	r.expectVersion(airgapVersion)
+	r.expectSchedulable()
+	r.t.Logf("finished once the tarball was back: every server on %s, none cordoned", airgapVersion)
+
+	// The document now describes the cluster that exists, which is what the
+	// restore and the certificate scan after it read.
+	r.airgapAt = airgapVersion
+	r.write(c, false)
+}
+
+// restoreAll restores the three servers from one etcd snapshot, the way RKE2's
+// documentation does it for a cluster with more than one server: every server
+// stopped, the first reset from the snapshot and started, and the others'
+// databases removed so they rejoin the restored member rather than outvote it.
+//
+// Marked on both sides of the snapshot, so the result is read off the cluster:
+// what was made before it is there, what was made after it is not, and three
+// etcd members are Ready again.
+func (r *labRun) restoreAll(c matrix.Case) {
+	r.t.Helper()
+	hosts := caseHosts(c)
+	first, rest := hosts[0], hosts[1:]
+	stamp := time.Now().Unix()
+	before := fmt.Sprintf("malmok-restore-before-%d", stamp)
+	after := fmt.Sprintf("malmok-restore-after-%d", stamp)
+	cm := func(name string) string {
+		return fmt.Sprintf(`kubectl -n default create configmap %s --from-literal=at=%d`, name, stamp)
+	}
+
+	r.onNode(cm(before))
+	snap := r.rootOutput(first, `set -e
+n=malmok-lifecycle-$(date +%s)
+out=$(rke2 etcd-snapshot save --name "$n" 2>&1) || { echo "$out"; exit 1; }
+ls -t /var/lib/rancher/rke2/server/db/snapshots/"$n"* | head -1`)
+	r.t.Logf("snapshot %s", snap)
+	r.onNode(cm(after))
+
+	for _, h := range append(rest, first) {
+		r.rootOn(h, "systemctl stop rke2-server")
+	}
+	out, err := r.rootRun(first, fmt.Sprintf(`log=/tmp/malmok-cluster-reset.log
+timeout 900 rke2 server --cluster-reset --cluster-reset-restore-path=%s > "$log" 2>&1
+rc=$?
+tail -3 "$log" | cut -c1-200
+grep -q "restart without --cluster-reset" "$log" || { echo "the reset did not finish (exit $rc)"; exit 1; }`, snap), 16*time.Minute)
+	if err != nil {
+		r.t.Fatalf("cluster-reset on %s: %v\n%s", first, err, out)
+	}
+	r.waitServerReady(first, 1)
+	for _, h := range rest {
+		if out, err := r.rootRun(h, `rm -rf /var/lib/rancher/rke2/server/db && systemctl start rke2-server`, 12*time.Minute); err != nil {
+			r.t.Fatalf("rejoin %s: %v\n%s", h, err, out)
+		}
+	}
+	r.waitServerReady(first, len(hosts))
+
+	r.onNode(fmt.Sprintf(`kubectl -n default get configmap %s >/dev/null || { echo "%s, made before the snapshot, is gone"; exit 1; }
+if kubectl -n default get configmap %s >/dev/null 2>&1; then echo "%s, made after the snapshot, survived the restore"; exit 1; fi
+kubectl -n default delete configmap %s >/dev/null`, before, before, after, after, before))
+	r.t.Logf("restored from %s: the marker made before it is back, the one made after it is gone, "+
+		"%d etcd members Ready", snap, len(hosts))
+}
+
+// waitServerReady waits, asking the given server's own API server, until at
+// least n etcd members report Ready. Asked locally because the VIP is held by
+// kube-vip, which runs on the very servers being brought back.
+func (r *labRun) waitServerReady(host string, n int) {
+	r.t.Helper()
+	out, err := r.rootRun(host, kubeRoot+fmt.Sprintf(`for i in $(seq 1 90); do
+  got=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers 2>/dev/null | awk '$2=="Ready"' | wc -l)
+  [ "$got" -ge %d ] && { echo "$got etcd members Ready"; exit 0; }
+  sleep 10
+done
+kubectl get nodes 2>&1
+exit 1`, n), 17*time.Minute)
+	if err != nil {
+		r.t.Fatalf("waiting for %d etcd members on %s: %v\n%s", n, host, err, out)
 	}
 	r.t.Log(out)
 }

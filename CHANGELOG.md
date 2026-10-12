@@ -18,8 +18,19 @@
   artifacts partway and is then finished, and a restore of all three from a
   snapshot. A new operation, `lifecycle`, runs those in order on one cluster,
   and two required pairs keep it there: air-gapped with three nodes, and the
-  lifecycle on an air-gapped network. The harness skips it until the
-  operation is wired in.
+  lifecycle on an air-gapped network. The harness runs it when
+  `MALMOK_LAB_AIRGAP_FROM` names the release to build at, staged on every node
+  beside `MALMOK_LAB_AIRGAP_VERSION`'s; it swaps the two directories by name
+  and reads which release each holds from the binary in its tarball. The
+  upgrade is refused once with the old release staged, then loses the second
+  server's tarball as its drain begins: the run has to stop on that server, a
+  write through the VIP has to land, and a second run has to finish with no
+  node cordoned. The restore stops all three servers, resets the first from
+  the snapshot and rejoins the others with their databases removed.
+- The harness's air gap is loaded at boot as well, so a server rebooted to
+  fail it over comes back cut off rather than with egress open. The wipe
+  removes it, so a run that dies with the cut in place does not leave it for
+  the next case.
 
 ### Fixed
 - An upgrade interrupted after the servers moved can be finished. UP-002

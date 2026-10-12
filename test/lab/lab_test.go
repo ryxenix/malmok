@@ -1518,6 +1518,10 @@ n=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers | awk '$
 // stopped, the first reset from the snapshot and started, and the others'
 // databases removed so they rejoin the restored member rather than outvote it.
 //
+// Stopped with rke2-killall.sh, not systemctl. Stopping the unit leaves its
+// containers running -- etcd's among them -- and a database removed under a
+// live etcd made the second server's rejoin fail on the lab.
+//
 // Marked on both sides of the snapshot, so the result is read off the cluster:
 // what was made before it is there, what was made after it is not, and three
 // etcd members are Ready again.
@@ -1541,7 +1545,7 @@ ls -t /var/lib/rancher/rke2/server/db/snapshots/"$n"* | head -1`)
 	r.onNode(cm(after))
 
 	for _, h := range append(rest, first) {
-		r.rootOn(h, "systemctl stop rke2-server")
+		r.rootOn(h, "systemctl stop rke2-server && /usr/local/bin/rke2-killall.sh >/dev/null && echo stopped")
 	}
 	out, err := r.rootRun(first, fmt.Sprintf(`log=/tmp/malmok-cluster-reset.log
 timeout 900 rke2 server --cluster-reset --cluster-reset-restore-path=%s > "$log" 2>&1
@@ -1556,35 +1560,37 @@ grep -q "restart without --cluster-reset" "$log" || { echo "the reset did not fi
 	if out, err := r.rootRun(first, `systemctl start rke2-server`, 12*time.Minute); err != nil {
 		r.t.Fatalf("start %s after the reset: %v\n%s", first, err, out)
 	}
-	r.waitServerReady(first, 1)
+	r.waitServerReady(first)
 	for _, h := range rest {
 		if out, err := r.rootRun(h, `rm -rf /var/lib/rancher/rke2/server/db && systemctl start rke2-server`, 12*time.Minute); err != nil {
 			r.t.Fatalf("rejoin %s: %v\n%s", h, err, out)
 		}
+		r.waitServerReady(h)
 	}
-	r.waitServerReady(first, len(hosts))
 
 	r.onNode(fmt.Sprintf(`kubectl -n default get configmap %s >/dev/null || { echo "%s, made before the snapshot, is gone"; exit 1; }
 if kubectl -n default get configmap %s >/dev/null 2>&1; then echo "%s, made after the snapshot, survived the restore"; exit 1; fi
 kubectl -n default delete configmap %s >/dev/null`, before, before, after, after, before))
 	r.t.Logf("restored from %s: the marker made before it is back, the one made after it is gone, "+
-		"%d etcd members Ready", snap, len(hosts))
+		"and all %d servers answer ready", snap, len(hosts))
 }
 
-// waitServerReady waits, asking the given server's own API server, until at
-// least n etcd members report Ready. Asked locally because the VIP is held by
-// kube-vip, which runs on the very servers being brought back.
-func (r *labRun) waitServerReady(host string, n int) {
+// waitServerReady waits until a server's own API server says it is ready.
+//
+// Asked of the server itself rather than read off the node list: right after a
+// restore the node list is the snapshot's, and it showed all three servers
+// Ready while two of them were stopped. An API server answers /readyz only
+// once its etcd member does, so a server that has not rejoined cannot pass.
+func (r *labRun) waitServerReady(host string) {
 	r.t.Helper()
-	out, err := r.rootRun(host, kubeRoot+fmt.Sprintf(`for i in $(seq 1 90); do
-  got=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers 2>/dev/null | awk '$2=="Ready"' | wc -l)
-  [ "$got" -ge %d ] && { echo "$got etcd members Ready"; exit 0; }
+	out, err := r.rootRun(host, kubeRoot+`for i in $(seq 1 90); do
+  kubectl get --raw=/readyz >/dev/null 2>&1 && { echo "$(hostname) is ready"; exit 0; }
   sleep 10
 done
-kubectl get nodes 2>&1
-exit 1`, n), 17*time.Minute)
+kubectl get --raw='/readyz?verbose' 2>&1 | grep -v ' ok$' | tail -10
+exit 1`, 17*time.Minute)
 	if err != nil {
-		r.t.Fatalf("waiting for %d etcd members on %s: %v\n%s", n, host, err, out)
+		r.t.Fatalf("%s did not become ready: %v\n%s", host, err, out)
 	}
 	r.t.Log(out)
 }

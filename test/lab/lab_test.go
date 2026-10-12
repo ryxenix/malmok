@@ -1519,8 +1519,15 @@ n=$(kubectl get nodes -l node-role.kubernetes.io/etcd=true --no-headers | awk '$
 // databases removed so they rejoin the restored member rather than outvote it.
 //
 // Stopped with rke2-killall.sh, not systemctl. Stopping the unit leaves its
-// containers running -- etcd's among them -- and a database removed under a
-// live etcd made the second server's rejoin fail on the lab.
+// containers running -- etcd's among them -- and the restore has to start
+// from servers that are stopped.
+//
+// Then the VIP is taken off every stopped server. kube-vip dies by SIGKILL
+// with no chance to release the address, so the server that held it goes on
+// answering for it with nothing listening: on the lab the second server's
+// rejoin through the VIP was refused for as long as the stopped third server
+// kept it. An operator restoring a cluster with a VIP has the same step to
+// take, and the recovery guide says so.
 //
 // Marked on both sides of the snapshot, so the result is read off the cluster:
 // what was made before it is there, what was made after it is not, and three
@@ -1545,7 +1552,16 @@ ls -t /var/lib/rancher/rke2/server/db/snapshots/"$n"* | head -1`)
 	r.onNode(cm(after))
 
 	for _, h := range append(rest, first) {
-		r.rootOn(h, "systemctl stop rke2-server && /usr/local/bin/rke2-killall.sh >/dev/null && echo stopped")
+		r.t.Logf("%s: %s", h, r.rootOutput(h, fmt.Sprintf(`set -e
+systemctl stop rke2-server
+/usr/local/bin/rke2-killall.sh >/dev/null
+held=$(ip -o -4 addr show | awk -v v=%s '{split($4, a, "/")} a[1]==v {print $2, $4}')
+if [ -n "$held" ]; then
+  echo "$held" | while read -r dev cidr; do ip addr del "$cidr" dev "$dev"; done
+  echo "stopped, and released the VIP it still held ($held)"
+else
+  echo "stopped"
+fi`, vip)))
 	}
 	out, err := r.rootRun(first, fmt.Sprintf(`log=/tmp/malmok-cluster-reset.log
 timeout 900 rke2 server --cluster-reset --cluster-reset-restore-path=%s > "$log" 2>&1

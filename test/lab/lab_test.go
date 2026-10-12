@@ -1577,6 +1577,24 @@ grep -q "restart without --cluster-reset" "$log" || { echo "the reset did not fi
 		r.t.Fatalf("start %s after the reset: %v\n%s", first, err, out)
 	}
 	r.waitServerReady(first)
+
+	// The others join through the VIP, and the first server being ready is
+	// not the VIP being back: kube-vip on it reclaims the address after its
+	// own pod starts. Started before that, the second server's join was
+	// refused and its start failed, and it joined minutes later only because
+	// systemd kept restarting it.
+	out, err = r.rootRun(first, fmt.Sprintf(`for i in $(seq 1 60); do
+  [ "$(curl -sk --max-time 5 https://%s:9345/ping 2>&1)" = pong ] && { echo "the VIP answers again"; exit 0; }
+  sleep 5
+done
+echo "the VIP %s did not answer on 9345 within 5m:"
+curl -sk --max-time 5 https://%s:9345/ping 2>&1
+exit 1`, vip, vip, vip), 6*time.Minute)
+	if err != nil {
+		r.t.Fatalf("%v\n%s", err, out)
+	}
+	r.t.Log(out)
+
 	for _, h := range rest {
 		if out, err := r.rootRun(h, `rm -rf /var/lib/rancher/rke2/server/db && systemctl start rke2-server`, 12*time.Minute); err != nil {
 			r.t.Fatalf("rejoin %s: %v\n%s", h, err, out)

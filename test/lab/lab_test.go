@@ -1380,15 +1380,16 @@ func caseHosts(c matrix.Case) []string {
 // stageRelease makes a node's artifact path hold the given release.
 //
 // Every node carries two releases, the one in the path and the other beside
-// it as <path>-<version>; this swaps the two directories by name when the path
-// holds the wrong one. Which release a directory holds is read from the rke2
+// it as <path>-<version>, the version with or without its +rke2r build suffix;
+// this swaps the two directories by name when the path holds the wrong one. Which release a directory holds is read from the rke2
 // binary inside its tarball, because the archive names carry no version. A
 // tarball an interrupted run hid is put back first, with a word about it.
 func (r *labRun) stageRelease(host, path, want string) string {
 	r.t.Helper()
 	return r.onHost(host, fmt.Sprintf(`d=%s; want=%s
 t=rke2.linux-amd64.tar.gz
-for x in "$d" "$d-$want"; do
+other="$d-$want"; [ -d "$other" ] || other="$d-${want%%%%+*}"
+for x in "$d" "$other"; do
   [ -f "$x/$t.lost" ] && [ ! -e "$x/$t" ] && mv "$x/$t.lost" "$x/$t" && echo "put back $x/$t, hidden by an earlier run;"
 done
 ver() { b=$(mktemp); tar -xzf "$1/$t" -O bin/rke2 > "$b" 2>/dev/null && chmod +x "$b" && "$b" --version 2>/dev/null | awk 'NR==1{print $3}'; rm -f "$b"; }
@@ -1396,9 +1397,9 @@ ver() { b=$(mktemp); tar -xzf "$1/$t" -O bin/rke2 > "$b" 2>/dev/null && chmod +x
 cur=$(ver "$d")
 [ -n "$cur" ] || { echo "cannot read which release $d holds"; exit 1; }
 [ "$cur" = "$want" ] && { echo "$d holds $want"; exit 0; }
-[ -d "$d-$want" ] || { echo "$d holds $cur, and there is no $d-$want to swap in"; exit 1; }
+[ -d "$other" ] || { echo "$d holds $cur, and there is no $d-$want or $d-${want%%%%+*} to swap in"; exit 1; }
 [ ! -e "$d-$cur" ] || { echo "$d holds $cur and $d-$cur is already there"; exit 1; }
-mv "$d" "$d-$cur" && mv "$d-$want" "$d"
+mv "$d" "$d-$cur" && mv "$other" "$d"
 echo "$d now holds $want; $cur moved to $d-$cur"`, path, want))
 }
 

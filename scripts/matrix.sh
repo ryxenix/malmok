@@ -49,6 +49,14 @@ export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_A
 export MALMOK_LAB_VIP MALMOK_LAB_LB_POOL MALMOK_LAB_THIRD
 export MALMOK_LAB_STABLE MALMOK_LAB_LATEST MALMOK_LAB_UPGRADE_FROM
 
+# Where a failed case's run directory is kept. The harness keeps it under
+# TMPDIR, and inside the container that was the container's own /tmp, removed
+# with it: every "the run is kept at" this script printed named a directory
+# that no longer existed, and a drain that failed on the lab could not be read
+# afterwards. out/ is ignored by git.
+keep="$PWD/out/matrix"
+mkdir -p "$keep"
+
 # The binary the operator runs, not a fresh build of maybe-different code.
 [ -x bin/malmok ] || { echo "no bin/malmok -- run scripts/build.sh first" >&2; exit 1; }
 
@@ -75,6 +83,7 @@ docker run --rm \
   -e MALMOK_LAB_LATEST \
   -e MALMOK_LAB_UPGRADE_FROM \
   -e MALMOK_BIN=/app-local/bin/malmok \
+  -e TMPDIR=/app-local/out/matrix \
   -w /app-local \
   golang:alpine \
   go test -tags lab -count=1 -v -timeout 6h ./test/lab/ "$@"

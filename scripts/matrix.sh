@@ -10,9 +10,11 @@
 #   NODE_PASSWORD=... scripts/matrix.sh                 # every case
 #   NODE_PASSWORD=... scripts/matrix.sh -run idc-single # one case
 #
-# The air-gapped case needs RKE2's release artifacts staged on both nodes and
-# MALMOK_LAB_AIRGAP_VERSION set to the release they carry. Without it that one
-# case skips and says so; the rest run.
+# The air-gapped cases need RKE2's release artifacts staged on the nodes and
+# MALMOK_LAB_AIRGAP_VERSION set to the release they carry. Without it they
+# skip and say so; the rest run. The lifecycle case also needs
+# MALMOK_LAB_AIRGAP_FROM, the release it builds at before upgrading, staged
+# beside the other as <artifact path>-<version> on all three machines.
 #
 # MALMOK_LAB_MIRROR names a pull-through cache for the platform images, which
 # are otherwise fetched again for every case because every case wipes the image
@@ -43,7 +45,7 @@ if [ -z "${MALMOK_LAB_VIP:-}" ] || [ -z "${MALMOK_LAB_LB_POOL:-}" ]; then
   echo "address will skip. Both must be free on the nodes' segment and outside" >&2
   echo "whatever hands out leases." >&2
 fi
-export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_MIRROR
+export MALMOK_LAB_SERVER MALMOK_LAB_AGENT MALMOK_LAB_AIRGAP_VERSION MALMOK_LAB_AIRGAP_FROM MALMOK_LAB_MIRROR
 export MALMOK_LAB_VIP MALMOK_LAB_LB_POOL MALMOK_LAB_THIRD
 export MALMOK_LAB_STABLE MALMOK_LAB_LATEST MALMOK_LAB_UPGRADE_FROM
 
@@ -64,6 +66,7 @@ docker run --rm \
   -e MALMOK_LAB_SERVER \
   -e MALMOK_LAB_AGENT \
   -e MALMOK_LAB_AIRGAP_VERSION \
+  -e MALMOK_LAB_AIRGAP_FROM \
   -e MALMOK_LAB_MIRROR \
   -e MALMOK_LAB_VIP \
   -e MALMOK_LAB_LB_POOL \

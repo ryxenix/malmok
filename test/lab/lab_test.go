@@ -1551,6 +1551,11 @@ grep -q "restart without --cluster-reset" "$log" || { echo "the reset did not fi
 	if err != nil {
 		r.t.Fatalf("cluster-reset on %s: %v\n%s", first, err, out)
 	}
+	// The reset exits once the membership is rewritten; the server then has
+	// to be started as it normally is, without the flag.
+	if out, err := r.rootRun(first, `systemctl start rke2-server`, 12*time.Minute); err != nil {
+		r.t.Fatalf("start %s after the reset: %v\n%s", first, err, out)
+	}
 	r.waitServerReady(first, 1)
 	for _, h := range rest {
 		if out, err := r.rootRun(h, `rm -rf /var/lib/rancher/rke2/server/db && systemctl start rke2-server`, 12*time.Minute); err != nil {

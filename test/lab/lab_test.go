@@ -1159,6 +1159,10 @@ func notRunnable(c matrix.Case) string {
 			"kube-vip claims it on an interface, so it cannot be a documentation range"
 	case c.Exposure == "lb-pool" && lbPool == "":
 		return "set MALMOK_LAB_LB_POOL to a free CIDR on the nodes' segment"
+	// Skipped rather than run as a plain build: a lifecycle case that only
+	// built would pass and be read as the lifecycle having passed.
+	case c.Op == matrix.OpLifecycle:
+		return "the lifecycle operation is not wired into the harness yet"
 	}
 	return ""
 }

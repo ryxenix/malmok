@@ -12,6 +12,14 @@
   reinstalled. Both times a ConfigMap made before the snapshot came back, one
   made after it was gone, and the agent rejoined. Three servers and an
   air-gapped restore are not rehearsed, and the guide and README say so.
+- A matrix case, `airgap-ha`, for the shape a closed site asks for, taken
+  through what it will live through: three servers under a VIP built from
+  carried artifacts, the VIP holder lost, an upgrade that loses a server's
+  artifacts partway and is then finished, and a restore of all three from a
+  snapshot. A new operation, `lifecycle`, runs those in order on one cluster,
+  and two required pairs keep it there: air-gapped with three nodes, and the
+  lifecycle on an air-gapped network. The harness skips it until the
+  operation is wired in.
 
 ### Fixed
 - An upgrade interrupted after the servers moved can be finished. UP-002

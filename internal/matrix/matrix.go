@@ -64,6 +64,14 @@ const (
 	// itself. It is what "high availability" means, measured
 	// rather than claimed.
 	OpFailover = "failover"
+	// OpLifecycle is everything a production cluster goes through, in order,
+	// on one cluster: built at the previous release, a server lost and
+	// rejoined, upgraded with a server's artifacts taken away partway through
+	// and then finished, and restored from an etcd snapshot. Each of those has
+	// a row of its own somewhere; what none of them shows is that the cluster
+	// the last one acts on is the one the first one built, which is the claim
+	// a site makes when it says it can run this for years.
+	OpLifecycle = "lifecycle"
 )
 
 // DefaultArtifactPath is where the lab stages RKE2's release artifacts. It is
@@ -115,7 +123,7 @@ type Case struct {
 	Why string
 }
 
-// Cases is the matrix. Eleven rows, chosen for coverage rather than for
+// Cases is the matrix. Thirteen rows, chosen for coverage rather than for
 // symmetry: see RequiredPairs for the combinations that are not optional.
 func Cases() []Case {
 	return []Case{
@@ -194,6 +202,16 @@ func Cases() []Case {
 				"one at a time is what a production cluster actually does, and the README " +
 				"has said in every release that it is not verified",
 		},
+		{
+			Name: "airgap-ha", Nodes: 3, Dataplane: "cilium-gw", PKI: "none",
+			Exposure: "node-ips", Registry: "embedded", VIP: true, Op: OpLifecycle,
+			Network: "airgap", ArtifactPath: DefaultArtifactPath, ChartDir: DefaultChartDir,
+			Why: "the shape a closed site asks for, taken through what it will live through: " +
+				"three servers under a VIP built from carried artifacts, the VIP holder lost, " +
+				"an upgrade that loses a server's artifacts partway and is then finished, and a " +
+				"restore of all three from a snapshot. Each step had been shown on its own, " +
+				"online or on two nodes; never all of them, closed, on one cluster",
+		},
 	}
 }
 
@@ -244,6 +262,15 @@ func RequiredPairs() [][2]string {
 		// restarting -- which is the thing a production upgrade does and the
 		// thing that stops a cluster when it goes wrong.
 		{DimOp + "=" + OpUpgrade, DimNodes + "=3"},
+		// Three servers with nothing to fetch from. Every other three-server
+		// row is online, so the join of the second and third servers -- which
+		// take their images from the embedded mirror, not from the first --
+		// had never run on a closed network.
+		{DimNetwork + "=airgap", DimNodes + "=3"},
+		// The whole lifecycle where a site actually runs it. Online, every
+		// step has a way out -- a node can fetch what it lacks -- and the
+		// claim is about the site that cannot.
+		{DimOp + "=" + OpLifecycle, DimNetwork + "=airgap"},
 	}
 }
 
@@ -257,7 +284,7 @@ func Values() map[string][]string {
 		DimRegistry:  {"embedded", "upstream"},
 		DimGitOps:    {"true", "false"},
 		DimNetwork:   {"online", "airgap"},
-		DimOp:        {OpBuild, OpGrow, OpResume, OpReapply, OpUpgrade, OpFailover},
+		DimOp:        {OpBuild, OpGrow, OpResume, OpReapply, OpUpgrade, OpFailover, OpLifecycle},
 	}
 }
 

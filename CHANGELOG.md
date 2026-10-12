@@ -33,6 +33,15 @@
   the next case.
 
 ### Fixed
+- `malmok images`, and so the air-gapped image bundle built from it, now
+  lists kube-vip's image. It listed the charts', the storage provisioner's and
+  the metrics stack's, and not the one image the VIP needs, which Malmok
+  renders itself: an air-gapped build with a VIP stopped at the vip step,
+  retried for forty-five minutes while containerd asked ghcr.io for
+  `kube-vip:v1.2.2`, and failed. Found by the new `airgap-ha` case on its first
+  run; no air-gapped build with a VIP had been run before. Listed when the
+  document has a VIP with an address, which is when the vip phase runs, and
+  always in the list without a document.
 - An upgrade interrupted after the servers moved can be finished. UP-002
   compared the target only with the servers, so a second run to the same
   version was refused as "not newer" once the servers were on it, and the

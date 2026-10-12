@@ -9,6 +9,7 @@ import (
 	"github.com/ryxenix/malmok/internal/catalogue"
 	"github.com/ryxenix/malmok/internal/images"
 	"github.com/ryxenix/malmok/internal/observability"
+	"github.com/ryxenix/malmok/internal/rke2"
 	"github.com/ryxenix/malmok/internal/spec"
 	"github.com/ryxenix/malmok/internal/storage"
 )
@@ -71,7 +72,10 @@ fetch what is missing. Take those from a cluster that has run the stack:
 			// its manifest here and names its images here, so nothing that
 			// reads charts can find them -- and a carry list that misses them
 			// is found on a closed site as a provisioner that never starts.
-			extra := append(storage.AllImages(), observability.AllImages()...)
+			// kube-vip is the same: its DaemonSet is rendered here, and an
+			// air-gapped build with a VIP waited forty-five minutes at the
+			// vip step for an image nobody had been told to carry.
+			extra := append(append(storage.AllImages(), observability.AllImages()...), rke2.KubeVIPImage)
 
 			if file != "" {
 				doc, err := spec.Load(file)
@@ -84,7 +88,8 @@ fetch what is missing. Take those from a cluster that has run the stack:
 				for _, c := range catalogue.Charts(doc.Spec) {
 					wanted[c.Name] = true
 				}
-				extra = append(storage.Images(doc.Spec), observability.Images(doc.Spec)...)
+				extra = append(append(storage.Images(doc.Spec), observability.Images(doc.Spec)...),
+					rke2.KubeVIPImages(doc.Spec)...)
 				if len(wanted) == 0 && len(extra) == 0 {
 					fmt.Fprintln(cmd.ErrOrStderr(),
 						"this document installs no chart; RKE2's own images come with its artifacts")

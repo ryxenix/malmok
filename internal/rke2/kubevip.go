@@ -35,6 +35,16 @@ const KubeVIPVersion = "v1.2.2"
 // system-default-registry, which RKE2 applies to its own manifests.
 const KubeVIPImage = "ghcr.io/kube-vip/kube-vip:" + KubeVIPVersion
 
+// KubeVIPImages is kube-vip's image when the document deploys it, for the
+// list a closed site carries. The condition is the catalogue's for the vip
+// phase: a VIP with an address.
+func KubeVIPImages(spec v1alpha1.ClusterSpec) []string {
+	if v := spec.Topology.VIP; v == nil || v.Address == "" {
+		return nil
+	}
+	return []string{KubeVIPImage}
+}
+
 // ManifestDir is where RKE2 picks up manifests to apply automatically. Putting
 // the DaemonSet here rather than running kubectl means the cluster reapplies it
 // on restart without this tool being present.

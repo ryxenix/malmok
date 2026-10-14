@@ -32,6 +32,17 @@
   removes it, so a run that dies with the cut in place does not leave it for
   the next case.
 
+- The recovery guide's restore with more than one server is the procedure the
+  `airgap-ha` case runs, and two steps for a VIP that the case failed without:
+  take the VIP off any stopped server that still holds it, since kube-vip
+  killed by `rke2-killall.sh` leaves it on the interface and the other
+  servers' joins are refused; and wait for the VIP to answer before starting
+  the others, since the first server coming up is not kube-vip claiming the
+  address. Servers are stopped with `rke2-killall.sh` as well as systemctl,
+  and each is asked whether it is ready rather than read off the node list,
+  which right after a reset is the snapshot's. The README's verification
+  table has a row for the air-gapped three-server lifecycle, and the air-gap
+  guide says bundles up to 0.96.7 lack kube-vip's image.
 ### Fixed
 - `malmok images`, and so the air-gapped image bundle built from it, now
   lists kube-vip's image. It listed the charts', the storage provisioner's and

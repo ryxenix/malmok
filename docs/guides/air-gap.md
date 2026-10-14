@@ -31,7 +31,11 @@ Prepare these on a connected staging machine:
   `zz-malmok-images_<tag>_linux_<arch>.tar.zst`: RKE2 imports the directory in
   name order, and under its own name the bundle goes first, so the pause image
   arrives late and containerd tries docker.io for it once on the first start.
-  The install still succeeds, but a closed site's firewall logs the attempt. To check the list rather
+  The install still succeeds, but a closed site's firewall logs the attempt.
+  With a VIP the list includes kube-vip's image. Lists and bundles up to
+  0.96.7 left it out, and an air-gapped build with a VIP stopped at the vip
+  step waiting for it; with one of those, carry
+  `ghcr.io/kube-vip/kube-vip` at the tag `malmok images` prints now. To check the list rather
   than carry the bundle, `malmok images -f cluster.yaml` prints it and answers
   on a machine with no network; `images.txt` in the release is the same list
   for planning before you have anywhere to run the binary; and

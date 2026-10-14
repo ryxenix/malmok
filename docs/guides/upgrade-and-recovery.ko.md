@@ -52,8 +52,12 @@
     남아 있는 동안에는 `UP-006`이 아무것도 바꾸지 않고 거부했으며, 디렉터리를
     교체한 뒤 v1.36.4+rke2r1로 올렸습니다. 처음에는 노드 자신의 외부 통신만,
     두 번째는 파드 통신까지 막았고, 두 번째에는 서버 설치 단계와 에이전트 재시작
-    단계에서 각각 실행을 끊은 뒤 아래 방법으로 마쳤습니다. 서버 3대, 그리고
-    끊긴 것이 아니라 도중에 실패하는 에어갭 업그레이드는 아직 돌려보지 않았습니다.
+    단계에서 각각 실행을 끊은 뒤 아래 방법으로 마쳤습니다. 서버 3대는 매트릭스
+    케이스 `airgap-ha` 입니다. 옛 릴리스가 남은 상태에서 `UP-006` 이 거부했고,
+    이어서 두 번째 서버의 drain 이 시작될 때 tarball 을 치웠습니다. 실행은 그
+    서버에서 멈추고 그렇게 보고했으며, 나머지 두 대가 쿼럼을 유지해 VIP 경유
+    쓰기가 성공했고, tarball 을 되돌린 두 번째 실행이 세 대 모두를 cordon 없이
+    마쳤습니다.
     이 변경 이전 릴리스는 업그레이드할 때 반입 자재 경로를 아예 읽지 않았습니다.
 
 ### 중단된 업그레이드 마치기
@@ -185,9 +189,50 @@ has been reset, restart without --cluster-reset flag now"는 error 수준으로
 
 ### 서버가 여러 대일 때
 
-리허설하지 않았습니다. RKE2 절차는 모든 서버에서 `rke2-server`를 멈추고, 한
-대에서 reset 후 시작한 다음, 나머지 서버마다 `/var/lib/rancher/rke2/server/db/`를
-지우고 시작하는 것입니다.
+모든 서버를 멈추고, 한 대를 스냅숏으로 reset 해 시작한 뒤, 나머지 서버는
+데이터베이스를 지우고 다시 합류시킵니다. 그래야 복구된 상태를 받아 오고, 옛
+상태로 다수결을 뒤집지 않습니다. reset 은 `topology.servers` 의 첫 서버에서
+합니다. 그 서버의 `config.yaml` 에는 `server:` 가 없고, 나머지는 등록 주소로
+합류합니다.
+
+1. 모든 서버에서 RKE2를 완전히 멈춥니다. `systemctl stop` 만으로는 etcd 를
+   포함한 컨테이너가 계속 돕니다.
+
+    ```bash
+    sudo systemctl stop rke2-server
+    sudo /usr/local/bin/rke2-killall.sh
+    ```
+
+2. VIP 가 있으면, 아직 VIP 를 쥐고 있는 서버에서 떼어냅니다.
+   [VIP 가 있는 클러스터에서 서버를 멈출 때](#vip)와
+   같습니다. 강제로 종료된 kube-vip 는 주소를 인터페이스에 남겨 두고, 그
+   서버에 아무것도 listen 하지 않는 동안 다른 서버의 합류가 거부됩니다.
+3. 첫 서버에서 스냅숏으로 reset 하고 시작합니다.
+
+    ```bash
+    sudo rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/SNAPSHOT
+    sudo systemctl start rke2-server
+    ```
+
+4. VIP 가 있으면, 나머지를 시작하기 전에 VIP 가 응답할 때까지 기다립니다. 첫
+   서버가 올라온 것과 VIP 가 돌아온 것은 다릅니다. kube-vip 는 자기 파드가
+   뜬 뒤에 주소를 잡습니다. 돌아오면 `pong` 이 출력됩니다.
+
+    ```bash
+    curl -sk https://<VIP>:9345/ping
+    ```
+
+5. 나머지 서버마다 한 대씩, 데이터베이스를 지우고 RKE2를 시작한 뒤 그 서버의
+   API 서버가 `ok` 를 답할 때까지 기다립니다.
+
+    ```bash
+    sudo rm -rf /var/lib/rancher/rke2/server/db
+    sudo systemctl start rke2-server
+    sudo /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get --raw=/readyz
+    ```
+
+노드 목록이 아니라 서버마다 물어보십시오. reset 직후의 노드 목록은 스냅숏
+시점의 것이라, 랩에서는 두 서버가 멈춰 있는데도 모두 Ready 로 보였습니다.
 
 !!! info "검증 범위"
 
@@ -197,7 +242,10 @@ has been reset, restart without --cluster-reset flag now"는 error 수준으로
     스냅숏 전에 만든 ConfigMap은 돌아오고 스냅숏 후에 만든 것은 사라졌으며 두
     노드가 Ready, 에이전트도 다시 붙었습니다. 이어서 노드와 파드 통신을 막은
     채, 막 에어갭 업그레이드를 마친 클러스터에서 두 경우를 다시 해 같은 결과를
-    얻었습니다. 서버 3대는 아직 리허설하지 않았습니다. 내장 레지스트리 미러를 쓰는 클러스터에서는
+    얻었습니다. 서버 3대는 매트릭스 케이스 `airgap-ha` 입니다. VIP 아래 서버
+    3대, 노드와 파드 통신 차단, 업그레이드 뒤 위 절차로 복구해 스냅숏 전
+    표식은 돌아오고 후 표식은 사라졌으며 모든 서버가 ready 를 답했습니다.
+    VIP 관련 두 단계는 그것 없이 케이스가 실패해서 들어간 것입니다. 내장 레지스트리 미러를 쓰는 클러스터에서는
     `rke2 etcd-snapshot save`가 "Unknown flag --embedded-registry found in
     config.yaml, skipping"을 출력하지만, 스냅숏 생성과 복구는 정상이었습니다.
 

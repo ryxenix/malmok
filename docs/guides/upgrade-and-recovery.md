@@ -56,9 +56,13 @@ staged for the upgrade.
     v1.36.4+rke2r1 once it was restaged. First with the nodes' own egress
     dropped, then with the pods cut off as well, and the second time killed
     during the server's install and again during the agent's restart, then
-    finished as described below. Three servers, and an air-gapped upgrade that
-    fails part way rather than being killed, have not been run. Releases before
-    this change did not read the artifact path during an upgrade at all.
+    finished as described below. With three servers it is the matrix case
+    `airgap-ha`: refused by `UP-006` with the old release staged, then the
+    second server's tarball taken away as its drain began. The run stopped on
+    that server and said so, the other two kept the quorum -- a write through
+    the VIP landed -- and a second run with the tarball back finished all three
+    with none left cordoned. Releases before this change did not read the
+    artifact path during an upgrade at all.
 
 ### Finishing an interrupted upgrade
 
@@ -180,9 +184,51 @@ their own: they point at the registration address and carry the agent token.
 
 ### With more than one server
 
-Not rehearsed. RKE2's procedure is to stop `rke2-server` on every server, reset
-on one and start it, then on each of the others delete
-`/var/lib/rancher/rke2/server/db/` and start it.
+Every server is stopped, one is reset from the snapshot and started, and the
+others rejoin it with their databases removed, so they take the restored state
+rather than outvote it. Reset the first server in `topology.servers`: its
+`config.yaml` names no `server:`, and the others join through the registration
+address.
+
+1. On every server, stop RKE2 completely. `systemctl stop` alone leaves the
+   containers running, etcd's among them:
+
+    ```bash
+    sudo systemctl stop rke2-server
+    sudo /usr/local/bin/rke2-killall.sh
+    ```
+
+2. With a VIP, take it off whichever server still holds it, as in
+   [stopping a server on a cluster with a VIP](#stopping-a-server-on-a-cluster-with-a-vip).
+   Killed, kube-vip leaves the address on the interface, and the other
+   servers' joins through it are refused while nothing on that server listens.
+3. On the first server, reset from the snapshot and start it:
+
+    ```bash
+    sudo rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/SNAPSHOT
+    sudo systemctl start rke2-server
+    ```
+
+4. With a VIP, wait until it answers before starting the others. The first
+   server being up is not the VIP being back: kube-vip claims the address
+   once its own pod has started. This prints `pong` when it is:
+
+    ```bash
+    curl -sk https://<VIP>:9345/ping
+    ```
+
+5. On each of the other servers, one at a time, remove the database, start
+   RKE2, and wait until that server's own API server answers `ok`:
+
+    ```bash
+    sudo rm -rf /var/lib/rancher/rke2/server/db
+    sudo systemctl start rke2-server
+    sudo /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get --raw=/readyz
+    ```
+
+Ask each server rather than read the node list. Right after a reset the node
+list is the snapshot's, and on the lab it showed every server Ready while two
+of them were stopped.
 
 !!! info "Verification scope"
 
@@ -192,8 +238,12 @@ on one and start it, then on each of the others delete
     Both times a ConfigMap made before the snapshot came back, one made after
     it was gone, both nodes were Ready and the agent had rejoined. Both were
     then repeated with the nodes and their pods cut off, on a cluster just
-    upgraded under the air gap, with the same results. Three servers have not
-    been rehearsed. On a cluster
+    upgraded under the air gap, with the same results. With three servers it is
+    the matrix case `airgap-ha`: three servers under a VIP, nodes and pods cut
+    off, restored by the steps above after an upgrade -- the marker made
+    before the snapshot came back, the one made after it was gone, and every
+    server answered ready. The two VIP steps are there because the case failed
+    without them. On a cluster
     using the embedded mirror, `rke2 etcd-snapshot save` prints "Unknown flag
     --embedded-registry found in config.yaml, skipping"; the snapshot was
     taken and restored regardless.

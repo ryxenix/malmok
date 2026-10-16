@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.96.8] - 2026-10-17
 
 ### Added
 - A procedure for restoring etcd from a snapshot, in the upgrade and recovery
